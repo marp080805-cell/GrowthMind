@@ -14,11 +14,11 @@ async function request<T>(
   })
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: 'Erro desconhecido' }))
+    const error = await res.json().catch(() => ({ message: 'Erro desconhecido' })) as { message?: string }
     throw new Error(error.message || `HTTP ${res.status}`)
   }
 
-  return res.json()
+  return res.json() as Promise<T>
 }
 
 export const api = {
