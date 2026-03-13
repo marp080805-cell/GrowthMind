@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createHmac } from 'crypto'
 
-function verifyToken(token: string, secret: string): boolean {
+async function verifyToken(token: string, secret: string): Promise<boolean> {
   try {
     const dotIndex = token.lastIndexOf('.')
     if (dotIndex === -1) return false
@@ -10,8 +9,29 @@ function verifyToken(token: string, secret: string): boolean {
     const sig = token.slice(dotIndex + 1)
     if (!payloadB64 || !sig) return false
 
-    const payload = Buffer.from(payloadB64, 'base64url').toString()
-    const expectedSig = createHmac('sha256', secret).update(payload).digest('hex')
+    // Decode base64url using Web API (works in Edge runtime)
+    const padding = '='.repeat((4 - (payloadB64.length % 4)) % 4)
+    const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/') + padding
+    const payload = atob(base64)
+
+    const encoder = new TextEncoder()
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    )
+
+    const signatureBuffer = await crypto.subtle.sign(
+      'HMAC',
+      cryptoKey,
+      encoder.encode(payload)
+    )
+
+    const expectedSig = Array.from(new Uint8Array(signatureBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
 
     return sig === expectedSig
   } catch {
@@ -22,7 +42,6 @@ function verifyToken(token: string, secret: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Always allow auth API routes and public webhooks
   if (
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/webhooks')
@@ -32,7 +51,7 @@ export async function middleware(request: NextRequest) {
 
   const authSecret = process.env.AUTH_SECRET
   const token = request.cookies.get('auth-token')?.value
-  const isAuthenticated = !!(authSecret && token && verifyToken(token, authSecret))
+  const isAuthenticated = !!(authSecret && token && await verifyToken(token, authSecret))
   const isLoginPage = pathname === '/login'
 
   if (!isAuthenticated && !isLoginPage) {
