@@ -12,12 +12,13 @@ export const usersRoutes: FastifyPluginAsync = async (fastify) => {
   })
 
   fastify.post('/users', async (req) => {
-    const { name, email, role } = req.body as { name: string; email: string; role: string }
+    const { name, email, role, password } = req.body as { name: string; email: string; role: string; password: string }
 
-    // Create auth user via Supabase Admin
+    // Create auth user via Supabase Admin (with password, confirmed immediately)
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
       email,
-      email_confirm: false,
+      password,
+      email_confirm: true,
       user_metadata: { name, role },
     })
 

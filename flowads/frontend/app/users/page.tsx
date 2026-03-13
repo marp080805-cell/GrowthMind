@@ -19,7 +19,7 @@ export default function UsersPage() {
   const [showInvite, setShowInvite] = useState(false)
   const [inviteLoading, setInviteLoading] = useState(false)
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', email: '', role: 'manager' as 'admin' | 'manager' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'manager' as 'admin' | 'manager' })
 
   useEffect(() => {
     usersApi.list()
@@ -30,16 +30,16 @@ export default function UsersPage() {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.name || !form.email) { error('Preencha todos os campos'); return }
+    if (!form.name || !form.email || !form.password) { error('Preencha todos os campos'); return }
     setInviteLoading(true)
     try {
       const user = await usersApi.create(form)
       setUsers((prev) => [user, ...prev])
-      success('Convite enviado com sucesso!')
+      success('Usuário criado com sucesso!')
       setShowInvite(false)
-      setForm({ name: '', email: '', role: 'manager' })
+      setForm({ name: '', email: '', password: '', role: 'manager' })
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erro ao convidar usuário'
+      const msg = e instanceof Error ? e.message : 'Erro ao criar usuário'
       error(msg)
     } finally {
       setInviteLoading(false)
@@ -75,7 +75,7 @@ export default function UsersPage() {
       actions={
         <Button size="sm" onClick={() => setShowInvite(true)}>
           <Plus size={14} />
-          Convidar usuário
+          Criar usuário
         </Button>
       }
     >
@@ -155,14 +155,15 @@ export default function UsersPage() {
       <Modal
         open={showInvite}
         onClose={() => setShowInvite(false)}
-        title="Convidar usuário"
-        description="O usuário receberá um email com instruções de acesso"
+        title="Criar usuário"
+        description="Preencha os dados do novo usuário"
       >
         <form onSubmit={handleInvite} className="space-y-4">
           <Input label="Nome *" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
           <Input label="Email *" type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} required />
+          <Input label="Senha *" type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} required />
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-text2 font-syne">Role</label>
+            <label className="text-sm font-medium text-text2 font-syne">Perfil</label>
             <select
               value={form.role}
               onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as 'admin' | 'manager' }))}
@@ -174,7 +175,7 @@ export default function UsersPage() {
           </div>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={() => setShowInvite(false)} className="flex-1">Cancelar</Button>
-            <Button type="submit" loading={inviteLoading} className="flex-1">Enviar convite</Button>
+            <Button type="submit" loading={inviteLoading} className="flex-1">Criar usuário</Button>
           </div>
         </form>
       </Modal>
