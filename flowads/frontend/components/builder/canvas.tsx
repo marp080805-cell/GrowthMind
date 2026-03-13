@@ -13,6 +13,7 @@ import {
   type Connection,
   type Node,
   type Edge,
+  type NodeTypes,
   type ReactFlowInstance,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -22,7 +23,7 @@ import { getBlock } from '@/lib/blocks'
 import dagre from 'dagre'
 import type { AutomationNode, AutomationEdge } from '@/lib/api'
 
-const nodeTypes = { flowNode: FlowNode }
+const nodeTypes: NodeTypes = { flowNode: FlowNode as NodeTypes[string] }
 
 interface BuilderCanvasProps {
   initialNodes: AutomationNode[]
@@ -94,8 +95,8 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive }
         id: e.id,
         source: e.source,
         target: e.target,
-        sourceHandle: e.sourceHandle,
-        targetHandle: e.targetHandle,
+        sourceHandle: e.sourceHandle ?? undefined,
+        targetHandle: e.targetHandle ?? undefined,
       }))
       onChange(apiNodes, apiEdges)
     },

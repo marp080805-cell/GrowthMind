@@ -5,11 +5,10 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { getBlock, CATEGORY_COLORS } from '@/lib/blocks'
 import { cn } from '@/lib/utils'
 
-export interface FlowNodeData {
+export interface FlowNodeData extends Record<string, unknown> {
   type: string
   label?: string
   config?: Record<string, unknown>
-  selected?: boolean
 }
 
 function getConfigPreview(type: string, config: Record<string, unknown>): string | null {
@@ -31,12 +30,13 @@ function getConfigPreview(type: string, config: Record<string, unknown>): string
   return null
 }
 
-export const FlowNode = memo(({ data, selected }: NodeProps<FlowNodeData>) => {
-  const block = getBlock(data.type)
+export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
+  const nodeData = data as FlowNodeData
+  const block = getBlock(nodeData.type)
   if (!block) return null
 
   const color = CATEGORY_COLORS[block.category] || '#505870'
-  const preview = getConfigPreview(data.type, data.config || {})
+  const preview = getConfigPreview(nodeData.type, nodeData.config || {})
 
   return (
     <div
@@ -55,7 +55,7 @@ export const FlowNode = memo(({ data, selected }: NodeProps<FlowNodeData>) => {
       >
         <span className="text-base leading-none">{block.icon}</span>
         <span className="text-xs font-syne font-bold text-text truncate flex-1">
-          {data.label || block.label}
+          {nodeData.label || block.label}
         </span>
         <span
           className="text-[9px] font-syne font-bold px-1.5 py-0.5 rounded-md"
