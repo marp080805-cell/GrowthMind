@@ -1,39 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { jwtVerify } from 'jose'
 
 async function verifyToken(token: string, secret: string): Promise<boolean> {
   try {
-    const dotIndex = token.lastIndexOf('.')
-    if (dotIndex === -1) return false
-
-    const payloadB64 = token.slice(0, dotIndex)
-    const sig = token.slice(dotIndex + 1)
-    if (!payloadB64 || !sig) return false
-
-    // Decode base64url using Web API (works in Edge runtime)
-    const padding = '='.repeat((4 - (payloadB64.length % 4)) % 4)
-    const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/') + padding
-    const payload = atob(base64)
-
-    const encoder = new TextEncoder()
-    const cryptoKey = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    )
-
-    const signatureBuffer = await crypto.subtle.sign(
-      'HMAC',
-      cryptoKey,
-      encoder.encode(payload)
-    )
-
-    const expectedSig = Array.from(new Uint8Array(signatureBuffer))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-
-    return sig === expectedSig
+    const secretKey = new TextEncoder().encode(secret)
+    await jwtVerify(token, secretKey)
+    return true
   } catch {
     return false
   }

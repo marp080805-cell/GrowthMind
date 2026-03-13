@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHmac } from 'crypto'
-import { createClient } from '@supabase/supabase-js'
-
-function createToken(secret: string, subject: string): string {
-  const payload = `${subject}:${Date.now()}`
-  const sig = createHmac('sha256', secret).update(payload).digest('hex')
-  return `${Buffer.from(payload).toString('base64url')}.${sig}`
-}
+import { SignJWT } from 'jose'
 
 function setAuthCookie(response: NextResponse, token: string) {
   response.cookies.set('auth-token', token, {
@@ -30,22 +23,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 1. Login do admin principal (credenciais fixas no .env)
-    const adminEmail = process.env.ADMIN_EMAIL
-    const adminPassword = process.env.ADMIN_PASSWORD
+    const secret = new TextEncoder().encode(authSecret)
 
-    if (adminEmail && adminPassword && email === adminEmail && password === adminPassword) {
-      const token = createToken(authSecret, `admin:${email}`)
-      const response = NextResponse.json({ success: true })
-      setAuthCookie(response, token)
-      return response
+    // Login do admin principal (credenciais fixas no .env)
+    const adminEmail = process.env.ADMIN_EMAIL?.trim()
+    const adminPassword = process.env.ADMIN_PASSWORD?.trim()
+
+    if (adminEmail && adminPassword) {
+      if (email.trim() === adminEmail && password === adminPassword) {
+        const token = await new SignJWT({ role: 'admin', email })
+          .setProtectedHeader({ alg: 'HS256' })
+          .setIssuedAt()
+          .setExpirationTime('7d')
+          .sign(secret)
+
+        const response = NextResponse.json({ success: true })
+        setAuthCookie(response, token)
+        return response
+      }
+      return NextResponse.json({ error: 'Email ou senha inválidos' }, { status: 401 })
     }
 
-    // 2. Login de usuários comuns via Supabase Auth (processado no servidor)
+    // Fallback: Supabase (apenas se admin não configurado)
     const supabaseUrl = process.env.SUPABASE_URL
     const supabaseAnonKey = process.env.SUPABASE_ANON_KEY
 
     if (supabaseUrl && supabaseAnonKey) {
+      const { createClient } = await import('@supabase/supabase-js')
       const supabase = createClient(supabaseUrl, supabaseAnonKey, {
         auth: { persistSession: false },
       })
@@ -53,7 +57,12 @@ export async function POST(request: NextRequest) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
       if (!error && data.user) {
-        const token = createToken(authSecret, `user:${data.user.id}`)
+        const token = await new SignJWT({ role: 'user', sub: data.user.id })
+          .setProtectedHeader({ alg: 'HS256' })
+          .setIssuedAt()
+          .setExpirationTime('7d')
+          .sign(secret)
+
         const response = NextResponse.json({ success: true })
         setAuthCookie(response, token)
         return response
