@@ -440,10 +440,10 @@ export default function ClientDetailPage() {
                   </div>
                   <span className="text-xs text-text3">{formatDuration(node.duration_ms)}</span>
                 </div>
-                {node.error && (
+                {!!node.error && (
                   <p className="text-xs text-red bg-red/10 rounded-[6px] p-2 mb-2">{node.error}</p>
                 )}
-                {node.output && (
+                {!!node.output && (
                   <details className="group">
                     <summary className="text-xs text-text3 cursor-pointer hover:text-text2">Output</summary>
                     <pre className="text-xs text-text2 mt-1 overflow-auto max-h-32 bg-bg2 rounded-[6px] p-2">
