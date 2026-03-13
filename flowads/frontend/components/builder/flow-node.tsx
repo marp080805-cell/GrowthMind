@@ -1,0 +1,136 @@
+'use client'
+
+import { memo } from 'react'
+import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { getBlock, CATEGORY_COLORS } from '@/lib/blocks'
+import { cn } from '@/lib/utils'
+
+export interface FlowNodeData {
+  type: string
+  label?: string
+  config?: Record<string, unknown>
+  selected?: boolean
+}
+
+function getConfigPreview(type: string, config: Record<string, unknown>): string | null {
+  if (!config) return null
+  if (type === 'trigger.schedule') {
+    const parts = []
+    if (config.frequency) parts.push(config.frequency as string)
+    if (config.time) parts.push(`às ${config.time}`)
+    return parts.join(' ') || null
+  }
+  if (type === 'trigger.webhook') return config.url ? String(config.url).slice(0, 30) + '...' : 'URL gerada automaticamente'
+  if (type === 'meta.fetch_metrics') return config.period ? `Período: ${config.period}` : null
+  if (type === 'ai.agent') return config.model ? `Modelo: ${config.model}` : null
+  if (type === 'logic.wait') return config.duration ? `${config.duration} ${config.unit || 's'}` : null
+  if (type === 'logic.if') {
+    const { variable, operator, value } = config as Record<string, string>
+    if (variable && operator) return `${variable} ${operator} ${value || ''}`
+  }
+  return null
+}
+
+export const FlowNode = memo(({ data, selected }: NodeProps<FlowNodeData>) => {
+  const block = getBlock(data.type)
+  if (!block) return null
+
+  const color = CATEGORY_COLORS[block.category] || '#505870'
+  const preview = getConfigPreview(data.type, data.config || {})
+
+  return (
+    <div
+      className={cn(
+        'min-w-[200px] max-w-[240px] rounded-[12px] border overflow-hidden',
+        'bg-surface shadow-lg transition-all duration-150',
+        selected
+          ? 'border-accent shadow-[0_0_20px_rgba(79,111,255,0.2)]'
+          : 'border-[var(--border)] hover:border-[var(--border2)]'
+      )}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center gap-2 px-3 py-2"
+        style={{ backgroundColor: color + '18', borderBottom: `1px solid ${color}30` }}
+      >
+        <span className="text-base leading-none">{block.icon}</span>
+        <span className="text-xs font-syne font-bold text-text truncate flex-1">
+          {data.label || block.label}
+        </span>
+        <span
+          className="text-[9px] font-syne font-bold px-1.5 py-0.5 rounded-md"
+          style={{ backgroundColor: color + '30', color }}
+        >
+          {block.category.toUpperCase().slice(0, 4)}
+        </span>
+      </div>
+
+      {/* Body */}
+      <div className="px-3 py-2">
+        <p className="text-[11px] text-text2 leading-relaxed">{block.description}</p>
+        {preview && (
+          <p className="text-[10px] text-text3 mt-1.5 bg-bg3 rounded-[6px] px-2 py-1 truncate">
+            {preview}
+          </p>
+        )}
+      </div>
+
+      {/* Input handles */}
+      {block.handles.inputs.map((handle, i) => (
+        <Handle
+          key={`in-${handle}`}
+          type="target"
+          position={Position.Top}
+          id={handle}
+          style={{
+            background: color,
+            border: '2px solid var(--surface)',
+            width: 10,
+            height: 10,
+            left: block.handles.inputs.length === 1 ? '50%' : `${((i + 1) / (block.handles.inputs.length + 1)) * 100}%`,
+          }}
+        />
+      ))}
+
+      {/* Output handles */}
+      {block.handles.outputs.map((handle, i) => {
+        const isMulti = block.handles.outputs.length > 1
+        const label = isMulti
+          ? handle === 'yes' ? 'Sim' : handle === 'no' ? 'Não' : handle === 'each' ? 'Cada item' : handle === 'done' ? 'Fim' : handle
+          : undefined
+
+        return (
+          <Handle
+            key={`out-${handle}`}
+            type="source"
+            position={Position.Bottom}
+            id={handle}
+            style={{
+              background: color,
+              border: '2px solid var(--surface)',
+              width: 10,
+              height: 10,
+              left: isMulti ? `${((i + 1) / (block.handles.outputs.length + 1)) * 100}%` : '50%',
+            }}
+          >
+            {label && (
+              <span
+                className="absolute text-[9px] font-syne font-bold whitespace-nowrap"
+                style={{
+                  bottom: -18,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  color,
+                }}
+              >
+                {label}
+              </span>
+            )}
+          </Handle>
+        )
+      })}
+    </div>
+  )
+})
+
+FlowNode.displayName = 'FlowNode'
