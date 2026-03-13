@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { Shell } from '@/components/layout/shell'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { Drawer } from '@/components/ui/drawer'
@@ -265,18 +265,14 @@ export default function ClientDetailPage() {
         {tab === 'automations' && (
           <div>
             <div className="flex items-center gap-2 justify-end mb-4">
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/presets?clientId=${id}`}>
-                  <Layers size={14} />
-                  Usar Preset
-                </Link>
-              </Button>
-              <Button size="sm" asChild>
-                <Link href={`/clients/${id}/automations/new`}>
-                  <Plus size={14} />
-                  Nova Automação
-                </Link>
-              </Button>
+              <Link href={`/presets?clientId=${id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                <Layers size={14} />
+                Usar Preset
+              </Link>
+              <Link href={`/clients/${id}/automations/new`} className={buttonVariants({ size: 'sm' })}>
+                <Plus size={14} />
+                Nova Automação
+              </Link>
             </div>
             <div className="bg-surface border border-[var(--border)] rounded-lg divide-y divide-[var(--border)]">
               {automations.length === 0 ? (
@@ -300,12 +296,10 @@ export default function ClientDetailPage() {
                         {formatDateTime(auto.last_run_at)}
                       </span>
                     )}
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/clients/${id}/automations/${auto.id}`}>
-                        Editar
-                        <ChevronRight size={13} />
-                      </Link>
-                    </Button>
+                    <Link href={`/clients/${id}/automations/${auto.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                      Editar
+                      <ChevronRight size={13} />
+                    </Link>
                     <Toggle
                       checked={auto.is_active}
                       onChange={() => toggleAutomation(auto)}
