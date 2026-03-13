@@ -1,0 +1,107 @@
+import { Queue, Worker } from 'bullmq'
+import IORedis from 'ioredis'
+import { supabase } from '../lib/supabase'
+import { executeAutomation } from './executor'
+
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+const redisOpts = { maxRetriesPerRequest: null } as const
+
+export let automationQueue: Queue
+let schedulerWorker: Worker
+
+export function initQueue() {
+  const connection = new IORedis(redisUrl, redisOpts)
+
+  automationQueue = new Queue('automations', { connection })
+
+  schedulerWorker = new Worker(
+    'automations',
+    async (job) => {
+      const { automationId, payload } = job.data
+      console.log(`[Scheduler] Executing automation ${automationId}`)
+      await executeAutomation(automationId, payload)
+    },
+    { connection }
+  )
+
+  schedulerWorker.on('failed', (job, err) => {
+    console.error(`[Scheduler] Job ${job?.id} failed:`, err.message)
+  })
+
+  return automationQueue
+}
+
+export async function loadScheduledAutomations() {
+  const { data: automations } = await supabase
+    .from('automations')
+    .select('*, automation_nodes(*)')
+    .eq('is_active', true)
+
+  if (!automations) return
+
+  for (const auto of automations) {
+    const nodes = (auto.automation_nodes || []) as Array<{ type: string; config: Record<string, unknown> }>
+    const triggerNode = nodes.find((n) => n.type === 'trigger.schedule')
+    if (!triggerNode) continue
+
+    await scheduleAutomation(auto.id, triggerNode.config)
+  }
+
+  console.log(`[Scheduler] Loaded ${automations.length} scheduled automations`)
+}
+
+export async function scheduleAutomation(
+  automationId: string,
+  triggerConfig: Record<string, unknown>
+) {
+  // Remove existing job if any
+  await automationQueue.removeRepeatable(automationId, { jobId: automationId } as Parameters<typeof automationQueue.removeRepeatable>[1])
+
+  const cron = buildCron(triggerConfig)
+  if (!cron) return
+
+  await automationQueue.add(
+    automationId,
+    { automationId, payload: null },
+    {
+      repeat: { pattern: cron },
+      jobId: automationId,
+      removeOnComplete: true,
+      removeOnFail: 100,
+    }
+  )
+  console.log(`[Scheduler] Scheduled automation ${automationId} with cron: ${cron}`)
+}
+
+export async function unscheduleAutomation(automationId: string) {
+  try {
+    await automationQueue.removeRepeatable(automationId, { jobId: automationId } as Parameters<typeof automationQueue.removeRepeatable>[1])
+    console.log(`[Scheduler] Unscheduled automation ${automationId}`)
+  } catch (err) {
+    console.warn(`[Scheduler] Could not unschedule ${automationId}:`, err)
+  }
+}
+
+function buildCron(config: Record<string, unknown>): string | null {
+  const { frequency, time, days, day_of_month, cron } = config as Record<string, unknown>
+
+  if (cron) return cron as string
+
+  const [hour, minute] = ((time as string) || '08:00').split(':').map(Number)
+
+  switch (frequency) {
+    case 'daily':
+      return `${minute} ${hour} * * *`
+    case 'weekly': {
+      const dayNums = ((days as string[]) || ['mon']).map((d) => {
+        const map: Record<string, number> = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 }
+        return map[d] ?? 1
+      })
+      return `${minute} ${hour} * * ${dayNums.join(',')}`
+    }
+    case 'monthly':
+      return `${minute} ${hour} ${day_of_month || 1} * *`
+    default:
+      return `${minute} ${hour} * * *`
+  }
+}
