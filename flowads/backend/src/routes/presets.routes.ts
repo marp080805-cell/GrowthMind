@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
+import { randomUUID } from 'crypto'
 import { supabase } from '../lib/supabase'
 
 export const presetsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -36,7 +37,7 @@ export const presetsRoutes: FastifyPluginAsync = async (fastify) => {
     // Generate new IDs to avoid conflicts
     const idMap = new Map<string, string>()
     const newNodes = nodes.map((n) => {
-      const newId = `node-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const newId = randomUUID()
       idMap.set(n.id as string, newId)
       return {
         id: newId,
@@ -50,7 +51,7 @@ export const presetsRoutes: FastifyPluginAsync = async (fastify) => {
     })
 
     const newEdges = edges.map((e) => ({
-      id: `edge-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id: randomUUID(),
       automation_id: automation!.id,
       source_node_id: idMap.get(e.source as string) || e.source,
       target_node_id: idMap.get(e.target as string) || e.target,

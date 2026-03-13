@@ -107,6 +107,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive }
       setEdges((eds) => {
         const newEdges = addEdge({
           ...connection,
+          id: crypto.randomUUID(),
           animated: isActive,
           style: { stroke: 'var(--accent)', strokeWidth: 2 },
         }, eds)
@@ -136,7 +137,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive }
 
       const block = getBlock(blockType)
       const newNode: Node = {
-        id: `node-${Date.now()}`,
+        id: crypto.randomUUID(),
         type: 'flowNode',
         position,
         data: {
