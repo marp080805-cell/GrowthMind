@@ -1,16 +1,28 @@
 import { Queue, Worker } from 'bullmq'
-import IORedis from 'ioredis'
 import { supabase } from '../lib/supabase'
 import { executeAutomation } from './executor'
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
-const redisOpts = { maxRetriesPerRequest: null } as const
+
+function parseRedisConnection(url: string) {
+  try {
+    const u = new URL(url)
+    return {
+      host: u.hostname,
+      port: parseInt(u.port || '6379'),
+      password: u.password || undefined,
+      maxRetriesPerRequest: null as null,
+    }
+  } catch {
+    return { host: 'localhost', port: 6379, maxRetriesPerRequest: null as null }
+  }
+}
 
 export let automationQueue: Queue
 let schedulerWorker: Worker
 
 export function initQueue() {
-  const connection = new IORedis(redisUrl, redisOpts)
+  const connection = parseRedisConnection(redisUrl)
 
   automationQueue = new Queue('automations', { connection })
 
