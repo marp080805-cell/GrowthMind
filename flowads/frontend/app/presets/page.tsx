@@ -1,9 +1,7 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
 import { useState, useEffect } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Shell } from '@/components/layout/shell'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
@@ -24,7 +22,6 @@ const TAG_COLORS: Record<string, 'info' | 'success' | 'purple' | 'orange' | 'cya
 }
 
 export default function PresetsPage() {
-  const searchParams = useSearchParams()
   const router = useRouter()
   const { success, error } = useToast()
 
@@ -32,10 +29,13 @@ export default function PresetsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedPreset, setSelectedPreset] = useState<Preset | null>(null)
-  const [selectedClientId, setSelectedClientId] = useState(searchParams.get('clientId') || '')
+  const [selectedClientId, setSelectedClientId] = useState('')
   const [applying, setApplying] = useState(false)
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setSelectedClientId(params.get('clientId') || '')
+
     Promise.all([presetsApi.list(), clientsApi.list()])
       .then(([p, c]) => { setPresets(p); setClients(c) })
       .catch(() => error('Erro ao carregar presets'))
