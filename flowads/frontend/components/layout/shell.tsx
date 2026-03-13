@@ -18,6 +18,7 @@ export function Shell({ title, breadcrumbs, actions, children }: ShellProps) {
 
   useEffect(() => {
     const supabase = createClient()
+    if (!supabase) return
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         setUser({
