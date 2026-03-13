@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createHmac, timingSafeEqual } from 'crypto'
+import { createHmac } from 'crypto'
 
 function verifyToken(token: string, secret: string): boolean {
   try {
@@ -13,12 +13,7 @@ function verifyToken(token: string, secret: string): boolean {
     const payload = Buffer.from(payloadB64, 'base64url').toString()
     const expectedSig = createHmac('sha256', secret).update(payload).digest('hex')
 
-    // Constant-time comparison to prevent timing attacks
-    if (sig.length !== expectedSig.length) return false
-    const sigBuf = Buffer.from(sig, 'hex')
-    const expectedBuf = Buffer.from(expectedSig, 'hex')
-    if (sigBuf.length !== expectedBuf.length) return false
-    return timingSafeEqual(sigBuf, expectedBuf)
+    return sig === expectedSig
   } catch {
     return false
   }
