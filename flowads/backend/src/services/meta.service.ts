@@ -34,7 +34,7 @@ export class MetaService {
       `${META_API}/me/adaccounts?fields=id,name,currency&access_token=${this.token}`
     )
     if (!res.ok) throw new Error('Token Meta inválido')
-    const data = await res.json()
+    const data = await res.json() as { data?: MetaAccount[] }
     return {
       valid: true,
       accounts: data.data || [],
@@ -46,10 +46,10 @@ export class MetaService {
       `${META_API}/act_${this.adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&access_token=${this.token}`
     )
     if (!res.ok) {
-      const err = await res.json()
+      const err = await res.json() as { error?: { message?: string } }
       throw new Error(err.error?.message || 'Erro ao buscar campanhas')
     }
-    const data = await res.json()
+    const data = await res.json() as { data?: MetaCampaign[] }
     return data.data || []
   }
 
@@ -78,11 +78,11 @@ export class MetaService {
 
     const res = await fetch(`${target}?${params}`)
     if (!res.ok) {
-      const err = await res.json()
+      const err = await res.json() as { error?: { message?: string } }
       throw new Error(err.error?.message || 'Erro ao buscar métricas')
     }
 
-    const data = await res.json()
+    const data = await res.json() as { data?: Record<string, string>[] }
     const row = data.data?.[0] || {}
 
     return {
@@ -93,7 +93,7 @@ export class MetaService {
       cpc: parseFloat(row.cpc || '0'),
       cpm: parseFloat(row.cpm || '0'),
       gasto: parseFloat(row.spend || '0'),
-      roas: parseFloat(row.purchase_roas?.[0]?.value || '0'),
+      roas: parseFloat(row.purchase_roas?.[0] || '0'),
       periodo: datePreset,
     } as unknown as MetaMetrics & { period: string }
   }

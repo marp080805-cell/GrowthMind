@@ -29,7 +29,7 @@ async function start() {
   await fastify.register(cookie)
 
   // Global error handler
-  fastify.setErrorHandler((error, req, reply) => {
+  fastify.setErrorHandler((error: Error & { statusCode?: number }, req, reply) => {
     fastify.log.error(error)
     const statusCode = error.statusCode || 500
     reply.status(statusCode).send({
