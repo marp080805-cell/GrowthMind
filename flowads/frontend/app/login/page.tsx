@@ -33,7 +33,6 @@ export default function LoginPage() {
       }
 
       router.push('/dashboard')
-      router.refresh()
     } catch {
       setError('Erro ao conectar. Tente novamente.')
       setLoading(false)
