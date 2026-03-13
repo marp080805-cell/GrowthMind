@@ -12,7 +12,7 @@ export function useAutomation(id: string) {
   const saveTimer = useRef<NodeJS.Timeout>()
 
   useEffect(() => {
-    if (!id) return
+    if (!id) { setLoading(false); return }
     automationsApi
       .get(id)
       .then(setAutomation)
