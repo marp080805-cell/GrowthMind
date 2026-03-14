@@ -174,11 +174,8 @@ export default function SettingsPage() {
                     <div className="relative">
                       <input
                         type={isSecret && !isShown ? 'password' : 'text'}
-                        value={isSecret && !isShown && currentVal ? maskToken(currentVal) : (currentVal || '')}
-                        onChange={(e) => {
-                          if (isSecret && !isShown) return
-                          set(field.key as keyof Settings, e.target.value)
-                        }}
+                        value={currentVal || ''}
+                        onChange={(e) => set(field.key as keyof Settings, e.target.value)}
                         placeholder={isSecret ? '••••••••' : `Digite ${field.label.toLowerCase()}`}
                         className="w-full h-10 rounded-[12px] bg-bg3 border border-[var(--border)] text-text px-3 pr-10 text-sm focus:outline-none focus:border-accent transition-colors"
                       />
