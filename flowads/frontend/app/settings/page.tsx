@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Shell } from '@/components/layout/shell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,15 +11,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Toggle } from '@/components/ui/toggle'
 import { settingsApi, type Settings, type AIModel } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
-import { maskToken } from '@/lib/utils'
 import {
   CheckCircle, XCircle, Eye, EyeOff, Plus, Trash2,
   Save, RefreshCw
 } from 'lucide-react'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/backend'
+
 type ConnectionStatus = 'idle' | 'testing' | 'ok' | 'error'
 
-export default function SettingsPage() {
+function SettingsPageInner() {
   const { success, error } = useToast()
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -28,13 +30,23 @@ export default function SettingsPage() {
   const [models, setModels] = useState<AIModel[]>([])
   const [showAddModel, setShowAddModel] = useState(false)
   const [newModel, setNewModel] = useState({ provider: 'openai' as 'openai' | 'anthropic', slug: '', display_name: '' })
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  useEffect(() => {
+    const metaConnected = searchParams.get('meta_connected')
+    if (metaConnected) {
+      success('Meta conectado com sucesso!')
+      router.replace('/settings')
+    }
+  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     Promise.all([settingsApi.get(), settingsApi.getModels()])
       .then(([s, m]) => { setSettings(s); setModels(m) })
       .catch(() => error('Erro ao carregar configurações'))
       .finally(() => setLoading(false))
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (key: keyof Settings, value: string) =>
     setSettings((prev) => prev ? { ...prev, [key]: value } : null)
@@ -107,13 +119,9 @@ export default function SettingsPage() {
     )
   }
 
-  const integrations = [
-    {
-      id: 'meta',
-      title: 'Meta API',
-      icon: '📘',
-      fields: [{ key: 'meta_token', label: 'Token de acesso longo', type: 'password' }],
-    },
+  const isMetaConnected = !!settings.meta_token
+
+  const otherIntegrations = [
     {
       id: 'whatsapp',
       title: 'WhatsApp API',
@@ -150,7 +158,56 @@ export default function SettingsPage() {
       }
     >
       <div className="space-y-5 max-w-2xl">
-        {integrations.map((integration) => (
+        {/* Meta API — OAuth */}
+        <div className="bg-surface border border-[var(--border)] rounded-lg p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">📘</span>
+              <h3 className="font-syne font-semibold text-text">Meta API</h3>
+              {isMetaConnected && <CheckCircle size={15} className="text-green-500" />}
+            </div>
+            {isMetaConnected && (
+              <Button size="sm" variant="outline" onClick={() => testConnection('meta')}>
+                <StatusIcon service="meta" />
+                Verificar conexão
+              </Button>
+            )}
+          </div>
+
+          {isMetaConnected ? (
+            <div className="flex items-center justify-between p-3 rounded-[12px] bg-green-500/10 border border-green-500/20">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={15} className="text-green-500" />
+                <span className="text-sm text-text2">Conta Meta conectada</span>
+              </div>
+              <button
+                onClick={() => window.location.href = `${API_URL}/auth/meta/connect?type=settings`}
+                className="text-xs text-text3 hover:text-text2 underline transition-colors"
+              >
+                Reconectar
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-text3">
+                Conecte sua conta Facebook/Meta para ter acesso a todas as contas de anúncios e perfis Instagram da plataforma.
+              </p>
+              <button
+                onClick={() => window.location.href = `${API_URL}/auth/meta/connect?type=settings`}
+                className="flex items-center justify-center gap-2.5 h-10 w-full rounded-[12px] text-white text-sm font-semibold transition-opacity hover:opacity-90"
+                style={{ backgroundColor: '#1877F2' }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                Conectar com Facebook
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Other integrations */}
+        {otherIntegrations.map((integration) => (
           <div key={integration.id} className="bg-surface border border-[var(--border)] rounded-lg p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -291,5 +348,13 @@ export default function SettingsPage() {
         </div>
       </Modal>
     </Shell>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense>
+      <SettingsPageInner />
+    </Suspense>
   )
 }

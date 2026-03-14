@@ -17,26 +17,18 @@ function ClientsPageInner() {
   const { clients, loading, setClients } = useClients()
   const [showModal, setShowModal] = useState(false)
   const [editingClient, setEditingClient] = useState<Partial<Client> | undefined>()
-  const [autoLoadMeta, setAutoLoadMeta] = useState(false)
   const [search, setSearch] = useState('')
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { success, error } = useToast()
+  const { error } = useToast()
 
   useEffect(() => {
-    const connected = searchParams.get('meta_connected')
     const metaError = searchParams.get('meta_error')
-
-    if (connected) {
-      success('Meta conectado com sucesso!')
-      const client = clients.find(c => c.id === connected)
-      if (client) { setEditingClient(client); setAutoLoadMeta(true); setShowModal(true) }
-      router.replace('/clients')
-    } else if (metaError) {
+    if (metaError) {
       error(metaError === 'cancelled' ? 'Conexão cancelada' : 'Erro ao conectar com Meta')
       router.replace('/clients')
     }
-  }, [searchParams, clients]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = clients.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
@@ -93,7 +85,7 @@ function ClientsPageInner() {
 
       <Modal
         open={showModal}
-        onClose={() => { setShowModal(false); setEditingClient(undefined); setAutoLoadMeta(false) }}
+        onClose={() => { setShowModal(false); setEditingClient(undefined) }}
         title={editingClient?.id ? 'Editar Cliente' : 'Novo Cliente'}
         description="Preencha os dados do cliente para começar"
         size="lg"
@@ -101,8 +93,7 @@ function ClientsPageInner() {
         <ClientForm
           client={editingClient}
           onSuccess={handleCreated}
-          onCancel={() => { setShowModal(false); setEditingClient(undefined); setAutoLoadMeta(false) }}
-          autoLoadMeta={autoLoadMeta}
+          onCancel={() => { setShowModal(false); setEditingClient(undefined) }}
         />
       </Modal>
     </Shell>

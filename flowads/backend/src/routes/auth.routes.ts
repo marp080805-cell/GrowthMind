@@ -14,13 +14,14 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // ─── Meta OAuth ────────────────────────────────────────────────────────────
 
   fastify.get('/auth/meta/connect', async (req, reply) => {
-    const { client_id } = req.query as { client_id?: string }
+    const { client_id, type } = req.query as { client_id?: string; type?: string }
     const appId = process.env.META_APP_ID
     const redirectUri = process.env.META_REDIRECT_URI
     if (!appId || !redirectUri) return reply.status(500).send({ message: 'META_APP_ID ou META_REDIRECT_URI não configurados' })
 
     const state = Buffer.from(JSON.stringify({
       client_id: client_id || 'new',
+      type: type || 'client',
       csrf: Math.random().toString(36).slice(2),
     })).toString('base64url')
 
@@ -46,9 +47,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     let clientId = 'new'
+    let connectionType = 'client'
     try {
       const stateData = JSON.parse(Buffer.from(state || '', 'base64url').toString())
       clientId = stateData.client_id || 'new'
+      connectionType = stateData.type || 'client'
     } catch { /* ignore */ }
 
     // Troca code por short-lived token
@@ -76,6 +79,18 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     const longData = await longRes.json() as { access_token?: string }
     const finalToken = longData.access_token || tokenData.access_token
 
+    // Settings-level connection: save to settings table
+    if (connectionType === 'settings') {
+      const { data: existing } = await supabase.from('settings').select('id').single()
+      if (existing) {
+        await supabase.from('settings').update({ meta_token: finalToken }).eq('id', existing.id)
+      } else {
+        await supabase.from('settings').insert({ meta_token: finalToken })
+      }
+      return reply.redirect(`${frontendUrl}/settings?meta_connected=1`)
+    }
+
+    // Client-level connection (legacy)
     if (clientId !== 'new') {
       await supabase.from('clients').update({ meta_token: finalToken }).eq('id', clientId)
       return reply.redirect(`${frontendUrl}/clients?meta_connected=${clientId}`)

@@ -107,6 +107,7 @@ export const settingsApi = {
   test: (service: string, data?: Partial<Settings>) => api.post<{ ok: boolean; message: string }>(`/settings/test/${service}`, data),
   getModels: () => api.get<AIModel[]>('/settings/models'),
   updateModels: (models: AIModel[]) => api.put<AIModel[]>('/settings/models', { models }),
+  getMetaAccounts: () => api.get<{ accounts: MetaAccount[]; instagramAccounts: MetaInstagramAccount[] }>('/settings/meta-accounts'),
 }
 
 // Types
