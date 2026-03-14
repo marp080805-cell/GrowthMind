@@ -6,19 +6,16 @@ export class WhatsAppService {
   ) {}
 
   async checkConnection(): Promise<{ connected: boolean; instanceName: string }> {
-    const res = await fetch(`${this.apiUrl}/instance/fetchInstances`, {
+    const res = await fetch(`${this.apiUrl}/instance/connectionState/${this.instanceName}`, {
       headers: { apikey: this.token },
     })
-    if (!res.ok) throw new Error('URL ou token inválido')
-    const instances = await res.json() as Array<{ instance?: { instanceName?: string; state?: string } }>
-    const target = instances.find(
-      (i) => i.instance?.instanceName === this.instanceName
-    ) || instances[0]
-    if (!target?.instance?.instanceName) throw new Error('Nenhuma instância encontrada')
-    if (target.instance.state !== 'open') {
-      throw new Error(`Instância "${target.instance.instanceName}" não está conectada (estado: ${target.instance.state})`)
+    if (!res.ok) throw new Error(`Instância "${this.instanceName}" não encontrada ou token inválido (${res.status})`)
+    const data = await res.json() as { instance?: { instanceName?: string; state?: string } }
+    const state = data?.instance?.state
+    if (state !== 'open') {
+      throw new Error(`Instância "${this.instanceName}" não está conectada (estado: ${state ?? 'desconhecido'})`)
     }
-    return { connected: true, instanceName: target.instance.instanceName as string }
+    return { connected: true, instanceName: this.instanceName }
   }
 
   async sendMessage(to: string, message: string): Promise<void> {
