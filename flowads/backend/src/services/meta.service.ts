@@ -520,6 +520,13 @@ export class MetaService {
           metaGetAll<MetaInstagramAccount>(
             `${META_API}/${bm.id}/instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
           ).then(list => list.forEach(add)),
+          // Páginas do BM com Instagram vinculado
+          metaGetAll<{ instagram_business_account?: MetaInstagramAccount }>(
+            `${META_API}/${bm.id}/owned_pages?fields=id,instagram_business_account{id,name,username}&limit=200&access_token=${this.token}`
+          ).then(pages => pages.forEach(p => p.instagram_business_account && add(p.instagram_business_account))),
+          metaGetAll<{ instagram_business_account?: MetaInstagramAccount }>(
+            `${META_API}/${bm.id}/client_pages?fields=id,instagram_business_account{id,name,username}&limit=200&access_token=${this.token}`
+          ).then(pages => pages.forEach(p => p.instagram_business_account && add(p.instagram_business_account))),
         ])
       }
     } catch { /* sem BMs ou sem permissão */ }
