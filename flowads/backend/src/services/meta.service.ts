@@ -27,7 +27,10 @@ export interface MetaMetrics {
 }
 
 export class MetaService {
-  constructor(private token: string, private adAccountId: string) {}
+  constructor(private token: string, private adAccountId: string) {
+    // Normalize: strip leading 'act_' to avoid act_act_ duplication
+    this.adAccountId = adAccountId.replace(/^act_/, '')
+  }
 
   async validateToken(): Promise<{ valid: boolean; accounts: MetaAccount[] }> {
     const res = await fetch(
