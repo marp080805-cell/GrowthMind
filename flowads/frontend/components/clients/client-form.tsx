@@ -23,6 +23,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [metaAccounts, setMetaAccounts] = useState<MetaAccount[]>([])
   const [instagramAccounts, setInstagramAccounts] = useState<MetaInstagramAccount[]>([])
   const [loadingAccounts, setLoadingAccounts] = useState(false)
+  const [manualInstagram, setManualInstagram] = useState(false)
 
   const [form, setForm] = useState({
     name: client?.name || '',
@@ -43,6 +44,10 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       .then(({ accounts, instagramAccounts: ig }) => {
         setMetaAccounts(accounts)
         setInstagramAccounts(ig || [])
+        // Se editando cliente com ID que não está na lista → modo manual
+        if (client?.instagram_account_id && !(ig || []).some(a => a.id === client.instagram_account_id)) {
+          setManualInstagram(true)
+        }
       })
       .catch(() => {
         // Meta not connected at settings level — silently fail
@@ -141,18 +146,41 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         {loadingAccounts ? (
           <div className="h-10 rounded-[12px] bg-surface border border-[var(--border)] animate-pulse" />
         ) : instagramAccounts.length > 0 ? (
-          <select
-            value={form.instagram_account_id}
-            onChange={(e) => set('instagram_account_id', e.target.value)}
-            className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent transition-colors"
-          >
-            <option value="">Selecione o perfil...</option>
-            {instagramAccounts.map((acc) => (
-              <option key={acc.id} value={acc.id}>
-                @{acc.username} — {acc.name} ({acc.id})
-              </option>
-            ))}
-          </select>
+          <>
+            {!manualInstagram ? (
+              <select
+                value={form.instagram_account_id}
+                onChange={(e) => {
+                  if (e.target.value === '__manual__') { setManualInstagram(true); set('instagram_account_id', ''); return }
+                  set('instagram_account_id', e.target.value)
+                }}
+                className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent transition-colors"
+              >
+                <option value="">Selecione o perfil...</option>
+                {instagramAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    @{acc.username} — {acc.name} ({acc.id})
+                  </option>
+                ))}
+                <option value="__manual__">✏️ Inserir ID manualmente...</option>
+              </select>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  placeholder="ID da conta Instagram (ex: 17841400246605440)"
+                  value={form.instagram_account_id}
+                  onChange={(e) => set('instagram_account_id', e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => { setManualInstagram(false); set('instagram_account_id', '') }}
+                  className="text-xs text-text3 hover:text-text2 underline whitespace-nowrap"
+                >
+                  Ver lista
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <Input
             placeholder="123456789"
