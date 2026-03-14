@@ -473,20 +473,41 @@ export class MetaService {
   }
 
   async getInstagramAccounts(): Promise<MetaInstagramAccount[]> {
-    // Busca perfis Instagram via páginas do Business Manager (não requer ad_account_id)
-    const params = new URLSearchParams({
-      fields: 'id,name,instagram_business_account{id,name,username}',
-      access_token: this.token,
-    })
-    const data = await metaGet<{ data?: Array<{ instagram_business_account?: MetaInstagramAccount }> }>(
-      `${META_API}/me/accounts?${params}`
-    )
+    const seen = new Set<string>()
     const accounts: MetaInstagramAccount[] = []
-    for (const page of data.data || []) {
-      if (page.instagram_business_account) {
-        accounts.push(page.instagram_business_account)
-      }
+
+    const add = (acc: MetaInstagramAccount) => {
+      if (!seen.has(acc.id)) { seen.add(acc.id); accounts.push(acc) }
     }
+
+    // Tentativa 1: via Páginas do Facebook linkadas ao token
+    try {
+      const params = new URLSearchParams({
+        fields: 'id,name,instagram_business_account{id,name,username}',
+        access_token: this.token,
+      })
+      const data = await metaGet<{ data?: Array<{ instagram_business_account?: MetaInstagramAccount }> }>(
+        `${META_API}/me/accounts?${params}`
+      )
+      for (const page of data.data || []) {
+        if (page.instagram_business_account) add(page.instagram_business_account)
+      }
+    } catch { /* segue para próxima tentativa */ }
+
+    // Tentativa 2: via Business Managers diretos (BM com Instagram conectado sem página)
+    try {
+      const bmParams = new URLSearchParams({
+        fields: 'id,instagram_accounts{id,name,username}',
+        access_token: this.token,
+      })
+      const bmData = await metaGet<{ data?: Array<{ instagram_accounts?: { data?: MetaInstagramAccount[] } }> }>(
+        `${META_API}/me/businesses?${bmParams}`
+      )
+      for (const bm of bmData.data || []) {
+        for (const ig of bm.instagram_accounts?.data || []) add(ig)
+      }
+    } catch { /* sem BMs ou sem permissão */ }
+
     return accounts
   }
 
