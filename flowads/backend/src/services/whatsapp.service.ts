@@ -14,11 +14,11 @@ export class WhatsAppService {
     const target = instances.find(
       (i) => i.instance?.instanceName === this.instanceName
     ) || instances[0]
-    if (!target?.instance) throw new Error('Nenhuma instância encontrada')
+    if (!target?.instance?.instanceName) throw new Error('Nenhuma instância encontrada')
     if (target.instance.state !== 'open') {
       throw new Error(`Instância "${target.instance.instanceName}" não está conectada (estado: ${target.instance.state})`)
     }
-    return { connected: true, instanceName: target.instance.instanceName }
+    return { connected: true, instanceName: target.instance.instanceName as string }
   }
 
   async sendMessage(to: string, message: string): Promise<void> {
