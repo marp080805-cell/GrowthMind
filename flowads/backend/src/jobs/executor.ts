@@ -379,8 +379,8 @@ async function executeWhatsapp(
   }
 
   const wa = new WhatsAppService(
-    context.settings.whatsapp_url,
-    context.settings.whatsapp_token,
+    context.settings.whatsapp_url!,
+    context.settings.whatsapp_token!,
     context.settings.whatsapp_instance || 'default'
   )
   const number = config.number_type === 'client'
