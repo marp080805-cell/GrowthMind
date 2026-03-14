@@ -8,7 +8,6 @@ const META_SCOPES = [
   'pages_read_engagement',
   'pages_show_list',
   'instagram_basic',
-  'instagram_business_basic',
 ].join(',')
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
