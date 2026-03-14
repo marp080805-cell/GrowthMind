@@ -482,40 +482,59 @@ export class MetaService {
     instagramAccountId: string,
     limit = 20,
     mediaTypeFilter?: string,
+    period?: string,
     dateFrom?: string,
     dateTo?: string,
   ): Promise<MetaInstagramPost[]> {
-    // Fetch more to account for client-side filtering
-    const fetchLimit = mediaTypeFilter || dateFrom || dateTo ? Math.min(limit * 5, 200) : limit
+    const now = Math.floor(Date.now() / 1000)
+    let since: number | undefined
+    let until: number | undefined
+
+    // Period presets → Unix timestamps (Meta API uses since/until)
+    if (period && period !== 'all') {
+      until = now
+      if (period === '24h') since = now - 86400
+      else if (period === '7d') since = now - 7 * 86400
+      else if (period === '30d') since = now - 30 * 86400
+      else if (period === '90d') since = now - 90 * 86400
+      else if (period === 'this_month') {
+        const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0)
+        since = Math.floor(d.getTime() / 1000)
+      }
+    } else if (dateFrom || dateTo) {
+      if (dateFrom) since = Math.floor(new Date(dateFrom).getTime() / 1000)
+      if (dateTo) until = Math.floor(new Date(dateTo + 'T23:59:59').getTime() / 1000)
+    }
+
+    // When filtering by media type we need more posts to compensate
+    const fetchLimit = mediaTypeFilter && mediaTypeFilter !== 'ALL' ? Math.min(limit * 5, 200) : limit
+
     const params = new URLSearchParams({
       fields: 'id,caption,media_type,media_product_type,media_url,permalink,timestamp,like_count,comments_count',
       limit: String(fetchLimit),
       access_token: this.token,
     })
-    const data = await metaGet<{ data?: MetaInstagramPost[] }>(
-      `${META_API}/${instagramAccountId}/media?${params}`
-    )
-    let posts = data.data || []
+    if (since) params.set('since', String(since))
+    if (until) params.set('until', String(until))
 
-    // Filter by media type
+    // Use pagination to respect the limit across pages
+    let posts: MetaInstagramPost[] = []
+    let nextUrl: string | null = `${META_API}/${instagramAccountId}/media?${params}`
+    while (nextUrl && posts.length < fetchLimit) {
+      const page = await metaGet<{ data?: MetaInstagramPost[]; paging?: { next?: string } }>(nextUrl)
+      for (const p of page.data || []) posts.push(p)
+      nextUrl = page.paging?.next || null
+    }
+
+    // Client-side media type filter (API doesn't support it natively)
     if (mediaTypeFilter && mediaTypeFilter !== 'ALL') {
       if (mediaTypeFilter === 'FEED') {
         posts = posts.filter(p => p.media_type === 'IMAGE' || p.media_type === 'CAROUSEL_ALBUM')
       } else if (mediaTypeFilter === 'REELS') {
-        posts = posts.filter(p => p.media_product_type === 'REELS' || (p.media_type === 'VIDEO' && p.media_product_type === 'REELS'))
+        posts = posts.filter(p => p.media_product_type === 'REELS')
       } else {
         posts = posts.filter(p => p.media_type === mediaTypeFilter)
       }
-    }
-
-    // Filter by date range
-    if (dateFrom) {
-      const from = new Date(dateFrom).getTime()
-      posts = posts.filter(p => new Date(p.timestamp).getTime() >= from)
-    }
-    if (dateTo) {
-      const to = new Date(dateTo).getTime()
-      posts = posts.filter(p => new Date(p.timestamp).getTime() <= to)
     }
 
     return posts.slice(0, limit)

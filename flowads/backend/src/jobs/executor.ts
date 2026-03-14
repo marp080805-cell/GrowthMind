@@ -352,16 +352,20 @@ async function executeMeta(
     }
 
     case 'fetch_instagram_posts': {
-      const instagramId = (config.instagram_account_id as string) || context.client?.instagram_account_id
+      const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
+      const instagramId = (config.instagram_account_id as string)
+        || (inputRecord.instagram_account_id as string)
+        || context.client?.instagram_account_id
       if (!instagramId) throw new Error('ID da conta Instagram não configurado. Configure no bloco ou no cadastro do cliente.')
       const posts = await meta.getInstagramPosts(
         instagramId,
         (config.limit as number) || 20,
         (config.media_type as string) || undefined,
+        (config.period as string) || undefined,
         (config.date_from as string) || undefined,
         (config.date_to as string) || undefined,
       )
-      return { posts, total: posts.length }
+      return { posts, total: posts.length, instagram_account_id: instagramId }
     }
 
     case 'fetch_audiences': {

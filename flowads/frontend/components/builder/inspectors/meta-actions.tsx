@@ -174,6 +174,7 @@ export function BoostPostInspector({ config, onChange }: InspectorFieldProps) {
 
 export function InstagramPostsInspector({ config, onChange }: InspectorFieldProps) {
   const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
+  const period = (config.period as string) || 'all'
 
   return (
     <>
@@ -185,7 +186,7 @@ export function InstagramPostsInspector({ config, onChange }: InspectorFieldProp
           placeholder="Deixe vazio para usar o do cliente"
           rows={1}
         />
-        <p className="text-[10px] text-text3">Se vazio, usa o perfil Instagram cadastrado no cliente.</p>
+        <p className="text-[10px] text-text3">Se vazio, usa o perfil cadastrado no cliente ou o ID do trigger.</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -204,26 +205,45 @@ export function InstagramPostsInspector({ config, onChange }: InspectorFieldProp
         </select>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] font-syne font-semibold text-text3">DATA INÍCIO</label>
-          <VariableAutocomplete
-            value={(config.date_from as string) || ''}
-            onChange={(v) => set('date_from', v)}
-            placeholder="2024-01-01"
-            rows={1}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] font-syne font-semibold text-text3">DATA FIM</label>
-          <VariableAutocomplete
-            value={(config.date_to as string) || ''}
-            onChange={(v) => set('date_to', v)}
-            placeholder="2024-12-31"
-            rows={1}
-          />
-        </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">PERÍODO</label>
+        <select
+          value={period}
+          onChange={(e) => { set('period', e.target.value); if (e.target.value !== 'custom') { set('date_from', ''); set('date_to', '') } }}
+          className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+        >
+          <option value="all">Todos os posts</option>
+          <option value="24h">Últimas 24 horas</option>
+          <option value="7d">Últimos 7 dias</option>
+          <option value="30d">Últimos 30 dias</option>
+          <option value="90d">Últimos 90 dias</option>
+          <option value="this_month">Este mês</option>
+          <option value="custom">Período personalizado</option>
+        </select>
       </div>
+
+      {period === 'custom' && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">DATA INÍCIO</label>
+            <VariableAutocomplete
+              value={(config.date_from as string) || ''}
+              onChange={(v) => set('date_from', v)}
+              placeholder="2024-01-01"
+              rows={1}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">DATA FIM</label>
+            <VariableAutocomplete
+              value={(config.date_to as string) || ''}
+              onChange={(v) => set('date_to', v)}
+              placeholder="2024-12-31"
+              rows={1}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <label className="text-[10px] font-syne font-semibold text-text3">LIMITE DE POSTS</label>
@@ -245,6 +265,7 @@ export function InstagramPostsInspector({ config, onChange }: InspectorFieldProp
         <p><code className="text-accent">{'{{posts.[0].media_url}}'}</code> — URL da mídia</p>
         <p><code className="text-accent">{'{{posts.[0].media_type}}'}</code> — tipo (IMAGE/VIDEO/etc)</p>
         <p><code className="text-accent">{'{{posts.[0].timestamp}}'}</code> — data de publicação</p>
+        <p><code className="text-accent">{'{{total}}'}</code> — quantidade de posts</p>
       </div>
     </>
   )
