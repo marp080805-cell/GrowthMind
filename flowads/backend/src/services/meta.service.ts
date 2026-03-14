@@ -512,22 +512,44 @@ export class MetaService {
       const bms = await metaGetAll<{ id: string }>(
         `${META_API}/me/businesses?fields=id&limit=200&access_token=${this.token}`
       )
-      for (const bm of bms) {
+
+      const fetchIgFromBusiness = async (bizId: string) => {
         await Promise.allSettled([
           metaGetAll<MetaInstagramAccount>(
-            `${META_API}/${bm.id}/owned_instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
+            `${META_API}/${bizId}/owned_instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
           ).then(list => list.forEach(add)),
           metaGetAll<MetaInstagramAccount>(
-            `${META_API}/${bm.id}/instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
+            `${META_API}/${bizId}/instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
           ).then(list => list.forEach(add)),
-          // Páginas do BM com Instagram vinculado
+          // Páginas do negócio com Instagram vinculado
           metaGetAll<{ instagram_business_account?: MetaInstagramAccount }>(
-            `${META_API}/${bm.id}/owned_pages?fields=id,instagram_business_account{id,name,username}&limit=200&access_token=${this.token}`
+            `${META_API}/${bizId}/owned_pages?fields=id,instagram_business_account{id,name,username}&limit=200&access_token=${this.token}`
           ).then(pages => pages.forEach(p => p.instagram_business_account && add(p.instagram_business_account))),
           metaGetAll<{ instagram_business_account?: MetaInstagramAccount }>(
-            `${META_API}/${bm.id}/client_pages?fields=id,instagram_business_account{id,name,username}&limit=200&access_token=${this.token}`
+            `${META_API}/${bizId}/client_pages?fields=id,instagram_business_account{id,name,username}&limit=200&access_token=${this.token}`
           ).then(pages => pages.forEach(p => p.instagram_business_account && add(p.instagram_business_account))),
         ])
+      }
+
+      for (const bm of bms) {
+        // Busca IGs direto no BM
+        await fetchIgFromBusiness(bm.id)
+
+        // Busca nos sub-negócios (owned_businesses) do BM — ex: "Toca do Caboclo" dentro do BM principal
+        try {
+          const subBizList = await metaGetAll<{ id: string }>(
+            `${META_API}/${bm.id}/owned_businesses?fields=id&limit=200&access_token=${this.token}`
+          )
+          await Promise.allSettled(subBizList.map(sub => fetchIgFromBusiness(sub.id)))
+        } catch { /* sem sub-negócios ou sem permissão */ }
+
+        // Busca nos negócios clientes do BM
+        try {
+          const clientBizList = await metaGetAll<{ id: string }>(
+            `${META_API}/${bm.id}/client_businesses?fields=id&limit=200&access_token=${this.token}`
+          )
+          await Promise.allSettled(clientBizList.map(sub => fetchIgFromBusiness(sub.id)))
+        } catch { /* sem clientes ou sem permissão */ }
       }
     } catch { /* sem BMs ou sem permissão */ }
 
