@@ -85,12 +85,13 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
           if (!settings?.whatsapp_url || !settings?.whatsapp_token) {
             throw new Error('WhatsApp API não configurada')
           }
-          const wa = new WhatsAppService(settings.whatsapp_url as string, settings.whatsapp_token as string)
-          await wa.sendMessage(
-            settings.whatsapp_number || '5511999999999',
-            '✅ FlowAds: conexão testada com sucesso!'
+          const wa = new WhatsAppService(
+            settings.whatsapp_url as string,
+            settings.whatsapp_token as string,
+            (settings.whatsapp_instance as string) || 'default'
           )
-          return { ok: true, message: 'WhatsApp conectado com sucesso!' }
+          const { instanceName } = await wa.checkConnection()
+          return { ok: true, message: `WhatsApp conectado! Instância: ${instanceName}` }
         }
         default:
           return { ok: false, message: 'Serviço desconhecido' }

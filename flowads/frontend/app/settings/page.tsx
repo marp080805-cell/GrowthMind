@@ -120,6 +120,7 @@ export default function SettingsPage() {
       icon: '💬',
       fields: [
         { key: 'whatsapp_url', label: 'URL base da API', type: 'text' },
+        { key: 'whatsapp_instance', label: 'Nome da instância', type: 'text' },
         { key: 'whatsapp_token', label: 'Token de autenticação', type: 'password' },
         { key: 'whatsapp_number', label: 'Número padrão', type: 'text' },
       ],

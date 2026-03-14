@@ -233,6 +233,7 @@ export interface Settings {
   whatsapp_token: string
   whatsapp_url: string
   whatsapp_number: string
+  whatsapp_instance: string
   openai_key: string
   anthropic_key: string
   notion_token: string
