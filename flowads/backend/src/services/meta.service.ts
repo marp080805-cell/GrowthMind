@@ -473,14 +473,21 @@ export class MetaService {
   }
 
   async getInstagramAccounts(): Promise<MetaInstagramAccount[]> {
+    // Busca perfis Instagram via páginas do Business Manager (não requer ad_account_id)
     const params = new URLSearchParams({
-      fields: 'id,name,username',
+      fields: 'id,name,instagram_business_account{id,name,username}',
       access_token: this.token,
     })
-    const data = await metaGet<{ data?: MetaInstagramAccount[] }>(
-      `${this.accountUrl}/instagram_accounts?${params}`
+    const data = await metaGet<{ data?: Array<{ instagram_business_account?: MetaInstagramAccount }> }>(
+      `${META_API}/me/accounts?${params}`
     )
-    return data.data || []
+    const accounts: MetaInstagramAccount[] = []
+    for (const page of data.data || []) {
+      if (page.instagram_business_account) {
+        accounts.push(page.instagram_business_account)
+      }
+    }
+    return accounts
   }
 
   // ─── Audiences ───────────────────────────────────────────────────────────
