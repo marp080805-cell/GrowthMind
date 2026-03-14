@@ -178,7 +178,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         />
       )}
 
-      {instagramAccounts.length > 0 && (
+      {instagramAccounts.length > 0 ? (
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-text2 font-syne">Perfil Instagram</label>
           <select
@@ -194,9 +194,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
             ))}
           </select>
         </div>
-      )}
-
-      {!instagramAccounts.length && form.instagram_account_id && (
+      ) : (
         <Input
           label="ID da conta Instagram"
           placeholder="123456789"
