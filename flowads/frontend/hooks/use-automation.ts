@@ -6,13 +6,14 @@ import { useToast } from './use-toast'
 
 export function useAutomation(id: string) {
   const [automation, setAutomation] = useState<AutomationWithNodes | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const { success, error } = useToast()
   const saveTimer = useRef<NodeJS.Timeout>()
 
   useEffect(() => {
-    if (!id) { setLoading(false); return }
+    if (!id || id === 'new') { setLoading(false); return }
+    setLoading(true)
     automationsApi
       .get(id)
       .then(setAutomation)

@@ -86,7 +86,7 @@ export default function BuilderPage() {
     }
   }
 
-  if (loading) {
+  if (loading && automationId !== 'new') {
     return (
       <div className="flex h-screen bg-bg3 items-center justify-center">
         <div className="space-y-3 text-center">
