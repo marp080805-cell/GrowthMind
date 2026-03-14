@@ -287,7 +287,7 @@ async function executeMeta(
   const token = context.client?.meta_token || context.settings.meta_token
   if (!token) throw new Error('Token Meta não configurado')
 
-  const meta = new MetaService(token, context.client?.ad_account_id)
+  const meta = new MetaService(token, context.client?.ad_account_id || '')
 
   switch (action) {
     case 'fetch_campaigns': {

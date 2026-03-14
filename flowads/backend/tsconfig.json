@@ -8,6 +8,7 @@
     "strict": true,
     "useUnknownInCatchVariables": false,
     "noEmitOnError": false,
+    "types": ["node"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
