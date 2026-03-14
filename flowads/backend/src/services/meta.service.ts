@@ -577,6 +577,16 @@ export class MetaService {
       direct.forEach(add)
     } catch { /* sem permissão */ }
 
+    // Tentativa 5: contas atribuídas ao usuário como employee em qualquer BM
+    // (/{bm_id}/instagram_accounts só retorna tudo para admins;
+    //  para employees, somente as contas assignadas aparecem aqui)
+    try {
+      const assigned = await metaGetAll<MetaInstagramAccount>(
+        `${META_API}/me/assigned_instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
+      )
+      assigned.forEach(add)
+    } catch { /* sem permissão */ }
+
     return accounts
   }
 
