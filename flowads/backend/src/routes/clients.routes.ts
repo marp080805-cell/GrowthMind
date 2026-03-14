@@ -47,6 +47,24 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.status(204).send()
   })
 
+  fastify.get('/clients/:id/meta-accounts', async (req, reply) => {
+    const { id } = req.params as { id: string }
+
+    const { data: client } = await supabase.from('clients').select('meta_token').eq('id', id).single()
+    if (!client?.meta_token) return reply.status(400).send({ message: 'Token Meta não configurado para este cliente' })
+
+    try {
+      const meta = new MetaService(client.meta_token, '')
+      const { accounts } = await meta.validateToken()
+      const adAccountIds = accounts.map(a => a.id)
+      const instagramAccounts = await meta.getInstagramAccounts(adAccountIds).catch(() => [] as MetaInstagramAccount[])
+      return { accounts, instagramAccounts }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao buscar contas Meta'
+      return reply.status(400).send({ message })
+    }
+  })
+
   fastify.post('/clients/:id/connect-meta', async (req, reply) => {
     const { token } = req.body as { token: string }
 

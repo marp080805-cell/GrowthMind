@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { clientsApi, type Client, type MetaAccount, type MetaInstagramAccount } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
-import { Eye, EyeOff, ChevronDown } from 'lucide-react'
+import { Eye, EyeOff, ChevronDown, RefreshCw } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/backend'
 
@@ -13,6 +13,7 @@ interface ClientFormProps {
   client?: Partial<Client>
   onSuccess: (client: Client) => void
   onCancel: () => void
+  autoLoadMeta?: boolean
 }
 
 const BUSINESS_TYPES = [
@@ -20,14 +21,35 @@ const BUSINESS_TYPES = [
   'Saúde', 'Educação', 'Outro',
 ]
 
-export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
+export function ClientForm({ client, onSuccess, onCancel, autoLoadMeta }: ClientFormProps) {
   const { success, error } = useToast()
   const [loading, setLoading] = useState(false)
   const [connectingMeta, setConnectingMeta] = useState(false)
+  const [loadingAccounts, setLoadingAccounts] = useState(false)
   const [showToken, setShowToken] = useState(false)
   const [showManualToken, setShowManualToken] = useState(false)
   const [metaAccounts, setMetaAccounts] = useState<MetaAccount[]>([])
   const [instagramAccounts, setInstagramAccounts] = useState<MetaInstagramAccount[]>([])
+
+  useEffect(() => {
+    if (client?.id && autoLoadMeta) {
+      loadMetaAccounts()
+    }
+  }, [client?.id, autoLoadMeta]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadMetaAccounts = async () => {
+    if (!client?.id) return
+    setLoadingAccounts(true)
+    try {
+      const { accounts, instagramAccounts: igAccounts } = await clientsApi.getMetaAccounts(client.id)
+      setMetaAccounts(accounts)
+      setInstagramAccounts(igAccounts || [])
+    } catch {
+      // silently fail — client may not have meta connected yet
+    } finally {
+      setLoadingAccounts(false)
+    }
+  }
 
 
   const [form, setForm] = useState({
@@ -160,6 +182,19 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           </svg>
           {loading ? 'Salvando...' : 'Conectar com Facebook'}
         </button>
+
+        {/* Recarregar contas (só aparece para clientes já conectados) */}
+        {client?.id && (
+          <button
+            type="button"
+            onClick={loadMetaAccounts}
+            disabled={loadingAccounts}
+            className="flex items-center gap-1.5 text-xs text-text3 hover:text-text2 transition-colors self-start"
+          >
+            <RefreshCw size={13} className={loadingAccounts ? 'animate-spin' : ''} />
+            {loadingAccounts ? 'Carregando contas...' : 'Recarregar contas Meta'}
+          </button>
+        )}
 
         {/* Opção manual colapsável */}
         <button

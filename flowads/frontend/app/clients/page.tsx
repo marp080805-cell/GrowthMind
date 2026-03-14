@@ -17,6 +17,7 @@ export default function ClientsPage() {
   const { clients, loading, setClients } = useClients()
   const [showModal, setShowModal] = useState(false)
   const [editingClient, setEditingClient] = useState<Partial<Client> | undefined>()
+  const [autoLoadMeta, setAutoLoadMeta] = useState(false)
   const [search, setSearch] = useState('')
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -29,7 +30,7 @@ export default function ClientsPage() {
     if (connected) {
       success('Meta conectado com sucesso!')
       const client = clients.find(c => c.id === connected)
-      if (client) { setEditingClient(client); setShowModal(true) }
+      if (client) { setEditingClient(client); setAutoLoadMeta(true); setShowModal(true) }
       router.replace('/clients')
     } else if (metaError) {
       error(metaError === 'cancelled' ? 'Conexão cancelada' : 'Erro ao conectar com Meta')
@@ -92,7 +93,7 @@ export default function ClientsPage() {
 
       <Modal
         open={showModal}
-        onClose={() => { setShowModal(false); setEditingClient(undefined) }}
+        onClose={() => { setShowModal(false); setEditingClient(undefined); setAutoLoadMeta(false) }}
         title={editingClient?.id ? 'Editar Cliente' : 'Novo Cliente'}
         description="Preencha os dados do cliente para começar"
         size="lg"
@@ -100,7 +101,8 @@ export default function ClientsPage() {
         <ClientForm
           client={editingClient}
           onSuccess={handleCreated}
-          onCancel={() => { setShowModal(false); setEditingClient(undefined) }}
+          onCancel={() => { setShowModal(false); setEditingClient(undefined); setAutoLoadMeta(false) }}
+          autoLoadMeta={autoLoadMeta}
         />
       </Modal>
     </Shell>

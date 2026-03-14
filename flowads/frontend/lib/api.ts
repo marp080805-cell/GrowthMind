@@ -49,6 +49,8 @@ export const clientsApi = {
     api.post<{ accounts: MetaAccount[]; instagramAccounts: MetaInstagramAccount[] }>(`/clients/${id}/connect-meta`, { token }),
   getInstagramAccounts: (id: string, token: string, ad_account_id: string) =>
     api.post<{ instagram_accounts: MetaInstagramAccount[] }>(`/clients/${id}/instagram-accounts`, { token, ad_account_id }),
+  getMetaAccounts: (id: string) =>
+    api.get<{ accounts: MetaAccount[]; instagramAccounts: MetaInstagramAccount[] }>(`/clients/${id}/meta-accounts`),
 }
 
 // Campaigns
