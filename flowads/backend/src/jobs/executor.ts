@@ -148,6 +148,7 @@ export async function executeAutomation(
         tipo_negocio: client.business_type,
         contexto: client.context,
         whatsapp: client.whatsapp,
+        instagram_account_id: client.instagram_account_id || '',
       } : {},
       campanhas: {
         todas: context.campaigns,
@@ -161,15 +162,27 @@ export async function executeAutomation(
     for (const node of ordered) {
       if (node.type.startsWith('trigger.')) {
         // Triggers are just starting points
+        // For instagram trigger, inject client's instagram_account_id as fallback
+        const triggerOutput = node.type === 'trigger.instagram'
+          ? {
+              ...(triggerPayload as Record<string, unknown> || {}),
+              instagram_account_id: (triggerPayload as Record<string, unknown>)?.instagram_account_id
+                || context.client.instagram_account_id
+                || '',
+            }
+          : triggerPayload
+
         nodeLogs.push({
           node_id: node.id,
           node_type: node.type,
           node_label: node.label || node.type,
           status: 'success',
           input: triggerPayload,
-          output: triggerPayload,
+          output: triggerOutput,
           duration_ms: 0,
         })
+        lastOutput = triggerOutput
+        templateVars.input = triggerOutput
         continue
       }
 
@@ -504,6 +517,15 @@ async function executeMeta(
       await meta.deleteObject(id)
       return { excluido: true, object_id: id }
     }
+
+    case 'boost_post': {
+      const instagramAccountId = (config.instagram_account_id as string)
+        || context.client?.instagram_account_id
+        || ''
+      if (!instagramAccountId) throw new Error('Perfil do Instagram não configurado para este cliente')
+      return { instagram_account_id: instagramAccountId, boosted: true }
+    }
+
 
     default:
       return input

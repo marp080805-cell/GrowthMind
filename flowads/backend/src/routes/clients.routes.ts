@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { supabase } from '../lib/supabase'
 import { MetaService } from '../services/meta.service'
+import type { InstagramAccount } from '../services/meta.service'
 
 export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/clients', async () => {
@@ -48,13 +49,14 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post('/clients/:id/connect-meta', async (req, reply) => {
     const { token } = req.body as { token: string }
-    const { id } = req.params as { id: string }
 
     try {
-      // Use a temporary meta service to validate token
       const meta = new MetaService(token, '')
-      const { accounts } = await meta.validateToken()
-      return { accounts }
+      const [{ accounts }, instagramAccounts] = await Promise.all([
+        meta.validateToken(),
+        meta.getInstagramAccounts().catch(() => [] as InstagramAccount[]),
+      ])
+      return { accounts, instagramAccounts }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Token inválido'
       return reply.status(400).send({ message })

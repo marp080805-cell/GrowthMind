@@ -15,6 +15,7 @@ export interface Client {
   whatsapp: string
   context: string
   ad_account_id: string
+  instagram_account_id?: string
   meta_token: string
   instagram_account_id?: string
   status: 'active' | 'paused'
