@@ -52,14 +52,9 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
 
     try {
       const meta = new MetaService(token, '')
-      const [{ accounts }, instagramAccounts] = await Promise.all([
-        meta.validateToken(),
-        meta.getInstagramAccounts().catch((err) => {
-          console.error('[connect-meta] getInstagramAccounts error:', err)
-          return [] as MetaInstagramAccount[]
-        }),
-      ])
-      console.log('[connect-meta] accounts:', accounts.length, 'instagram:', instagramAccounts.length, instagramAccounts)
+      const { accounts } = await meta.validateToken()
+      const adAccountIds = accounts.map(a => a.id)
+      const instagramAccounts = await meta.getInstagramAccounts(adAccountIds).catch(() => [] as MetaInstagramAccount[])
       return { accounts, instagramAccounts }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Token inválido'

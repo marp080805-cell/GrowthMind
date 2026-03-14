@@ -489,7 +489,7 @@ export class MetaService {
     return data.data || []
   }
 
-  async getInstagramAccounts(): Promise<MetaInstagramAccount[]> {
+  async getInstagramAccounts(adAccountIds: string[] = []): Promise<MetaInstagramAccount[]> {
     const seen = new Set<string>()
     const accounts: MetaInstagramAccount[] = []
 
@@ -497,54 +497,57 @@ export class MetaService {
       if (!seen.has(acc.id)) { seen.add(acc.id); accounts.push(acc) }
     }
 
-    // Tentativa 1: via Páginas do Facebook linkadas ao token (com paginação)
+    // Tentativa 1: via Páginas do Facebook linkadas ao token
     try {
-      const pages = await metaGetAll<{ id: string; name: string; instagram_business_account?: MetaInstagramAccount }>(
+      const pages = await metaGetAll<{ instagram_business_account?: MetaInstagramAccount }>(
         `${META_API}/me/accounts?fields=id,name,instagram_business_account{id,name,username}&limit=200&access_token=${this.token}`
       )
-      console.log('[instagram] tentativa1 pages:', pages.length)
       for (const page of pages) {
         if (page.instagram_business_account) add(page.instagram_business_account)
       }
-    } catch (e) { console.error('[instagram] tentativa1 erro:', e) }
+    } catch { /* sem páginas */ }
 
-    // Tentativa 2: via Business Managers — owned + shared instagram accounts
+    // Tentativa 2: via Business Managers (requer business_management)
     try {
-      const bms = await metaGetAll<{ id: string; name?: string }>(
-        `${META_API}/me/businesses?fields=id,name&limit=200&access_token=${this.token}`
+      const bms = await metaGetAll<{ id: string }>(
+        `${META_API}/me/businesses?fields=id&limit=200&access_token=${this.token}`
       )
-      console.log('[instagram] bms encontrados:', bms.length, bms.map(b => b.id))
       for (const bm of bms) {
-        // 2a: contas PRÓPRIAS do BM
-        try {
-          const owned = await metaGetAll<MetaInstagramAccount>(
+        await Promise.allSettled([
+          metaGetAll<MetaInstagramAccount>(
             `${META_API}/${bm.id}/owned_instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
-          )
-          console.log(`[instagram] bm ${bm.id} owned:`, owned.length)
-          for (const ig of owned) add(ig)
-        } catch (e) { console.error(`[instagram] bm ${bm.id} owned erro:`, e) }
-
-        // 2b: contas COMPARTILHADAS/cliente do BM
-        try {
-          const shared = await metaGetAll<MetaInstagramAccount>(
+          ).then(list => list.forEach(add)),
+          metaGetAll<MetaInstagramAccount>(
             `${META_API}/${bm.id}/instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
-          )
-          console.log(`[instagram] bm ${bm.id} shared:`, shared.length)
-          for (const ig of shared) add(ig)
-        } catch (e) { console.error(`[instagram] bm ${bm.id} shared erro:`, e) }
+          ).then(list => list.forEach(add)),
+        ])
       }
-    } catch (e) { console.error('[instagram] tentativa2 erro:', e) }
+    } catch { /* sem BMs ou sem permissão */ }
 
-    // Tentativa 3: endpoint direto do usuário
+    // Tentativa 3: via cada conta de anúncios (requer apenas ads_management)
+    if (adAccountIds.length > 0) {
+      const chunks: string[][] = []
+      for (let i = 0; i < adAccountIds.length; i += 10) chunks.push(adAccountIds.slice(i, i + 10))
+      for (const chunk of chunks) {
+        await Promise.allSettled(
+          chunk.map(rawId => {
+            const actId = rawId.startsWith('act_') ? rawId : `act_${rawId}`
+            return metaGetAll<MetaInstagramAccount>(
+              `${META_API}/${actId}/instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
+            ).then(list => list.forEach(add))
+          })
+        )
+      }
+    }
+
+    // Tentativa 4: endpoint direto do usuário
     try {
       const direct = await metaGetAll<MetaInstagramAccount>(
         `${META_API}/me/instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
       )
-      console.log('[instagram] tentativa3 direct:', direct.length)
-      for (const ig of direct) add(ig)
-    } catch (e) { console.error('[instagram] tentativa3 erro:', e) }
+      direct.forEach(add)
+    } catch { /* sem permissão */ }
 
-    console.log('[instagram] total final:', accounts.length)
     return accounts
   }
 
