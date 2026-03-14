@@ -159,8 +159,9 @@ export default function BuilderPage() {
       <div className="flex flex-1 overflow-hidden">
         <BlockPalette />
         <BuilderCanvas
-          initialNodes={nodes}
-          initialEdges={edges}
+          key={automation?.id ?? automationId}
+          initialNodes={automation?.nodes ?? nodes}
+          initialEdges={automation?.edges ?? edges}
           onChange={handleChange}
           isActive={automation?.is_active}
         />
