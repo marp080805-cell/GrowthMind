@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Shell } from '@/components/layout/shell'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Plus, Search } from 'lucide-react'
 import type { Client } from '@/lib/api'
 
-export default function ClientsPage() {
+function ClientsPageInner() {
   const { clients, loading, setClients } = useClients()
   const [showModal, setShowModal] = useState(false)
   const [editingClient, setEditingClient] = useState<Partial<Client> | undefined>()
@@ -106,5 +106,13 @@ export default function ClientsPage() {
         />
       </Modal>
     </Shell>
+  )
+}
+
+export default function ClientsPage() {
+  return (
+    <Suspense>
+      <ClientsPageInner />
+    </Suspense>
   )
 }
