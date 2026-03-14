@@ -66,6 +66,10 @@ export async function scheduleAutomation(
   automationId: string,
   triggerConfig: Record<string, unknown>
 ) {
+  if (!automationQueue) {
+    console.warn(`[Scheduler] Queue not initialized, skipping schedule for ${automationId}`)
+    return
+  }
   // Remove existing job if any
   await automationQueue.removeRepeatable(automationId, { jobId: automationId } as Parameters<typeof automationQueue.removeRepeatable>[1])
 
@@ -86,6 +90,7 @@ export async function scheduleAutomation(
 }
 
 export async function unscheduleAutomation(automationId: string) {
+  if (!automationQueue) return
   try {
     await automationQueue.removeRepeatable(automationId, { jobId: automationId } as Parameters<typeof automationQueue.removeRepeatable>[1])
     console.log(`[Scheduler] Unscheduled automation ${automationId}`)

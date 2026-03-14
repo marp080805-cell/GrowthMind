@@ -101,21 +101,43 @@ export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.status(204).send()
   })
 
-  fastify.post('/automations/:id/toggle', async (req) => {
+  fastify.post('/automations/:id/toggle', async (req, reply) => {
     const { id } = req.params as { id: string }
 
-    const { data: current } = await supabase.from('automations').select('is_active, automation_nodes(*)').eq('id', id).single()
-    const newState = !current?.is_active
+    const { data: current, error: fetchError } = await supabase
+      .from('automations')
+      .select('is_active, automation_nodes(*)')
+      .eq('id', id)
+      .single()
 
-    const { data } = await supabase.from('automations').update({ is_active: newState }).eq('id', id).select().single()
+    if (fetchError || !current) {
+      return reply.status(404).send({ message: 'Automação não encontrada' })
+    }
 
-    if (newState) {
-      // Schedule if has schedule trigger
-      const nodes = (current?.automation_nodes || []) as Array<{ type: string; config: Record<string, unknown> }>
-      const triggerNode = nodes.find((n) => n.type === 'trigger.schedule')
-      if (triggerNode) await scheduleAutomation(id, triggerNode.config)
-    } else {
-      await unscheduleAutomation(id)
+    const newState = !current.is_active
+
+    const { data, error: updateError } = await supabase
+      .from('automations')
+      .update({ is_active: newState })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (updateError || !data) {
+      return reply.status(500).send({ message: 'Erro ao atualizar automação' })
+    }
+
+    // Schedule/unschedule - don't let scheduler errors break the toggle
+    try {
+      if (newState) {
+        const nodes = (current.automation_nodes || []) as Array<{ type: string; config: Record<string, unknown> }>
+        const triggerNode = nodes.find((n) => n.type === 'trigger.schedule')
+        if (triggerNode) await scheduleAutomation(id, triggerNode.config)
+      } else {
+        await unscheduleAutomation(id)
+      }
+    } catch (err) {
+      fastify.log.warn('Scheduler error during toggle (non-fatal):', err)
     }
 
     return data
