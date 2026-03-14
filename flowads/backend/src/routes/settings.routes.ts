@@ -42,19 +42,22 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post('/settings/test/:service', async (req) => {
     const { service } = req.params as { service: string }
-    const { data: settings } = await supabase.from('settings').select('*').single()
+    const body = req.body as Record<string, unknown>
+    const { data: dbSettings } = await supabase.from('settings').select('*').single()
+    // Merge DB settings with values passed directly in the request body (form values take priority)
+    const settings = { ...dbSettings, ...body }
 
     try {
       switch (service) {
         case 'meta': {
           if (!settings?.meta_token) throw new Error('Token Meta não configurado')
-          const meta = new MetaService(settings.meta_token, '')
+          const meta = new MetaService(settings.meta_token as string, '')
           await meta.validateToken()
           return { ok: true, message: 'Meta API conectada com sucesso!' }
         }
         case 'openai': {
           if (!settings?.openai_key) throw new Error('OpenAI API key não configurada')
-          const openai = new OpenAIService(settings.openai_key)
+          const openai = new OpenAIService(settings.openai_key as string)
           await openai.complete({
             model: 'gpt-4o-mini',
             systemPrompt: 'test',
@@ -67,7 +70,7 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
         }
         case 'anthropic': {
           if (!settings?.anthropic_key) throw new Error('Anthropic API key não configurada')
-          const anthropic = new AnthropicService(settings.anthropic_key)
+          const anthropic = new AnthropicService(settings.anthropic_key as string)
           await anthropic.complete({
             model: 'claude-haiku-4-5',
             systemPrompt: 'test',
@@ -82,7 +85,7 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
           if (!settings?.whatsapp_url || !settings?.whatsapp_token) {
             throw new Error('WhatsApp API não configurada')
           }
-          const wa = new WhatsAppService(settings.whatsapp_url, settings.whatsapp_token)
+          const wa = new WhatsAppService(settings.whatsapp_url as string, settings.whatsapp_token as string)
           await wa.sendMessage(
             settings.whatsapp_number || '5511999999999',
             '✅ FlowAds: conexão testada com sucesso!'

@@ -100,7 +100,7 @@ export const usersApi = {
 export const settingsApi = {
   get: () => api.get<Settings>('/settings'),
   update: (data: Partial<Settings>) => api.put<Settings>('/settings', data),
-  test: (service: string) => api.post<{ ok: boolean; message: string }>(`/settings/test/${service}`),
+  test: (service: string, data?: Partial<Settings>) => api.post<{ ok: boolean; message: string }>(`/settings/test/${service}`, data),
   getModels: () => api.get<AIModel[]>('/settings/models'),
   updateModels: (models: AIModel[]) => api.put<AIModel[]>('/settings/models', { models }),
 }

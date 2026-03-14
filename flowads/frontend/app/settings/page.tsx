@@ -56,7 +56,7 @@ export default function SettingsPage() {
   const testConnection = async (service: string) => {
     setStatus((s) => ({ ...s, [service]: 'testing' }))
     try {
-      const { ok, message } = await settingsApi.test(service)
+      const { ok, message } = await settingsApi.test(service, settings ?? undefined)
       setStatus((s) => ({ ...s, [service]: ok ? 'ok' : 'error' }))
       if (ok) success(message || `${service} conectado!`)
       else error(message || `Falha ao conectar ${service}`)
