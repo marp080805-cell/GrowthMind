@@ -111,14 +111,16 @@ export async function executeAutomation(
 
     if (!automation) throw new Error('Automação não encontrada')
 
-    const { data: client } = await supabase.from('clients').select('*').eq('id', automation.client_id).single()
-    const campaigns = await getCampaigns(automation.client_id)
+    const { data: client } = automation.client_id
+      ? await supabase.from('clients').select('*').eq('id', automation.client_id).single()
+      : { data: null }
+    const campaigns = automation.client_id ? await getCampaigns(automation.client_id) : []
     const settings = await getSettings()
 
     const context: ExecutionContext = {
       client: client as Client,
       campaigns,
-      settings,
+      settings: settings || ({} as Settings),
       executionId,
       triggerPayload,
     }
@@ -127,8 +129,8 @@ export async function executeAutomation(
     const edges = (automation.automation_edges || []) as AutomationEdge[]
 
     // Find trigger node
-    const triggerNode = nodes.find((n) => n.type.startsWith('trigger.') || n.type === 'trigger.manual')
-    if (!triggerNode) throw new Error('Nenhum trigger encontrado')
+    const triggerNode = nodes.find((n) => n.type.startsWith('trigger.'))
+    if (!triggerNode) throw new Error('Nenhum nó de trigger encontrado na automação')
 
     // Build execution order
     const ordered = buildTopologicalOrder(nodes, edges, triggerNode.id)
@@ -139,12 +141,12 @@ export async function executeAutomation(
       semana_atual: `semana de ${getWeekRange()}`,
       mes_atual: new Date().toLocaleDateString('pt-BR', { month: 'long' }),
       data_formatada: new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
-      cliente: {
-        nome: context.client.name,
-        tipo_negocio: context.client.business_type,
-        contexto: context.client.context,
-        whatsapp: context.client.whatsapp,
-      },
+      cliente: client ? {
+        nome: client.name,
+        tipo_negocio: client.business_type,
+        contexto: client.context,
+        whatsapp: client.whatsapp,
+      } : {},
       campanhas: {
         todas: context.campaigns,
       },
@@ -282,10 +284,10 @@ async function executeMeta(
   input: unknown,
   context: ExecutionContext
 ): Promise<unknown> {
-  const token = context.client.meta_token || context.settings.meta_token
+  const token = context.client?.meta_token || context.settings.meta_token
   if (!token) throw new Error('Token Meta não configurado')
 
-  const meta = new MetaService(token, context.client.ad_account_id)
+  const meta = new MetaService(token, context.client?.ad_account_id)
 
   switch (action) {
     case 'fetch_campaigns': {
@@ -358,8 +360,8 @@ async function executeAI(
   // Save to memory if enabled
   if (config.memory_enabled) {
     await supabase.from('agent_memory').insert([
-      { agent_id: config.agent_id, client_id: context.client.id, execution_id: context.executionId, role: 'user', content: request.humanMessage },
-      { agent_id: config.agent_id, client_id: context.client.id, execution_id: context.executionId, role: 'assistant', content: result.content },
+      { agent_id: config.agent_id, client_id: context.client?.id, execution_id: context.executionId, role: 'user', content: request.humanMessage },
+      { agent_id: config.agent_id, client_id: context.client?.id, execution_id: context.executionId, role: 'assistant', content: result.content },
     ])
   }
 
@@ -376,9 +378,13 @@ async function executeWhatsapp(
     throw new Error('WhatsApp API não configurada')
   }
 
-  const wa = new WhatsAppService(context.settings.whatsapp_url, context.settings.whatsapp_token)
+  const wa = new WhatsAppService(
+    context.settings.whatsapp_url,
+    context.settings.whatsapp_token,
+    context.settings.whatsapp_instance || 'default'
+  )
   const number = config.number_type === 'client'
-    ? `55${context.client.whatsapp?.replace(/\D/g, '')}`
+    ? `55${context.client?.whatsapp?.replace(/\D/g, '') ?? ''}`
     : (config.number as string)
 
   switch (action) {

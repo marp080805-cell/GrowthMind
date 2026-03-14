@@ -110,6 +110,7 @@ export interface Settings {
   whatsapp_token?: string
   whatsapp_url?: string
   whatsapp_number?: string
+  whatsapp_instance?: string
   openai_key?: string
   anthropic_key?: string
   notion_token?: string
@@ -139,7 +140,7 @@ export interface Preset {
 }
 
 export interface ExecutionContext {
-  client: Client
+  client: Client | null
   campaigns: Campaign[]
   settings: Settings
   executionId: string
