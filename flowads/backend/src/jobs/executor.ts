@@ -356,7 +356,10 @@ async function executeMeta(
       if (!instagramId) throw new Error('ID da conta Instagram não configurado. Configure no bloco ou no cadastro do cliente.')
       const posts = await meta.getInstagramPosts(
         instagramId,
-        (config.limit as number) || 20
+        (config.limit as number) || 20,
+        (config.media_type as string) || undefined,
+        (config.date_from as string) || undefined,
+        (config.date_to as string) || undefined,
       )
       return { posts, total: posts.length }
     }

@@ -189,6 +189,43 @@ export function InstagramPostsInspector({ config, onChange }: InspectorFieldProp
       </div>
 
       <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">TIPO DE MÍDIA</label>
+        <select
+          value={(config.media_type as string) || 'ALL'}
+          onChange={(e) => set('media_type', e.target.value === 'ALL' ? '' : e.target.value)}
+          className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+        >
+          <option value="ALL">Todos os tipos</option>
+          <option value="FEED">Feed (fotos e carrossel)</option>
+          <option value="REELS">Reels</option>
+          <option value="IMAGE">Apenas fotos</option>
+          <option value="CAROUSEL_ALBUM">Apenas carrossel</option>
+          <option value="VIDEO">Vídeos</option>
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-syne font-semibold text-text3">DATA INÍCIO</label>
+          <VariableAutocomplete
+            value={(config.date_from as string) || ''}
+            onChange={(v) => set('date_from', v)}
+            placeholder="2024-01-01"
+            rows={1}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-syne font-semibold text-text3">DATA FIM</label>
+          <VariableAutocomplete
+            value={(config.date_to as string) || ''}
+            onChange={(v) => set('date_to', v)}
+            placeholder="2024-12-31"
+            rows={1}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
         <label className="text-[10px] font-syne font-semibold text-text3">LIMITE DE POSTS</label>
         <input
           type="number"
@@ -206,6 +243,8 @@ export function InstagramPostsInspector({ config, onChange }: InspectorFieldProp
         <p><code className="text-accent">{'{{posts.[0].id}}'}</code> — ID do post</p>
         <p><code className="text-accent">{'{{posts.[0].caption}}'}</code> — legenda</p>
         <p><code className="text-accent">{'{{posts.[0].media_url}}'}</code> — URL da mídia</p>
+        <p><code className="text-accent">{'{{posts.[0].media_type}}'}</code> — tipo (IMAGE/VIDEO/etc)</p>
+        <p><code className="text-accent">{'{{posts.[0].timestamp}}'}</code> — data de publicação</p>
       </div>
     </>
   )
