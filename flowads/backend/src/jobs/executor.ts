@@ -294,14 +294,14 @@ async function executeMeta(
   const meta = new MetaService(token, context.client?.ad_account_id || '')
 
   const periodMap: Record<string, string> = {
-    '7d': 'last_7_days',
-    '14d': 'last_14_days',
-    '30d': 'last_30_days',
+    '7d': 'last_7d',
+    '14d': 'last_14d',
+    '30d': 'last_30d',
     'this_month': 'this_month',
     'yesterday': 'yesterday',
     'today': 'today',
     'last_3d': 'last_3d',
-    'last_90_days': 'last_90_days',
+    'last_90_days': 'last_90d',
   }
 
   switch (action) {
@@ -339,9 +339,10 @@ async function executeMeta(
     }
 
     case 'fetch_instagram_posts': {
-      if (!config.instagram_account_id) throw new Error('ID da conta Instagram não configurado')
+      const instagramId = (config.instagram_account_id as string) || context.client?.instagram_account_id
+      if (!instagramId) throw new Error('ID da conta Instagram não configurado. Configure no bloco ou no cadastro do cliente.')
       const posts = await meta.getInstagramPosts(
-        config.instagram_account_id as string,
+        instagramId,
         (config.limit as number) || 20
       )
       return { posts, total: posts.length }

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { clientsApi, type Client, type MetaAccount } from '@/lib/api'
+import { clientsApi, type Client, type MetaAccount, type MetaInstagramAccount } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 import { Eye, EyeOff } from 'lucide-react'
 
@@ -24,6 +24,8 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [connectingMeta, setConnectingMeta] = useState(false)
   const [showToken, setShowToken] = useState(false)
   const [metaAccounts, setMetaAccounts] = useState<MetaAccount[]>([])
+  const [instagramAccounts, setInstagramAccounts] = useState<MetaInstagramAccount[]>([])
+  const [loadingInstagram, setLoadingInstagram] = useState(false)
 
   const [form, setForm] = useState({
     name: client?.name || '',
@@ -32,6 +34,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     context: client?.context || '',
     meta_token: '',
     ad_account_id: client?.ad_account_id || '',
+    instagram_account_id: client?.instagram_account_id || '',
   })
 
   const set = (key: string, value: string) =>
@@ -49,12 +52,33 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         form.meta_token
       )
       setMetaAccounts(accounts)
+      setInstagramAccounts([])
       success('Meta conectado com sucesso!')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Erro ao conectar Meta'
       error(msg)
     } finally {
       setConnectingMeta(false)
+    }
+  }
+
+  const handleAdAccountChange = async (adAccountId: string) => {
+    set('ad_account_id', adAccountId)
+    set('instagram_account_id', '')
+    if (!adAccountId || !form.meta_token) return
+
+    setLoadingInstagram(true)
+    try {
+      const { instagram_accounts } = await clientsApi.getInstagramAccounts(
+        client?.id || 'new',
+        form.meta_token,
+        adAccountId
+      )
+      setInstagramAccounts(instagram_accounts)
+    } catch {
+      setInstagramAccounts([])
+    } finally {
+      setLoadingInstagram(false)
     }
   }
 
@@ -153,7 +177,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           <label className="text-sm font-medium text-text2 font-syne">Conta de anúncios</label>
           <select
             value={form.ad_account_id}
-            onChange={(e) => set('ad_account_id', e.target.value)}
+            onChange={(e) => handleAdAccountChange(e.target.value)}
             className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent transition-colors"
           >
             <option value="">Selecione a conta...</option>
@@ -170,6 +194,39 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           placeholder="act_xxxxxxxxxx"
           value={form.ad_account_id}
           onChange={(e) => set('ad_account_id', e.target.value)}
+        />
+      )}
+
+      {(instagramAccounts.length > 0 || loadingInstagram) && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-text2 font-syne">Perfil Instagram</label>
+          {loadingInstagram ? (
+            <div className="h-10 rounded-[12px] bg-surface border border-[var(--border)] px-3 flex items-center text-sm text-text3">
+              Carregando perfis...
+            </div>
+          ) : (
+            <select
+              value={form.instagram_account_id}
+              onChange={(e) => set('instagram_account_id', e.target.value)}
+              className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent transition-colors"
+            >
+              <option value="">Selecione o perfil...</option>
+              {instagramAccounts.map((acc) => (
+                <option key={acc.id} value={acc.id}>
+                  @{acc.username} — {acc.name} ({acc.id})
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
+      {!instagramAccounts.length && !loadingInstagram && form.instagram_account_id && (
+        <Input
+          label="ID da conta Instagram"
+          placeholder="123456789"
+          value={form.instagram_account_id}
+          onChange={(e) => set('instagram_account_id', e.target.value)}
         />
       )}
 

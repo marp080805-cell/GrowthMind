@@ -61,6 +61,19 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
     }
   })
 
+  fastify.post('/clients/:id/instagram-accounts', async (req, reply) => {
+    const { token, ad_account_id } = req.body as { token: string; ad_account_id: string }
+
+    try {
+      const meta = new MetaService(token, ad_account_id)
+      const instagramAccounts = await meta.getInstagramAccounts()
+      return { instagram_accounts: instagramAccounts }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao buscar contas Instagram'
+      return reply.status(400).send({ message })
+    }
+  })
+
   // Campaigns
   fastify.get('/clients/:id/campaigns', async (req) => {
     const { id } = req.params as { id: string }

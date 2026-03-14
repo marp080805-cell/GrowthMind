@@ -178,14 +178,14 @@ export function InstagramPostsInspector({ config, onChange }: InspectorFieldProp
   return (
     <>
       <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] font-syne font-semibold text-text3">ID DA CONTA INSTAGRAM *</label>
+        <label className="text-[10px] font-syne font-semibold text-text3">ID DA CONTA INSTAGRAM</label>
         <VariableAutocomplete
           value={(config.instagram_account_id as string) || ''}
           onChange={(v) => set('instagram_account_id', v)}
-          placeholder="123456789"
+          placeholder="Deixe vazio para usar o do cliente"
           rows={1}
         />
-        <p className="text-[10px] text-text3">Encontre em: Meta Business Suite → Configurações → Contas Instagram</p>
+        <p className="text-[10px] text-text3">Se vazio, usa o perfil Instagram cadastrado no cliente.</p>
       </div>
 
       <div className="flex flex-col gap-1.5">

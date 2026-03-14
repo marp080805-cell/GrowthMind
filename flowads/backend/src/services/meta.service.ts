@@ -72,6 +72,12 @@ export interface MetaInstagramPost {
   comments_count?: number
 }
 
+export interface MetaInstagramAccount {
+  id: string
+  name: string
+  username: string
+}
+
 async function metaPost(url: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const res = await fetch(url, {
     method: 'POST',
@@ -400,7 +406,7 @@ export class MetaService {
     const params = new URLSearchParams({
       fields: 'ad_id,ad_name,impressions,reach,clicks,ctr,cpc,cpm,spend,purchase_roas',
       level: 'ad',
-      date_preset: 'last_30_days',
+      date_preset: 'last_30d',
       access_token: this.token,
     })
     const data = await metaGet<{ data?: Record<string, unknown>[] }>(`${target}?${params}`)
@@ -462,6 +468,17 @@ export class MetaService {
     })
     const data = await metaGet<{ data?: MetaInstagramPost[] }>(
       `${META_API}/${instagramAccountId}/media?${params}`
+    )
+    return data.data || []
+  }
+
+  async getInstagramAccounts(): Promise<MetaInstagramAccount[]> {
+    const params = new URLSearchParams({
+      fields: 'id,name,username',
+      access_token: this.token,
+    })
+    const data = await metaGet<{ data?: MetaInstagramAccount[] }>(
+      `${this.accountUrl}/instagram_accounts?${params}`
     )
     return data.data || []
   }

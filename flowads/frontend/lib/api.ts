@@ -47,6 +47,8 @@ export const clientsApi = {
   delete: (id: string) => api.delete(`/clients/${id}`),
   connectMeta: (id: string, token: string) =>
     api.post<{ accounts: MetaAccount[] }>(`/clients/${id}/connect-meta`, { token }),
+  getInstagramAccounts: (id: string, token: string, ad_account_id: string) =>
+    api.post<{ instagram_accounts: MetaInstagramAccount[] }>(`/clients/${id}/instagram-accounts`, { token, ad_account_id }),
 }
 
 // Campaigns
@@ -124,6 +126,7 @@ export interface Client {
   context: string
   ad_account_id: string
   meta_token: string
+  instagram_account_id: string
   status: 'active' | 'paused'
   created_at: string
   automations_count?: number
@@ -134,6 +137,12 @@ export interface MetaAccount {
   id: string
   name: string
   currency: string
+}
+
+export interface MetaInstagramAccount {
+  id: string
+  name: string
+  username: string
 }
 
 export interface Campaign {
