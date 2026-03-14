@@ -502,15 +502,28 @@ export class MetaService {
       }
     } catch { /* segue para próxima tentativa */ }
 
-    // Tentativa 2: via Business Managers diretos (BM com Instagram conectado sem página)
+    // Tentativa 2: via Business Managers — busca /{bm_id}/instagram_accounts com paginação própria
     try {
-      const bms = await metaGetAll<{ instagram_accounts?: { data?: MetaInstagramAccount[] } }>(
-        `${META_API}/me/businesses?fields=id,instagram_accounts{id,name,username}&limit=200&access_token=${this.token}`
+      const bms = await metaGetAll<{ id: string }>(
+        `${META_API}/me/businesses?fields=id&limit=200&access_token=${this.token}`
       )
       for (const bm of bms) {
-        for (const ig of bm.instagram_accounts?.data || []) add(ig)
+        try {
+          const igAccounts = await metaGetAll<MetaInstagramAccount>(
+            `${META_API}/${bm.id}/instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
+          )
+          for (const ig of igAccounts) add(ig)
+        } catch { /* BM sem permissão de Instagram */ }
       }
     } catch { /* sem BMs ou sem permissão */ }
+
+    // Tentativa 3: endpoint direto do usuário
+    try {
+      const direct = await metaGetAll<MetaInstagramAccount>(
+        `${META_API}/me/instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
+      )
+      for (const ig of direct) add(ig)
+    } catch { /* sem permissão */ }
 
     return accounts
   }
