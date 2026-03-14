@@ -1,0 +1,280 @@
+'use client'
+
+import { VariableAutocomplete } from '../variable-autocomplete'
+import type { InspectorFieldProps } from '../inspector'
+
+const CTA_OPTIONS = [
+  'NO_BUTTON', 'SHOP_NOW', 'LEARN_MORE', 'SIGN_UP', 'CONTACT_US',
+  'BOOK_NOW', 'DOWNLOAD', 'GET_OFFER', 'WATCH_MORE', 'SEND_MESSAGE',
+  'SUBSCRIBE', 'GET_QUOTE', 'REQUEST_TIME', 'APPLY_NOW', 'BUY_NOW',
+]
+
+export function FetchAdsInspector({ config, onChange }: InspectorFieldProps) {
+  const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
+
+  return (
+    <>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">NÍVEL</label>
+        <select
+          value={(config.parent_type as string) || 'account'}
+          onChange={(e) => set('parent_type', e.target.value)}
+          className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+        >
+          <option value="account">Conta inteira</option>
+          <option value="campaign">Por campanha</option>
+          <option value="adset">Por adset</option>
+        </select>
+      </div>
+
+      {config.parent_type !== 'account' && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-syne font-semibold text-text3">
+            ID DA {config.parent_type === 'campaign' ? 'CAMPANHA' : 'ADSET'}
+          </label>
+          <VariableAutocomplete
+            value={(config.parent_id as string) || ''}
+            onChange={(v) => set('parent_id', v)}
+            placeholder="{{campaign_id}} ou {{adset_id}}"
+            rows={1}
+          />
+        </div>
+      )}
+
+      <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3">
+        <p className="font-syne font-bold text-accent mb-1">Saída disponível</p>
+        <p><code className="text-accent">{'{{anuncios}}'}</code> — array de anúncios</p>
+        <p><code className="text-accent">{'{{total}}'}</code> — total de anúncios</p>
+      </div>
+    </>
+  )
+}
+
+export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
+  const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
+  const useExistingCreative = !!(config.creative_id as string)
+
+  return (
+    <>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">ID DO ADSET *</label>
+        <VariableAutocomplete
+          value={(config.adset_id as string) || ''}
+          onChange={(v) => set('adset_id', v)}
+          placeholder="{{adset_id}}"
+          rows={1}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">NOME DO ANÚNCIO *</label>
+        <VariableAutocomplete
+          value={(config.name as string) || ''}
+          onChange={(v) => set('name', v)}
+          placeholder="Anúncio principal - {{hoje}}"
+          rows={1}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">CRIATIVO</label>
+        <div className="flex gap-1.5">
+          {[{ value: false, label: 'Criar novo' }, { value: true, label: 'ID existente' }].map((t) => (
+            <button
+              key={String(t.value)}
+              type="button"
+              onClick={() => {
+                if (t.value) onChange({ ...config, creative_id: '', title: '', body: '', image_url: '' })
+                else onChange({ ...config, creative_id: undefined })
+              }}
+              className={`flex-1 h-8 rounded-[8px] text-xs font-syne font-bold transition-colors border ${
+                useExistingCreative === t.value
+                  ? 'bg-accent/10 text-accent border-accent/30'
+                  : 'bg-surface text-text3 border-[var(--border)] hover:border-[var(--border2)]'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {useExistingCreative ? (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-syne font-semibold text-text3">ID DO CRIATIVO *</label>
+          <VariableAutocomplete
+            value={(config.creative_id as string) || ''}
+            onChange={(v) => set('creative_id', v)}
+            placeholder="{{creative_id}} ou 123456789"
+            rows={1}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">ID DA PÁGINA DO FACEBOOK *</label>
+            <VariableAutocomplete
+              value={(config.page_id as string) || ''}
+              onChange={(v) => set('page_id', v)}
+              placeholder="123456789"
+              rows={1}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">TIPO DE MÍDIA</label>
+            <select
+              value={(config.media_type as string) || 'image'}
+              onChange={(e) => set('media_type', e.target.value)}
+              className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+            >
+              <option value="image">Imagem</option>
+              <option value="video">Vídeo</option>
+            </select>
+          </div>
+
+          {(config.media_type || 'image') === 'image' ? (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-syne font-semibold text-text3">URL DA IMAGEM *</label>
+              <VariableAutocomplete
+                value={(config.image_url as string) || ''}
+                onChange={(v) => set('image_url', v)}
+                placeholder="https://... ou {{imagem_url}}"
+                rows={1}
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-syne font-semibold text-text3">ID DO VÍDEO *</label>
+              <VariableAutocomplete
+                value={(config.video_id as string) || ''}
+                onChange={(v) => set('video_id', v)}
+                placeholder="{{video_id}} ou 123456789"
+                rows={1}
+              />
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">TÍTULO</label>
+            <VariableAutocomplete
+              value={(config.title as string) || ''}
+              onChange={(v) => set('title', v)}
+              placeholder="Título do anúncio {{cliente.nome}}"
+              rows={1}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">TEXTO DO ANÚNCIO</label>
+            <VariableAutocomplete
+              value={(config.body as string) || ''}
+              onChange={(v) => set('body', v)}
+              placeholder="Texto principal do anúncio..."
+              rows={3}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">URL DE DESTINO</label>
+            <VariableAutocomplete
+              value={(config.link_url as string) || ''}
+              onChange={(v) => set('link_url', v)}
+              placeholder="https://seusite.com.br"
+              rows={1}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">CALL TO ACTION</label>
+            <select
+              value={(config.call_to_action as string) || 'LEARN_MORE'}
+              onChange={(e) => set('call_to_action', e.target.value)}
+              className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+            >
+              {CTA_OPTIONS.map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">ID DO INSTAGRAM (opcional)</label>
+            <VariableAutocomplete
+              value={(config.instagram_actor_id as string) || ''}
+              onChange={(v) => set('instagram_actor_id', v)}
+              placeholder="ID da conta Instagram"
+              rows={1}
+            />
+          </div>
+        </>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">STATUS INICIAL</label>
+        <select
+          value={(config.status as string) || 'PAUSED'}
+          onChange={(e) => set('status', e.target.value)}
+          className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+        >
+          <option value="PAUSED">Pausado</option>
+          <option value="ACTIVE">Ativo</option>
+        </select>
+      </div>
+
+      <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3">
+        <p className="font-syne font-bold text-accent mb-1">Saída disponível</p>
+        <p><code className="text-accent">{'{{ad_id}}'}</code> — ID do anúncio criado</p>
+      </div>
+    </>
+  )
+}
+
+export function EditAdInspector({ config, onChange }: InspectorFieldProps) {
+  const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
+
+  return (
+    <>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">ID DO ANÚNCIO *</label>
+        <VariableAutocomplete
+          value={(config.ad_id as string) || ''}
+          onChange={(v) => set('ad_id', v)}
+          placeholder="{{ad_id}} ou 123456789"
+          rows={1}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">NOVO NOME (opcional)</label>
+        <VariableAutocomplete
+          value={(config.name as string) || ''}
+          onChange={(v) => set('name', v)}
+          placeholder="Novo nome"
+          rows={1}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">STATUS</label>
+        <select
+          value={(config.status as string) || ''}
+          onChange={(e) => set('status', e.target.value)}
+          className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+        >
+          <option value="">Não alterar</option>
+          <option value="ACTIVE">Ativar</option>
+          <option value="PAUSED">Pausar</option>
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">ID DO NOVO CRIATIVO (opcional)</label>
+        <VariableAutocomplete
+          value={(config.creative_id as string) || ''}
+          onChange={(v) => set('creative_id', v)}
+          placeholder="{{creative_id}}"
+          rows={1}
+        />
+      </div>
+    </>
+  )
+}

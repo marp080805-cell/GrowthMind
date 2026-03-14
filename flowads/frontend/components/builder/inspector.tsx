@@ -3,17 +3,76 @@
 import { getBlock } from '@/lib/blocks'
 import { Button } from '@/components/ui/button'
 import { X, Trash2 } from 'lucide-react'
+
+// Triggers
 import { ScheduleInspector } from './inspectors/schedule'
 import { WebhookInspector } from './inspectors/webhook'
+import { TriggerMetricInspector } from './inspectors/trigger-metric'
+
+// Meta
 import { MetricsInspector } from './inspectors/metrics'
+import {
+  FetchCampaignsInspector,
+  CreateCampaignInspector,
+  EditCampaignInspector,
+  DuplicateCampaignInspector,
+} from './inspectors/meta-campaigns'
+import {
+  FetchAdSetsInspector,
+  CreateAdSetInspector,
+  EditAdSetInspector,
+} from './inspectors/meta-adsets'
+import {
+  FetchAdsInspector,
+  CreateAdInspector,
+  EditAdInspector,
+} from './inspectors/meta-ads'
+import {
+  PauseActivateInspector,
+  AdjustBudgetInspector,
+  BoostPostInspector,
+  InstagramPostsInspector,
+  CreativeInsightsInspector,
+  AudiencesInspector,
+  CreateAudienceInspector,
+} from './inspectors/meta-actions'
+
+// AI
+import { AIAgentInspector } from './inspectors/ai-agent'
+
+// WhatsApp
+import { WhatsappInspector } from './inspectors/whatsapp'
+import { SendReportInspector, SendFileInspector } from './inspectors/whatsapp-extras'
+
+// Logic
 import { ConditionalInspector } from './inspectors/conditional'
 import { LoopInspector } from './inspectors/loop'
 import { WaitInspector } from './inspectors/wait'
+import { FilterInspector, TransformInspector, MergeInspector, StopInspector } from './inspectors/logic-extras'
+
+// Utils
 import { HttpInspector } from './inspectors/http'
-import { WhatsappInspector } from './inspectors/whatsapp'
 import { FormatTextInspector } from './inspectors/format-text'
 import { NoteInspector } from './inspectors/note'
-import { AIAgentInspector } from './inspectors/ai-agent'
+import { LogInspector, SetVariableInspector } from './inspectors/util-extras'
+
+// Notion
+import {
+  NotionCreatePageInspector,
+  NotionSearchPagesInspector,
+  NotionUpdatePageInspector,
+  NotionReadDatabaseInspector,
+} from './inspectors/notion'
+
+// Drive
+import {
+  DriveListFilesInspector,
+  DriveDownloadFileInspector,
+  DriveUploadFileInspector,
+  DriveCreateFolderInspector,
+} from './inspectors/drive'
+
+// Fallback
 import { GenericInspector } from './inspectors/generic'
 
 interface InspectorProps {
@@ -28,17 +87,74 @@ interface InspectorProps {
 }
 
 const INSPECTOR_MAP: Record<string, React.ComponentType<InspectorFieldProps>> = {
+  // Triggers
   'trigger.schedule': ScheduleInspector,
   'trigger.webhook': WebhookInspector,
+  'trigger.metric': TriggerMetricInspector,
+
+  // Meta — Leitura
+  'meta.fetch_campaigns': FetchCampaignsInspector,
+  'meta.fetch_adsets': FetchAdSetsInspector,
+  'meta.fetch_ads': FetchAdsInspector,
   'meta.fetch_metrics': MetricsInspector,
+  'meta.fetch_creative_insights': CreativeInsightsInspector,
+  'meta.fetch_instagram_posts': InstagramPostsInspector,
+  'meta.fetch_audiences': AudiencesInspector,
+
+  // Meta — Criação
+  'meta.create_campaign': CreateCampaignInspector,
+  'meta.create_adset': CreateAdSetInspector,
+  'meta.create_ad': CreateAdInspector,
+  'meta.boost_post': BoostPostInspector,
+  'meta.duplicate_campaign': DuplicateCampaignInspector,
+  'meta.create_audience': CreateAudienceInspector,
+
+  // Meta — Edição
+  'meta.edit_campaign': EditCampaignInspector,
+  'meta.edit_adset': EditAdSetInspector,
+  'meta.edit_ad': EditAdInspector,
+  'meta.adjust_budget': AdjustBudgetInspector,
+
+  // Meta — Status
+  'meta.pause_ad': PauseActivateInspector,
+  'meta.activate_ad': PauseActivateInspector,
+  'meta.delete_object': PauseActivateInspector,
+
+  // AI
+  'ai.agent': AIAgentInspector,
+
+  // WhatsApp
+  'whatsapp.send_message': WhatsappInspector,
+  'whatsapp.send_report': SendReportInspector,
+  'whatsapp.send_file': SendFileInspector,
+
+  // Logic
   'logic.if': ConditionalInspector,
   'logic.loop': LoopInspector,
   'logic.wait': WaitInspector,
+  'logic.merge': MergeInspector,
+  'logic.filter': FilterInspector,
+  'logic.transform': TransformInspector,
+  'logic.stop': StopInspector,
+
+  // Utils
   'util.http': HttpInspector,
-  'whatsapp.send_message': WhatsappInspector,
   'util.format_text': FormatTextInspector,
   'util.note': NoteInspector,
-  'ai.agent': AIAgentInspector,
+  'util.log': LogInspector,
+  'util.set_variable': SetVariableInspector,
+
+  // Notion
+  'notion.create_page': NotionCreatePageInspector,
+  'notion.search_pages': NotionSearchPagesInspector,
+  'notion.update_page': NotionUpdatePageInspector,
+  'notion.read_database': NotionReadDatabaseInspector,
+
+  // Drive
+  'drive.list_files': DriveListFilesInspector,
+  'drive.download_file': DriveDownloadFileInspector,
+  'drive.upload_file': DriveUploadFileInspector,
+  'drive.create_folder': DriveCreateFolderInspector,
 }
 
 export interface InspectorFieldProps {

@@ -280,6 +280,8 @@ async function executeNode(
   }
 }
 
+// ─── META ─────────────────────────────────────────────────────────────────────
+
 async function executeMeta(
   action: string,
   config: Record<string, unknown>,
@@ -291,43 +293,223 @@ async function executeMeta(
 
   const meta = new MetaService(token, context.client?.ad_account_id || '')
 
+  const periodMap: Record<string, string> = {
+    '7d': 'last_7_days',
+    '14d': 'last_14_days',
+    '30d': 'last_30_days',
+    'this_month': 'this_month',
+    'yesterday': 'yesterday',
+    'today': 'today',
+    'last_3d': 'last_3d',
+    'last_90_days': 'last_90_days',
+  }
+
   switch (action) {
+    // ── Leitura ──────────────────────────────────────────────────────────
     case 'fetch_campaigns': {
-      const campaigns = await meta.getCampaigns()
-      return { campanhas: campaigns }
+      const campaigns = await meta.getCampaigns(config.status as string | undefined)
+      return { campanhas: campaigns, total: campaigns.length }
     }
+
+    case 'fetch_adsets': {
+      const adsets = await meta.getAdSets(config.campaign_id as string | undefined)
+      return { adsets, total: adsets.length }
+    }
+
+    case 'fetch_ads': {
+      const parentType = (config.parent_type as 'campaign' | 'adset' | 'account') || 'account'
+      const ads = await meta.getAds(config.parent_id as string | undefined, parentType)
+      return { anuncios: ads, total: ads.length }
+    }
+
     case 'fetch_metrics': {
       const period = (config.period as string) || '7d'
-      const periodMap: Record<string, string> = {
-        '7d': 'last_7_days',
-        '14d': 'last_14_days',
-        '30d': 'last_30_days',
-        'this_month': 'this_month',
-      }
       const metrics = await meta.getMetrics(
-        null,
+        (config.object_id as string) || null,
         periodMap[period] || period,
         (config.metrics as string[]) || [],
         config.breakdown as string
       )
       return { metricas: metrics }
     }
-    case 'pause_ad': {
-      await meta.pauseAd(config.ad_id as string)
-      return { paused: true }
+
+    case 'fetch_creative_insights': {
+      const insights = await meta.getCreativeInsights(config.ad_id as string | undefined)
+      return { insights, total: insights.length }
     }
-    case 'activate_ad': {
-      await meta.activateAd(config.ad_id as string)
-      return { activated: true }
+
+    case 'fetch_instagram_posts': {
+      if (!config.instagram_account_id) throw new Error('ID da conta Instagram não configurado')
+      const posts = await meta.getInstagramPosts(
+        config.instagram_account_id as string,
+        (config.limit as number) || 20
+      )
+      return { posts, total: posts.length }
     }
+
+    case 'fetch_audiences': {
+      const audiences = await meta.getAudiences()
+      return { publicos: audiences, total: audiences.length }
+    }
+
+    // ── Criação ──────────────────────────────────────────────────────────
+    case 'create_campaign': {
+      const result = await meta.createCampaign({
+        name: config.name as string,
+        objective: config.objective as string,
+        status: (config.status as string) || 'PAUSED',
+        daily_budget: config.daily_budget as number | undefined,
+        lifetime_budget: config.lifetime_budget as number | undefined,
+        start_time: config.start_time as string | undefined,
+        stop_time: config.stop_time as string | undefined,
+        special_ad_categories: (config.special_ad_categories as string[]) || [],
+      })
+      return { campanha_criada: result, campaign_id: result.id }
+    }
+
+    case 'create_adset': {
+      const targeting = config.targeting
+        ? (typeof config.targeting === 'string' ? JSON.parse(config.targeting) : config.targeting)
+        : { geo_locations: { countries: ['BR'] } }
+      const result = await meta.createAdSet({
+        campaign_id: config.campaign_id as string,
+        name: config.name as string,
+        optimization_goal: (config.optimization_goal as string) || 'REACH',
+        billing_event: (config.billing_event as string) || 'IMPRESSIONS',
+        daily_budget: config.daily_budget as number | undefined,
+        lifetime_budget: config.lifetime_budget as number | undefined,
+        bid_amount: config.bid_amount as number | undefined,
+        targeting,
+        status: (config.status as string) || 'PAUSED',
+        start_time: config.start_time as string | undefined,
+        end_time: config.end_time as string | undefined,
+      })
+      return { adset_criado: result, adset_id: result.id }
+    }
+
+    case 'create_ad': {
+      const result = await meta.createAd({
+        adset_id: config.adset_id as string,
+        name: config.name as string,
+        creative_id: config.creative_id as string | undefined,
+        title: config.title as string | undefined,
+        body: config.body as string | undefined,
+        image_url: config.image_url as string | undefined,
+        video_id: config.video_id as string | undefined,
+        link_url: config.link_url as string | undefined,
+        call_to_action: config.call_to_action as string | undefined,
+        page_id: config.page_id as string | undefined,
+        instagram_actor_id: config.instagram_actor_id as string | undefined,
+        status: (config.status as string) || 'PAUSED',
+      })
+      return { anuncio_criado: result, ad_id: result.id }
+    }
+
+    case 'boost_post': {
+      const targeting = config.targeting
+        ? (typeof config.targeting === 'string' ? JSON.parse(config.targeting) : config.targeting)
+        : { geo_locations: { countries: ['BR'] }, age_min: 18, age_max: 65 }
+      const result = await meta.boostPost({
+        post_id: config.post_id as string,
+        page_id: config.page_id as string,
+        daily_budget: (config.daily_budget as number) || 10,
+        duration_days: (config.duration_days as number) || 7,
+        targeting,
+        optimization_goal: config.optimization_goal as string | undefined,
+      })
+      return { boost_criado: result, ...result }
+    }
+
+    case 'duplicate_campaign': {
+      const result = await meta.duplicateCampaign(
+        config.campaign_id as string,
+        config.new_name as string | undefined
+      )
+      return { campanha_duplicada: result, campaign_id: result.id }
+    }
+
+    case 'create_audience': {
+      const result = await meta.createCustomAudience({
+        name: config.name as string,
+        description: config.description as string | undefined,
+        subtype: (config.subtype as 'CUSTOM' | 'WEBSITE' | 'APP' | 'LOOKALIKE') || 'WEBSITE',
+        pixel_id: config.pixel_id as string | undefined,
+        rule: config.rule as Record<string, unknown> | undefined,
+        lookalike_spec: config.lookalike_spec as Record<string, unknown> | undefined,
+      })
+      return { publico_criado: result, audience_id: result.id }
+    }
+
+    // ── Edição ───────────────────────────────────────────────────────────
+    case 'edit_campaign': {
+      await meta.editCampaign(config.campaign_id as string, {
+        name: config.name as string | undefined,
+        status: config.status as string | undefined,
+        daily_budget: config.daily_budget as number | undefined,
+        lifetime_budget: config.lifetime_budget as number | undefined,
+        stop_time: config.stop_time as string | undefined,
+      })
+      return { editado: true, campaign_id: config.campaign_id }
+    }
+
+    case 'edit_adset': {
+      await meta.editAdSet(config.adset_id as string, {
+        name: config.name as string | undefined,
+        status: config.status as string | undefined,
+        daily_budget: config.daily_budget as number | undefined,
+        targeting: config.targeting as Record<string, unknown> | undefined,
+        end_time: config.end_time as string | undefined,
+      })
+      return { editado: true, adset_id: config.adset_id }
+    }
+
+    case 'edit_ad': {
+      await meta.editAd(config.ad_id as string, {
+        name: config.name as string | undefined,
+        status: config.status as string | undefined,
+        creative_id: config.creative_id as string | undefined,
+      })
+      return { editado: true, ad_id: config.ad_id }
+    }
+
     case 'adjust_budget': {
-      await meta.updateBudget(config.campaign_id as string, config.budget as number)
-      return { updated: true }
+      const objectId = (config.campaign_id || config.adset_id || config.object_id) as string
+      if (!objectId) throw new Error('ID do objeto não configurado')
+      await meta.updateBudget(objectId, {
+        daily_budget: config.daily_budget as number | undefined,
+        lifetime_budget: config.lifetime_budget as number | undefined,
+      })
+      return { budget_atualizado: true, object_id: objectId }
     }
+
+    // ── Status ───────────────────────────────────────────────────────────
+    case 'pause_ad': {
+      const id = (config.ad_id || config.adset_id || config.campaign_id || config.object_id) as string
+      if (!id) throw new Error('ID do objeto não configurado')
+      await meta.pauseObject(id)
+      return { pausado: true, object_id: id }
+    }
+
+    case 'activate_ad': {
+      const id = (config.ad_id || config.adset_id || config.campaign_id || config.object_id) as string
+      if (!id) throw new Error('ID do objeto não configurado')
+      await meta.activateObject(id)
+      return { ativado: true, object_id: id }
+    }
+
+    case 'delete_object': {
+      const id = (config.object_id || config.ad_id || config.adset_id || config.campaign_id) as string
+      if (!id) throw new Error('ID do objeto não configurado')
+      await meta.deleteObject(id)
+      return { excluido: true, object_id: id }
+    }
+
     default:
       return input
   }
 }
+
+// ─── AI ───────────────────────────────────────────────────────────────────────
 
 async function executeAI(
   action: string,
@@ -370,6 +552,8 @@ async function executeAI(
   return result.parsed || result.content
 }
 
+// ─── WHATSAPP ─────────────────────────────────────────────────────────────────
+
 async function executeWhatsapp(
   action: string,
   config: Record<string, unknown>,
@@ -404,6 +588,8 @@ async function executeWhatsapp(
   }
 }
 
+// ─── LOGIC ────────────────────────────────────────────────────────────────────
+
 async function executeLogic(
   action: string,
   config: Record<string, unknown>,
@@ -418,9 +604,11 @@ async function executeLogic(
       await new Promise((r) => setTimeout(r, Math.min(ms, 30000))) // max 30s in execution
       return input
     }
+
     case 'if': {
       const { variable, operator, value } = config as Record<string, string>
-      const actual = String(input)
+      // variable might be a literal value already (interpolated) or a path
+      const actual = variable !== undefined ? String(variable) : String(input)
       let result = false
       switch (operator) {
         case '>': result = parseFloat(actual) > parseFloat(value); break
@@ -436,28 +624,71 @@ async function executeLogic(
       }
       return { condition: result, input }
     }
+
+    case 'loop': {
+      // Resolve the list from input
+      const listPath = config.list as string
+      let list: unknown[] = []
+      if (Array.isArray(input)) {
+        list = input
+      } else if (listPath && input && typeof input === 'object') {
+        const keys = listPath.replace(/\{\{|\}\}/g, '').trim().split('.')
+        let val: unknown = input
+        for (const k of keys) val = (val as Record<string, unknown>)?.[k]
+        if (Array.isArray(val)) list = val
+      }
+      const maxIter = (config.max_iterations as number) || 100
+      return { items: list.slice(0, maxIter), total: list.length, item_var: config.item_var || 'item' }
+    }
+
+    case 'merge': {
+      // Merge two inputs - input is the latest, but both paths arrive here
+      if (input && typeof input === 'object' && !Array.isArray(input)) {
+        const a = (config.data_a as Record<string, unknown>) || {}
+        const b = (config.data_b as Record<string, unknown>) || {}
+        return { ...a, ...b, ...(input as Record<string, unknown>) }
+      }
+      return input
+    }
+
+    case 'filter': {
+      if (!Array.isArray(input)) return input
+      const { field, operator, value } = config as Record<string, string>
+      if (!field || !operator) return input
+      return input.filter((item) => {
+        const itemVal = String((item as Record<string, unknown>)?.[field] ?? '')
+        switch (operator) {
+          case '>': return parseFloat(itemVal) > parseFloat(value)
+          case '<': return parseFloat(itemVal) < parseFloat(value)
+          case '>=': return parseFloat(itemVal) >= parseFloat(value)
+          case '<=': return parseFloat(itemVal) <= parseFloat(value)
+          case '=': return itemVal === value
+          case '!=': return itemVal !== value
+          case 'contains': return itemVal.includes(value)
+          case 'not_contains': return !itemVal.includes(value)
+          case 'is_empty': return !itemVal
+          case 'not_empty': return !!itemVal
+          default: return true
+        }
+      })
+    }
+
     case 'transform': {
       const template = config.template as string
-      if (template) {
-        try { return JSON.parse(template) } catch { return template }
-      }
-      return input
+      if (!template) return input
+      // Try JSON parse first (for object templates), then return as string
+      try { return JSON.parse(template) } catch { return template }
     }
-    case 'filter': {
-      if (Array.isArray(input)) {
-        return input.filter((item) => {
-          if (!config.condition) return true
-          return true // Simplified - full expression eval would be complex
-        })
-      }
-      return input
-    }
+
     case 'stop':
       throw new Error('FLOW_STOPPED')
+
     default:
       return input
   }
 }
+
+// ─── UTIL ─────────────────────────────────────────────────────────────────────
 
 async function executeUtil(
   action: string,
@@ -489,36 +720,199 @@ async function executeUtil(
       const text = await res.text()
       try { return JSON.parse(text) } catch { return text }
     }
+
     case 'format_text': {
       return { [config.output_var as string || 'texto']: config.template || '' }
     }
+
     case 'log': {
-      console.log('[FlowAds Log]', input)
+      console.log('[FlowAds Log]', config.label ? `[${config.label}]` : '', input)
       return input
     }
+
+    case 'set_variable': {
+      const varName = config.variable as string
+      const varValue = config.value
+      if (!varName) return input
+      return { ...(input && typeof input === 'object' ? input as Record<string, unknown> : {}), [varName]: varValue }
+    }
+
     default:
       return input
   }
 }
 
+// ─── NOTION ───────────────────────────────────────────────────────────────────
+
 async function executeNotion(
   action: string,
-  _config: Record<string, unknown>,
+  config: Record<string, unknown>,
   input: unknown,
-  _context: ExecutionContext
+  context: ExecutionContext
 ): Promise<unknown> {
-  // Notion integration requires OAuth - returns placeholder
-  console.warn('Notion integration not fully configured')
-  return input
+  const token = context.settings.notion_token
+  if (!token) throw new Error('Token Notion não configurado. Configure em Configurações.')
+
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    'Notion-Version': '2022-06-28',
+  }
+
+  switch (action) {
+    case 'create_page': {
+      const properties = config.properties
+        ? (typeof config.properties === 'string' ? JSON.parse(config.properties) : config.properties)
+        : {}
+      const children = config.content
+        ? [{ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: config.content as string } }] } }]
+        : []
+      const body: Record<string, unknown> = {
+        parent: { database_id: config.database_id },
+        properties,
+      }
+      if (children.length) body.children = children
+      const res = await fetch('https://api.notion.com/v1/pages', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      })
+      const data = await res.json() as Record<string, unknown>
+      if (!res.ok) throw new Error((data.message as string) || 'Erro ao criar página Notion')
+      return { page_id: data.id, url: data.url, criado: true }
+    }
+
+    case 'search_pages': {
+      const filter = config.filter
+        ? (typeof config.filter === 'string' ? JSON.parse(config.filter) : config.filter)
+        : undefined
+      const sorts = config.sorts
+        ? (typeof config.sorts === 'string' ? JSON.parse(config.sorts) : config.sorts)
+        : undefined
+      const body: Record<string, unknown> = { page_size: (config.limit as number) || 10 }
+      if (filter) body.filter = filter
+      if (sorts) body.sorts = sorts
+      const res = await fetch(`https://api.notion.com/v1/databases/${config.database_id}/query`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      })
+      const data = await res.json() as { results?: unknown[] }
+      if (!res.ok) throw new Error('Erro ao buscar páginas Notion')
+      return { paginas: data.results || [], total: (data.results || []).length }
+    }
+
+    case 'update_page': {
+      const properties = config.properties
+        ? (typeof config.properties === 'string' ? JSON.parse(config.properties) : config.properties)
+        : {}
+      const res = await fetch(`https://api.notion.com/v1/pages/${config.page_id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ properties }),
+      })
+      const data = await res.json() as Record<string, unknown>
+      if (!res.ok) throw new Error('Erro ao atualizar página Notion')
+      return { page_id: data.id, atualizado: true }
+    }
+
+    case 'read_database': {
+      const res = await fetch(`https://api.notion.com/v1/databases/${config.database_id}/query`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ page_size: (config.limit as number) || 100 }),
+      })
+      const data = await res.json() as { results?: unknown[] }
+      if (!res.ok) throw new Error('Erro ao ler database Notion')
+      return { registros: data.results || [], total: (data.results || []).length }
+    }
+
+    default:
+      return input
+  }
 }
+
+// ─── DRIVE ────────────────────────────────────────────────────────────────────
 
 async function executeDrive(
   action: string,
-  _config: Record<string, unknown>,
+  config: Record<string, unknown>,
   input: unknown,
-  _context: ExecutionContext
+  context: ExecutionContext
 ): Promise<unknown> {
-  // Drive integration requires OAuth - returns placeholder
-  console.warn('Google Drive integration not fully configured')
-  return input
+  const token = context.settings.drive_token
+  if (!token) throw new Error('Token Google Drive não configurado. Configure em Configurações.')
+
+  const authHeader = { 'Authorization': `Bearer ${token}` }
+
+  switch (action) {
+    case 'list_files': {
+      const folderId = config.folder_id as string
+      const query = folderId
+        ? `'${folderId}' in parents and trashed = false`
+        : 'trashed = false'
+      const params = new URLSearchParams({
+        q: query,
+        fields: 'files(id,name,mimeType,size,modifiedTime,webViewLink)',
+        pageSize: String((config.limit as number) || 50),
+      })
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, { headers: authHeader })
+      const data = await res.json() as { files?: unknown[] }
+      if (!res.ok) throw new Error('Erro ao listar arquivos do Drive')
+      return { arquivos: data.files || [], total: (data.files || []).length }
+    }
+
+    case 'download_file': {
+      const fileId = config.file_id as string
+      // Get file metadata
+      const metaRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size`,
+        { headers: authHeader }
+      )
+      const meta = await metaRes.json() as Record<string, unknown>
+      // Get download URL
+      const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+      return { file_id: fileId, name: meta.name, mimeType: meta.mimeType, download_url: downloadUrl }
+    }
+
+    case 'upload_file': {
+      const metadata = {
+        name: config.file_name as string || 'arquivo',
+        parents: config.folder_id ? [config.folder_id] : [],
+      }
+      const res = await fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+        {
+          method: 'POST',
+          headers: {
+            ...authHeader,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ...metadata, description: config.description }),
+        }
+      )
+      const data = await res.json() as Record<string, unknown>
+      if (!res.ok) throw new Error('Erro ao fazer upload para o Drive')
+      return { file_id: data.id, name: data.name, enviado: true }
+    }
+
+    case 'create_folder': {
+      const body = {
+        name: config.folder_name as string || 'Nova pasta',
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: config.parent_id ? [config.parent_id] : [],
+      }
+      const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: { ...authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json() as Record<string, unknown>
+      if (!res.ok) throw new Error('Erro ao criar pasta no Drive')
+      return { folder_id: data.id, name: data.name, criado: true }
+    }
+
+    default:
+      return input
+  }
 }
