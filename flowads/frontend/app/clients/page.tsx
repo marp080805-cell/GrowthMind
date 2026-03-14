@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Shell } from '@/components/layout/shell'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
@@ -8,13 +9,33 @@ import { ClientCard } from '@/components/clients/client-card'
 import { ClientForm } from '@/components/clients/client-form'
 import { CardSkeleton } from '@/components/ui/skeleton'
 import { useClients } from '@/hooks/use-client'
+import { useToast } from '@/hooks/use-toast'
 import { Plus, Search } from 'lucide-react'
 import type { Client } from '@/lib/api'
 
 export default function ClientsPage() {
   const { clients, loading, setClients } = useClients()
   const [showModal, setShowModal] = useState(false)
+  const [editingClient, setEditingClient] = useState<Partial<Client> | undefined>()
   const [search, setSearch] = useState('')
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const { success, error } = useToast()
+
+  useEffect(() => {
+    const connected = searchParams.get('meta_connected')
+    const metaError = searchParams.get('meta_error')
+
+    if (connected) {
+      success('Meta conectado com sucesso!')
+      const client = clients.find(c => c.id === connected)
+      if (client) { setEditingClient(client); setShowModal(true) }
+      router.replace('/clients')
+    } else if (metaError) {
+      error(metaError === 'cancelled' ? 'Conexão cancelada' : 'Erro ao conectar com Meta')
+      router.replace('/clients')
+    }
+  }, [searchParams, clients]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = clients.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
@@ -23,6 +44,7 @@ export default function ClientsPage() {
   const handleCreated = (client: Client) => {
     setClients((prev) => [client, ...prev])
     setShowModal(false)
+    setEditingClient(undefined)
   }
 
   return (
@@ -70,14 +92,15 @@ export default function ClientsPage() {
 
       <Modal
         open={showModal}
-        onClose={() => setShowModal(false)}
-        title="Novo Cliente"
+        onClose={() => { setShowModal(false); setEditingClient(undefined) }}
+        title={editingClient?.id ? 'Editar Cliente' : 'Novo Cliente'}
         description="Preencha os dados do cliente para começar"
         size="lg"
       >
         <ClientForm
+          client={editingClient}
           onSuccess={handleCreated}
-          onCancel={() => setShowModal(false)}
+          onCancel={() => { setShowModal(false); setEditingClient(undefined) }}
         />
       </Modal>
     </Shell>

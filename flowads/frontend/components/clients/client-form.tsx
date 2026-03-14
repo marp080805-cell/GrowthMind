@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { clientsApi, type Client, type MetaAccount, type MetaInstagramAccount } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, ChevronDown } from 'lucide-react'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/backend'
 
 interface ClientFormProps {
   client?: Partial<Client>
@@ -23,6 +25,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [loading, setLoading] = useState(false)
   const [connectingMeta, setConnectingMeta] = useState(false)
   const [showToken, setShowToken] = useState(false)
+  const [showManualToken, setShowManualToken] = useState(false)
   const [metaAccounts, setMetaAccounts] = useState<MetaAccount[]>([])
   const [instagramAccounts, setInstagramAccounts] = useState<MetaInstagramAccount[]>([])
 
@@ -39,6 +42,24 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
 
   const set = (key: string, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }))
+
+  const handleConnectOAuth = async () => {
+    if (!client?.id) {
+      // Novo cliente: salva primeiro para ter um ID
+      if (!form.name) { error('Preencha o nome do cliente antes de conectar'); return }
+      setLoading(true)
+      try {
+        const created = await clientsApi.create(form)
+        window.location.href = `${API_URL}/auth/meta/connect?client_id=${created.id}`
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Erro ao salvar cliente'
+        error(msg)
+        setLoading(false)
+      }
+      return
+    }
+    window.location.href = `${API_URL}/auth/meta/connect?client_id=${client.id}`
+  }
 
   const handleConnectMeta = async () => {
     if (!form.meta_token) {
@@ -123,34 +144,56 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-text2 font-syne">Token de acesso Meta</label>
-        <div className="flex gap-2">
-          <div className="flex-1 relative">
-            <input
-              type={showToken ? 'text' : 'password'}
-              placeholder="EAAxxxxxxxxxxxx..."
-              value={form.meta_token}
-              onChange={(e) => set('meta_token', e.target.value)}
-              className="w-full h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 pr-10 text-sm focus:outline-none focus:border-accent transition-colors"
-            />
-            <button
-              type="button"
-              onClick={() => setShowToken(!showToken)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-text3 hover:text-text2 transition-colors"
-            >
-              {showToken ? <EyeOff size={15} /> : <Eye size={15} />}
-            </button>
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-medium text-text2 font-syne">Conexão Meta</label>
+
+        {/* Botão OAuth principal */}
+        <button
+          type="button"
+          onClick={handleConnectOAuth}
+          disabled={loading}
+          className="flex items-center justify-center gap-2.5 h-10 w-full rounded-[12px] text-white text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
+          style={{ backgroundColor: '#1877F2' }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+          {loading ? 'Salvando...' : 'Conectar com Facebook'}
+        </button>
+
+        {/* Opção manual colapsável */}
+        <button
+          type="button"
+          onClick={() => setShowManualToken(!showManualToken)}
+          className="flex items-center gap-1 text-xs text-text3 hover:text-text2 transition-colors self-start"
+        >
+          <ChevronDown size={13} className={`transition-transform ${showManualToken ? 'rotate-180' : ''}`} />
+          Inserir token manualmente
+        </button>
+
+        {showManualToken && (
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <input
+                type={showToken ? 'text' : 'password'}
+                placeholder="EAAxxxxxxxxxxxx..."
+                value={form.meta_token}
+                onChange={(e) => set('meta_token', e.target.value)}
+                className="w-full h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 pr-10 text-sm focus:outline-none focus:border-accent transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => setShowToken(!showToken)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-text3 hover:text-text2 transition-colors"
+              >
+                {showToken ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            <Button type="button" variant="outline" onClick={handleConnectMeta} loading={connectingMeta}>
+              Conectar
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleConnectMeta}
-            loading={connectingMeta}
-          >
-            Conectar Meta
-          </Button>
-        </div>
+        )}
       </div>
 
       {metaAccounts.length > 0 && (
