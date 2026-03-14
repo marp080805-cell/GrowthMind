@@ -90,7 +90,9 @@ export async function executeAutomation(
     .select()
     .single()
 
-  const executionId = logRecord!.id
+  if (!logRecord) throw new Error('Falha ao criar registro de execução')
+
+  const executionId = logRecord.id
   const nodeLogs: NodeLog[] = []
 
   async function updateLog(status: 'running' | 'success' | 'error') {
@@ -224,7 +226,7 @@ export async function executeAutomation(
     return executionId
   } catch (err) {
     await updateLog('error')
-    throw err
+    return executionId  // Always return executionId so frontend can check logs
   }
 }
 
