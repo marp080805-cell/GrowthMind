@@ -46,7 +46,7 @@ export const clientsApi = {
   update: (id: string, data: Partial<Client>) => api.put<Client>(`/clients/${id}`, data),
   delete: (id: string) => api.delete(`/clients/${id}`),
   connectMeta: (id: string, token: string) =>
-    api.post<{ accounts: MetaAccount[] }>(`/clients/${id}/connect-meta`, { token }),
+    api.post<{ accounts: MetaAccount[]; instagramAccounts: MetaInstagramAccount[] }>(`/clients/${id}/connect-meta`, { token }),
   getInstagramAccounts: (id: string, token: string, ad_account_id: string) =>
     api.post<{ instagram_accounts: MetaInstagramAccount[] }>(`/clients/${id}/instagram-accounts`, { token, ad_account_id }),
 }

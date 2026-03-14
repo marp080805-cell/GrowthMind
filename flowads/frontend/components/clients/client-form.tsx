@@ -47,31 +47,13 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     }
     setConnectingMeta(true)
     try {
-      const { accounts } = await clientsApi.connectMeta(
+      const { accounts, instagramAccounts } = await clientsApi.connectMeta(
         client?.id || 'new',
         form.meta_token
       )
       setMetaAccounts(accounts)
-      setInstagramAccounts([])
+      setInstagramAccounts(instagramAccounts || [])
       success('Meta conectado com sucesso!')
-
-      // Se já tem conta de anúncios salva, busca os perfis Instagram automaticamente
-      const existingAdAccount = form.ad_account_id
-      if (existingAdAccount) {
-        setLoadingInstagram(true)
-        try {
-          const { instagram_accounts } = await clientsApi.getInstagramAccounts(
-            client?.id || 'new',
-            form.meta_token,
-            existingAdAccount
-          )
-          setInstagramAccounts(instagram_accounts)
-        } catch {
-          setInstagramAccounts([])
-        } finally {
-          setLoadingInstagram(false)
-        }
-      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Erro ao conectar Meta'
       error(msg)
