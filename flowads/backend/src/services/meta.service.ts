@@ -98,6 +98,18 @@ async function metaGet<T>(url: string): Promise<T> {
   return data
 }
 
+// Busca todas as páginas de paginação automática do Meta
+async function metaGetAll<T>(url: string): Promise<T[]> {
+  const results: T[] = []
+  let nextUrl: string | null = url
+  while (nextUrl) {
+    const data = await metaGet<{ data?: T[]; paging?: { next?: string } }>(nextUrl)
+    for (const item of data.data || []) results.push(item)
+    nextUrl = data.paging?.next || null
+  }
+  return results
+}
+
 export class MetaService {
   constructor(private token: string, private adAccountId: string) {
     // Normalize: strip leading 'act_' to avoid act_act_ duplication
@@ -116,10 +128,10 @@ export class MetaService {
   // ─── Validation ──────────────────────────────────────────────────────────
 
   async validateToken(): Promise<{ valid: boolean; accounts: MetaAccount[] }> {
-    const data = await metaGet<{ data?: MetaAccount[] }>(
-      `${META_API}/me/adaccounts?fields=id,name,currency&access_token=${this.token}`
+    const accounts = await metaGetAll<MetaAccount>(
+      `${META_API}/me/adaccounts?fields=id,name,currency&limit=200&access_token=${this.token}`
     )
-    return { valid: true, accounts: data.data || [] }
+    return { valid: true, accounts }
   }
 
   // ─── Campaigns ───────────────────────────────────────────────────────────
@@ -480,30 +492,22 @@ export class MetaService {
       if (!seen.has(acc.id)) { seen.add(acc.id); accounts.push(acc) }
     }
 
-    // Tentativa 1: via Páginas do Facebook linkadas ao token
+    // Tentativa 1: via Páginas do Facebook linkadas ao token (com paginação)
     try {
-      const params = new URLSearchParams({
-        fields: 'id,name,instagram_business_account{id,name,username}',
-        access_token: this.token,
-      })
-      const data = await metaGet<{ data?: Array<{ instagram_business_account?: MetaInstagramAccount }> }>(
-        `${META_API}/me/accounts?${params}`
+      const pages = await metaGetAll<{ instagram_business_account?: MetaInstagramAccount }>(
+        `${META_API}/me/accounts?fields=id,name,instagram_business_account{id,name,username}&limit=200&access_token=${this.token}`
       )
-      for (const page of data.data || []) {
+      for (const page of pages) {
         if (page.instagram_business_account) add(page.instagram_business_account)
       }
     } catch { /* segue para próxima tentativa */ }
 
     // Tentativa 2: via Business Managers diretos (BM com Instagram conectado sem página)
     try {
-      const bmParams = new URLSearchParams({
-        fields: 'id,instagram_accounts{id,name,username}',
-        access_token: this.token,
-      })
-      const bmData = await metaGet<{ data?: Array<{ instagram_accounts?: { data?: MetaInstagramAccount[] } }> }>(
-        `${META_API}/me/businesses?${bmParams}`
+      const bms = await metaGetAll<{ instagram_accounts?: { data?: MetaInstagramAccount[] } }>(
+        `${META_API}/me/businesses?fields=id,instagram_accounts{id,name,username}&limit=200&access_token=${this.token}`
       )
-      for (const bm of bmData.data || []) {
+      for (const bm of bms) {
         for (const ig of bm.instagram_accounts?.data || []) add(ig)
       }
     } catch { /* sem BMs ou sem permissão */ }
