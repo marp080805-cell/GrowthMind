@@ -98,14 +98,19 @@ async function metaGet<T>(url: string): Promise<T> {
   return data
 }
 
+interface MetaPagedResponse<T> {
+  data?: T[]
+  paging?: { next?: string }
+}
+
 // Busca todas as páginas de paginação automática do Meta
 async function metaGetAll<T>(url: string): Promise<T[]> {
   const results: T[] = []
   let nextUrl: string | null = url
   while (nextUrl) {
-    const data = await metaGet<{ data?: T[]; paging?: { next?: string } }>(nextUrl)
-    for (const item of data.data || []) results.push(item)
-    nextUrl = data.paging?.next || null
+    const page: MetaPagedResponse<T> = await metaGet<MetaPagedResponse<T>>(nextUrl)
+    for (const item of page.data || []) results.push(item)
+    nextUrl = page.paging?.next || null
   }
   return results
 }
