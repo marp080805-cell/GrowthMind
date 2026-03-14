@@ -507,18 +507,27 @@ export class MetaService {
       }
     } catch { /* segue para próxima tentativa */ }
 
-    // Tentativa 2: via Business Managers — busca /{bm_id}/instagram_accounts com paginação própria
+    // Tentativa 2: via Business Managers — owned + shared instagram accounts
     try {
       const bms = await metaGetAll<{ id: string }>(
         `${META_API}/me/businesses?fields=id&limit=200&access_token=${this.token}`
       )
       for (const bm of bms) {
+        // 2a: contas PRÓPRIAS do BM
         try {
-          const igAccounts = await metaGetAll<MetaInstagramAccount>(
+          const owned = await metaGetAll<MetaInstagramAccount>(
+            `${META_API}/${bm.id}/owned_instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
+          )
+          for (const ig of owned) add(ig)
+        } catch { /* BM sem owned instagram */ }
+
+        // 2b: contas COMPARTILHADAS/cliente do BM
+        try {
+          const shared = await metaGetAll<MetaInstagramAccount>(
             `${META_API}/${bm.id}/instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
           )
-          for (const ig of igAccounts) add(ig)
-        } catch { /* BM sem permissão de Instagram */ }
+          for (const ig of shared) add(ig)
+        } catch { /* BM sem client instagram */ }
       }
     } catch { /* sem BMs ou sem permissão */ }
 
