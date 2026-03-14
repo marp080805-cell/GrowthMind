@@ -167,7 +167,7 @@ export async function executeAutomation(
           ? {
               ...(triggerPayload as Record<string, unknown> || {}),
               instagram_account_id: (triggerPayload as Record<string, unknown>)?.instagram_account_id
-                || context.client.instagram_account_id
+                || context.client?.instagram_account_id
                 || '',
             }
           : triggerPayload

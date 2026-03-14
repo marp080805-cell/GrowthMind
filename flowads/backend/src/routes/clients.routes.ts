@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { supabase } from '../lib/supabase'
 import { MetaService } from '../services/meta.service'
-import type { InstagramAccount } from '../services/meta.service'
+import type { MetaInstagramAccount } from '../services/meta.service'
 
 export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/clients', async () => {
@@ -54,7 +54,7 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
       const meta = new MetaService(token, '')
       const [{ accounts }, instagramAccounts] = await Promise.all([
         meta.validateToken(),
-        meta.getInstagramAccounts().catch(() => [] as InstagramAccount[]),
+        meta.getInstagramAccounts().catch(() => [] as MetaInstagramAccount[]),
       ])
       return { accounts, instagramAccounts }
     } catch (err) {
