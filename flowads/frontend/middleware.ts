@@ -16,7 +16,8 @@ export async function middleware(request: NextRequest) {
 
   if (
     pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/api/webhooks')
+    pathname.startsWith('/api/webhooks') ||
+    pathname.startsWith('/auth/')
   ) {
     return NextResponse.next()
   }

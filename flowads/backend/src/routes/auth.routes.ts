@@ -87,7 +87,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       } else {
         await supabase.from('settings').insert({ meta_token: finalToken })
       }
-      return reply.redirect(`${frontendUrl}/settings?meta_connected=1`)
+      return reply.redirect(`${frontendUrl}/auth/meta/success`)
     }
 
     // Client-level connection (legacy)

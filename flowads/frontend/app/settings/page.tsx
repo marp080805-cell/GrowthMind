@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import { Shell } from '@/components/layout/shell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,17 +29,6 @@ function SettingsPageInner() {
   const [models, setModels] = useState<AIModel[]>([])
   const [showAddModel, setShowAddModel] = useState(false)
   const [newModel, setNewModel] = useState({ provider: 'openai' as 'openai' | 'anthropic', slug: '', display_name: '' })
-  const searchParams = useSearchParams()
-  const router = useRouter()
-
-  useEffect(() => {
-    const metaConnected = searchParams.get('meta_connected')
-    if (metaConnected) {
-      success('Meta conectado com sucesso!')
-      router.replace('/settings')
-    }
-  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
     Promise.all([settingsApi.get(), settingsApi.getModels()])
       .then(([s, m]) => { setSettings(s); setModels(m) })
@@ -121,6 +109,32 @@ function SettingsPageInner() {
 
   const isMetaConnected = !!settings.meta_token
 
+  const openMetaOAuth = () => {
+    const popup = window.open(
+      `${API_URL}/auth/meta/connect?type=settings`,
+      'meta_oauth',
+      'width=600,height=700,scrollbars=yes,resizable=yes'
+    )
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'meta_connected') {
+        window.removeEventListener('message', onMessage)
+        popup?.close()
+        // Reload settings to show new token
+        settingsApi.get().then(setSettings).catch(() => {})
+        success('Meta conectado com sucesso!')
+      }
+    }
+    window.addEventListener('message', onMessage)
+    // Cleanup if popup is closed manually
+    const interval = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(interval)
+        window.removeEventListener('message', onMessage)
+        settingsApi.get().then(setSettings).catch(() => {})
+      }
+    }, 1000)
+  }
+
   const otherIntegrations = [
     {
       id: 'whatsapp',
@@ -182,7 +196,7 @@ function SettingsPageInner() {
               </div>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => window.location.href = `${API_URL}/auth/meta/connect?type=settings`}
+                  onClick={openMetaOAuth}
                   className="text-xs text-text3 hover:text-text2 underline transition-colors"
                 >
                   Reconectar
@@ -210,7 +224,7 @@ function SettingsPageInner() {
                 Conecte sua conta Facebook/Meta para ter acesso a todas as contas de anúncios e perfis Instagram da plataforma.
               </p>
               <button
-                onClick={() => window.location.href = `${API_URL}/auth/meta/connect?type=settings`}
+                onClick={openMetaOAuth}
                 className="flex items-center justify-center gap-2.5 h-10 w-full rounded-[12px] text-white text-sm font-semibold transition-opacity hover:opacity-90"
                 style={{ backgroundColor: '#1877F2' }}
               >
@@ -369,9 +383,5 @@ function SettingsPageInner() {
 }
 
 export default function SettingsPage() {
-  return (
-    <Suspense>
-      <SettingsPageInner />
-    </Suspense>
-  )
+  return <SettingsPageInner />
 }
