@@ -453,14 +453,32 @@ async function executeMeta(
       if (!instagramAccountId) throw new Error('ID da conta Instagram não encontrado. Configure no cadastro do cliente.')
       if (!clientId) throw new Error('Cliente não identificado no contexto da automação.')
 
-      // Buscar posts já patrocinados deste cliente
+      // 1. Posts já registrados na nossa tabela (criados pelo FlowAds)
       const { data: alreadySponsored } = await supabase
         .from('sponsored_posts')
         .select('post_id')
         .eq('client_id', clientId)
       const sponsoredIds = new Set((alreadySponsored || []).map((r: { post_id: string }) => r.post_id))
 
-      // Filtrar apenas posts novos
+      // 2. Verificar via Meta API (detecta posts patrocinados fora do FlowAds)
+      const externallySponsored: string[] = []
+      for (const post of posts) {
+        if (!sponsoredIds.has(post.id)) {
+          const alreadyInMeta = await meta.isInstagramPostAlreadySponsored(post.id)
+          if (alreadyInMeta) {
+            externallySponsored.push(post.id)
+            sponsoredIds.add(post.id)
+            // Registrar na nossa tabela para consultas futuras mais rápidas
+            await supabase.from('sponsored_posts').upsert({
+              client_id: clientId,
+              instagram_account_id: instagramAccountId,
+              post_id: post.id,
+            }, { onConflict: 'client_id,post_id', ignoreDuplicates: true })
+          }
+        }
+      }
+
+      // Filtrar apenas posts novos (não patrocinados em nenhuma fonte)
       const newPosts = posts.filter((p) => !sponsoredIds.has(p.id))
 
       if (!newPosts.length) return { ads_criados: 0, posts_pulados: posts.length, detalhes: [] }
@@ -495,7 +513,12 @@ async function executeMeta(
       }
 
       const ads_criados = detalhes.filter((d) => d.status === 'criado').length
-      return { ads_criados, posts_pulados: posts.length - newPosts.length, detalhes }
+      return {
+        ads_criados,
+        posts_pulados: posts.length - newPosts.length,
+        patrocinados_externamente: externallySponsored.length,
+        detalhes,
+      }
     }
 
     case 'duplicate_campaign': {

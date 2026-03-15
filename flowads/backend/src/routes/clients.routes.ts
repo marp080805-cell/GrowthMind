@@ -127,6 +127,24 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
     return data || []
   })
 
+  fastify.get('/clients/:id/adsets', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const { campaign_id } = req.query as { campaign_id?: string }
+    if (!campaign_id) return reply.status(400).send({ message: 'campaign_id obrigatório' })
+
+    const { data: client } = await supabase.from('clients').select('meta_token, ad_account_id').eq('id', id).single()
+    if (!client?.meta_token || !client?.ad_account_id) return reply.status(400).send({ message: 'Cliente sem Meta conectado' })
+
+    try {
+      const meta = new MetaService(client.meta_token, client.ad_account_id)
+      const adsets = await meta.getAdSets(campaign_id)
+      return adsets
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao buscar adsets'
+      return reply.status(400).send({ message })
+    }
+  })
+
   fastify.put('/clients/:id/campaigns/:campaignId/context', async (req) => {
     const { campaignId } = req.params as { id: string; campaignId: string }
     const { context } = req.body as { context: string }

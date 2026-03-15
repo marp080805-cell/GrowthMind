@@ -35,6 +35,7 @@ import {
   CreativeInsightsInspector,
   AudiencesInspector,
   CreateAudienceInspector,
+  CreateAdsFromNewPostsInspector,
 } from './inspectors/meta-actions'
 
 // AI
@@ -108,6 +109,7 @@ const INSPECTOR_MAP: Record<string, React.ComponentType<InspectorFieldProps>> = 
   'meta.boost_post': BoostPostInspector,
   'meta.duplicate_campaign': DuplicateCampaignInspector,
   'meta.create_audience': CreateAudienceInspector,
+  'meta.create_ads_from_new_posts': CreateAdsFromNewPostsInspector,
 
   // Meta — Edição
   'meta.edit_campaign': EditCampaignInspector,

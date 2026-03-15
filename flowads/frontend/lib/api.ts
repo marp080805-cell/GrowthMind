@@ -60,6 +60,12 @@ export const campaignsApi = {
     api.put(`/clients/${clientId}/campaigns/${campaignId}/context`, { context }),
 }
 
+// AdSets
+export const adsetsApi = {
+  list: (clientId: string, campaignId: string) =>
+    api.get<AdSet[]>(`/clients/${clientId}/adsets?campaign_id=${encodeURIComponent(campaignId)}`),
+}
+
 // Automations
 export const automationsApi = {
   list: (clientId: string) => api.get<Automation[]>(`/clients/${clientId}/automations`),
@@ -158,6 +164,16 @@ export interface Campaign {
   budget: number
   context: string
   synced_at: string
+}
+
+export interface AdSet {
+  id: string
+  name: string
+  status: string
+  campaign_id: string
+  daily_budget?: string
+  lifetime_budget?: string
+  optimization_goal?: string
 }
 
 export interface Automation {

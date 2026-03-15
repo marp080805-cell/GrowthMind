@@ -476,6 +476,28 @@ export class MetaService {
     return { campaign_id: campaign.id, adset_id: adSet.id, ad_id: adData.id as string }
   }
 
+  // ─── Check if Instagram Post is Already Running as Ad ────────────────────
+
+  async isInstagramPostAlreadySponsored(postId: string): Promise<boolean> {
+    try {
+      const params = new URLSearchParams({
+        fields: 'id',
+        filtering: JSON.stringify([{
+          field: 'source_instagram_media_id',
+          operator: 'EQUAL',
+          value: postId,
+        }]),
+        limit: '1',
+        access_token: this.token,
+      })
+      const data = await metaGet<{ data?: unknown[] }>(`${this.accountUrl}/adcreatives?${params}`)
+      return (data.data?.length ?? 0) > 0
+    } catch {
+      // If Meta API doesn't support this filter, fall back gracefully
+      return false
+    }
+  }
+
   // ─── Create Ad from Existing Instagram Post ──────────────────────────────
 
   async createAdFromInstagramPost(params: {

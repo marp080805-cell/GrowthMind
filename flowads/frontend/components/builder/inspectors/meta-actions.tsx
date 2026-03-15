@@ -1,7 +1,10 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 import { VariableAutocomplete } from '../variable-autocomplete'
 import type { InspectorFieldProps } from '../inspector'
+import { campaignsApi, adsetsApi, type Campaign, type AdSet } from '@/lib/api'
 
 // ─── Pausar / Ativar / Excluir ────────────────────────────────────────────────
 
@@ -312,6 +315,134 @@ export function AudiencesInspector({ config, onChange }: InspectorFieldProps) {
         <p className="font-syne font-bold text-accent mb-1">Saída disponível</p>
         <p><code className="text-accent">{'{{publicos}}'}</code> — array de públicos</p>
         <p><code className="text-accent">{'{{total}}'}</code> — total de públicos</p>
+      </div>
+    </>
+  )
+}
+
+// ─── Criar Anúncios de Posts Novos ────────────────────────────────────────────
+
+export function CreateAdsFromNewPostsInspector({ config, onChange }: InspectorFieldProps) {
+  const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
+  const params = useParams<{ id?: string }>()
+  const clientId = params?.id
+
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [adsets, setAdsets] = useState<AdSet[]>([])
+  const [loadingAdsets, setLoadingAdsets] = useState(false)
+
+  const selectedCampaignId = (config.campaign_id as string) || ''
+  const selectedAdsetId = (config.adset_id as string) || ''
+
+  useEffect(() => {
+    if (clientId) {
+      campaignsApi.list(clientId).then(setCampaigns).catch(() => {})
+    }
+  }, [clientId])
+
+  useEffect(() => {
+    if (clientId && selectedCampaignId) {
+      setLoadingAdsets(true)
+      setAdsets([])
+      adsetsApi.list(clientId, selectedCampaignId)
+        .then(setAdsets)
+        .catch(() => {})
+        .finally(() => setLoadingAdsets(false))
+    } else {
+      setAdsets([])
+    }
+  }, [clientId, selectedCampaignId])
+
+  const selectClass = "h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+  const inputClass = "h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent w-full"
+
+  return (
+    <>
+      {/* Campaign dropdown */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">CAMPANHA *</label>
+        {campaigns.length > 0 ? (
+          <select
+            value={selectedCampaignId}
+            onChange={(e) => { set('campaign_id', e.target.value); set('adset_id', '') }}
+            className={selectClass}
+          >
+            <option value="">Selecione a campanha...</option>
+            {campaigns.map((c) => (
+              <option key={c.meta_campaign_id} value={c.meta_campaign_id}>
+                {c.name} {c.status !== 'ACTIVE' ? `(${c.status})` : ''}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="text"
+            placeholder="ID da campanha (ex: 123456789)"
+            value={selectedCampaignId}
+            onChange={(e) => { set('campaign_id', e.target.value); set('adset_id', '') }}
+            className={inputClass}
+          />
+        )}
+        {!campaigns.length && (
+          <p className="text-[10px] text-text3">Sincronize campanhas na aba do cliente para selecionar pelo nome.</p>
+        )}
+      </div>
+
+      {/* Adset dropdown — só aparece quando campanha for selecionada */}
+      {selectedCampaignId && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-syne font-semibold text-text3">CONJUNTO DE ANÚNCIOS *</label>
+          {loadingAdsets ? (
+            <div className={`${inputClass} flex items-center text-text3`}>Carregando adsets...</div>
+          ) : adsets.length > 0 ? (
+            <select
+              value={selectedAdsetId}
+              onChange={(e) => set('adset_id', e.target.value)}
+              className={selectClass}
+            >
+              <option value="">Selecione o conjunto...</option>
+              {adsets.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} {a.status !== 'ACTIVE' ? `(${a.status})` : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              placeholder="ID do adset (ex: 23851234567890)"
+              value={selectedAdsetId}
+              onChange={(e) => set('adset_id', e.target.value)}
+              className={inputClass}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Status */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">STATUS DO ANÚNCIO</label>
+        <select
+          value={(config.status as string) || 'ACTIVE'}
+          onChange={(e) => set('status', e.target.value)}
+          className={selectClass}
+        >
+          <option value="ACTIVE">Ativo (começa a rodar imediatamente)</option>
+          <option value="PAUSED">Pausado (revisar antes de ativar)</option>
+        </select>
+      </div>
+
+      {/* Info box */}
+      <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3 space-y-1">
+        <p className="font-syne font-bold text-accent">Como funciona</p>
+        <p>Busca posts Instagram do bloco anterior e cria anúncios apenas para os que ainda não foram patrocinados. Posts já patrocinados são ignorados automaticamente.</p>
+      </div>
+
+      <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3 space-y-1">
+        <p className="font-syne font-bold text-accent">Saída disponível</p>
+        <p><code className="text-accent">{'{{ads_criados}}'}</code> — quantidade de anúncios criados</p>
+        <p><code className="text-accent">{'{{posts_pulados}}'}</code> — posts já patrocinados (ignorados)</p>
+        <p><code className="text-accent">{'{{detalhes}}'}</code> — array com post_id e ad_id de cada criação</p>
       </div>
     </>
   )
