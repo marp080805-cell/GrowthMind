@@ -522,7 +522,7 @@ export class MetaService {
     const maxFetch = hasDateFilter ? 500 : Math.min(limit * 3, 200)
 
     while (nextUrl && posts.length < maxFetch) {
-      const page = await metaGet<{ data?: MetaInstagramPost[]; paging?: { next?: string } }>(nextUrl)
+      const page: { data?: MetaInstagramPost[]; paging?: { next?: string } } = await metaGet<{ data?: MetaInstagramPost[]; paging?: { next?: string } }>(nextUrl)
       const batch = page.data || []
 
       for (const p of batch) {
