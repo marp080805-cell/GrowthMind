@@ -441,6 +441,63 @@ async function executeMeta(
       return { boost_criado: result, ...result }
     }
 
+    case 'create_ads_from_new_posts': {
+      const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
+      const posts = (inputRecord.posts as Array<{ id: string; timestamp: string; media_type: string }>) || []
+      const instagramAccountId = (config.instagram_account_id as string)
+        || (inputRecord.instagram_account_id as string)
+        || context.client?.instagram_account_id
+      const clientId = context.client?.id
+
+      if (!posts.length) return { ads_criados: 0, posts_pulados: 0, detalhes: [] }
+      if (!instagramAccountId) throw new Error('ID da conta Instagram não encontrado. Configure no cadastro do cliente.')
+      if (!clientId) throw new Error('Cliente não identificado no contexto da automação.')
+
+      // Buscar posts já patrocinados deste cliente
+      const { data: alreadySponsored } = await supabase
+        .from('sponsored_posts')
+        .select('post_id')
+        .eq('client_id', clientId)
+      const sponsoredIds = new Set((alreadySponsored || []).map((r: { post_id: string }) => r.post_id))
+
+      // Filtrar apenas posts novos
+      const newPosts = posts.filter((p) => !sponsoredIds.has(p.id))
+
+      if (!newPosts.length) return { ads_criados: 0, posts_pulados: posts.length, detalhes: [] }
+
+      const adsetId = config.adset_id as string
+      if (!adsetId) throw new Error('ID do conjunto de anúncios (adset_id) não configurado no bloco.')
+
+      const status = (config.status as string) || 'ACTIVE'
+      const detalhes: Array<{ post_id: string; ad_id?: string; status: string; error?: string }> = []
+
+      for (const post of newPosts) {
+        try {
+          const adName = `Post ${post.id} - ${new Date(post.timestamp).toLocaleDateString('pt-BR')}`
+          const result = await meta.createAdFromInstagramPost({
+            postId: post.id,
+            instagramAccountId,
+            adsetId,
+            adName,
+            status,
+          })
+          await supabase.from('sponsored_posts').insert({
+            client_id: clientId,
+            instagram_account_id: instagramAccountId,
+            post_id: post.id,
+            ad_id: result.ad_id,
+            adset_id: adsetId,
+          })
+          detalhes.push({ post_id: post.id, ad_id: result.ad_id, status: 'criado' })
+        } catch (err) {
+          detalhes.push({ post_id: post.id, status: 'erro', error: String(err) })
+        }
+      }
+
+      const ads_criados = detalhes.filter((d) => d.status === 'criado').length
+      return { ads_criados, posts_pulados: posts.length - newPosts.length, detalhes }
+    }
+
     case 'duplicate_campaign': {
       const result = await meta.duplicateCampaign(
         config.campaign_id as string,

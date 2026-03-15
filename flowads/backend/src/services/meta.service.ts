@@ -476,6 +476,38 @@ export class MetaService {
     return { campaign_id: campaign.id, adset_id: adSet.id, ad_id: adData.id as string }
   }
 
+  // ─── Create Ad from Existing Instagram Post ──────────────────────────────
+
+  async createAdFromInstagramPost(params: {
+    postId: string
+    instagramAccountId: string
+    adsetId: string
+    adName: string
+    status?: string
+  }): Promise<{ ad_id: string; creative_id: string }> {
+    const creativeBody = {
+      name: `Creative - ${params.adName}`,
+      object_story_spec: JSON.stringify({
+        instagram_actor_id: params.instagramAccountId,
+        link_data: { source_media_id: params.postId },
+      }),
+      access_token: this.token,
+    }
+    const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
+    const creativeId = creativeData.id as string
+
+    const adBody = {
+      adset_id: params.adsetId,
+      name: params.adName,
+      creative: JSON.stringify({ creative_id: creativeId }),
+      status: params.status || 'ACTIVE',
+      access_token: this.token,
+    }
+    const adData = await metaPost(`${this.accountUrl}/ads`, adBody)
+
+    return { ad_id: adData.id as string, creative_id: creativeId }
+  }
+
   // ─── Instagram Posts ─────────────────────────────────────────────────────
 
   async getInstagramPosts(
