@@ -97,13 +97,16 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/clients/:id/campaigns', async (req) => {
     const { id } = req.params as { id: string }
 
-    // Get client to fetch from Meta API
     const { data: client } = await supabase.from('clients').select('*').eq('id', id).single()
     if (!client) throw new Error('Cliente não encontrado')
 
-    if (client.meta_token && client.ad_account_id) {
+    // Fallback: use global settings token if client doesn't have its own
+    const token = client.meta_token || (await supabase.from('settings').select('meta_token').single()).data?.meta_token
+    const adAccountId = client.ad_account_id
+
+    if (token && adAccountId) {
       try {
-        const meta = new MetaService(client.meta_token, client.ad_account_id)
+        const meta = new MetaService(token, adAccountId)
         const campaigns = await meta.getCampaigns()
 
         // Sync to DB
@@ -119,7 +122,7 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
           }, { onConflict: 'client_id,meta_campaign_id' })
         }
       } catch (err) {
-        console.warn('Could not sync from Meta API:', err)
+        console.warn('Could not sync campaigns from Meta API:', err)
       }
     }
 
@@ -133,10 +136,14 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!campaign_id) return reply.status(400).send({ message: 'campaign_id obrigatório' })
 
     const { data: client } = await supabase.from('clients').select('meta_token, ad_account_id').eq('id', id).single()
-    if (!client?.meta_token || !client?.ad_account_id) return reply.status(400).send({ message: 'Cliente sem Meta conectado' })
+    if (!client?.ad_account_id) return reply.status(400).send({ message: 'Cliente sem ad_account_id configurado' })
+
+    // Fallback: use global settings token if client doesn't have its own
+    const token = client.meta_token || (await supabase.from('settings').select('meta_token').single()).data?.meta_token
+    if (!token) return reply.status(400).send({ message: 'Token Meta não configurado' })
 
     try {
-      const meta = new MetaService(client.meta_token, client.ad_account_id)
+      const meta = new MetaService(token, client.ad_account_id)
       const adsets = await meta.getAdSets(campaign_id)
       return adsets
     } catch (err) {

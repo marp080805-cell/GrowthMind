@@ -55,7 +55,7 @@ export function FetchAdsInspector({ config, onChange }: InspectorFieldProps) {
 
 export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
   const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
-  const useExistingCreative = !!(config.creative_id as string)
+  const useExistingCreative = (config.creative_type === 'existing') || (!config.creative_type && !!(config.creative_id as string))
   const params = useParams<{ id?: string }>()
   const clientId = params?.id
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
@@ -171,18 +171,23 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] font-syne font-semibold text-text3">CRIATIVO</label>
-        <div className="flex gap-1.5">
-          {[{ value: false, label: 'Criar novo' }, { value: true, label: 'ID existente' }].map((t) => (
+        <label className="text-[10px] font-syne font-semibold text-text3">TIPO DE CRIATIVO</label>
+        <div className="flex gap-1.5 flex-wrap">
+          {[
+            { value: 'instagram_post', label: '📸 Post Instagram' },
+            { value: 'new', label: 'Criar novo' },
+            { value: 'existing', label: 'ID existente' },
+          ].map((t) => (
             <button
-              key={String(t.value)}
+              key={t.value}
               type="button"
               onClick={() => {
-                if (t.value) onChange({ ...config, creative_id: '', title: '', body: '', image_url: '' })
-                else onChange({ ...config, creative_id: undefined })
+                if (t.value === 'existing') onChange({ ...config, creative_type: 'existing', source_instagram_media_id: undefined })
+                else if (t.value === 'instagram_post') onChange({ ...config, creative_type: 'instagram_post', creative_id: undefined })
+                else onChange({ ...config, creative_type: 'new', creative_id: undefined, source_instagram_media_id: undefined })
               }}
               className={`flex-1 h-8 rounded-[8px] text-xs font-syne font-bold transition-colors border ${
-                useExistingCreative === t.value
+                (config.creative_type || 'new') === t.value
                   ? 'bg-accent/10 text-accent border-accent/30'
                   : 'bg-surface text-text3 border-[var(--border)] hover:border-[var(--border2)]'
               }`}
@@ -193,7 +198,33 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
         </div>
       </div>
 
-      {useExistingCreative ? (
+      {(config.creative_type || 'new') === 'instagram_post' ? (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">ID DO POST INSTAGRAM *</label>
+            <VariableAutocomplete
+              value={(config.source_instagram_media_id as string) || ''}
+              onChange={(v) => set('source_instagram_media_id', v)}
+              placeholder="{{posts.[0].id}} ou ID do post"
+              rows={1}
+            />
+            <p className="text-[10px] text-text3">Use a variável do bloco anterior ou cole o ID do post diretamente.</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">ID DA CONTA INSTAGRAM (opcional)</label>
+            <VariableAutocomplete
+              value={(config.instagram_actor_id as string) || ''}
+              onChange={(v) => set('instagram_actor_id', v)}
+              placeholder="Deixe vazio para usar o do cliente"
+              rows={1}
+            />
+          </div>
+          <div className="bg-blue-500/5 rounded-[8px] p-2.5 border border-blue-500/10 text-[10px] text-text3">
+            <p className="font-syne font-bold text-blue-400 mb-1">Como funciona</p>
+            <p>Cria um anúncio promovendo um post existente do Instagram. O Meta usa o <code>source_instagram_media_id</code> para criar o criativo automaticamente com o conteúdo do post.</p>
+          </div>
+        </>
+      ) : useExistingCreative ? (
         <div className="flex flex-col gap-1.5">
           <label className="text-[10px] font-syne font-semibold text-text3">ID DO CRIATIVO *</label>
           <VariableAutocomplete

@@ -448,6 +448,41 @@ export function CreateAdsFromNewPostsInspector({ config, onChange }: InspectorFi
   )
 }
 
+// ─── Filtrar Posts Não Patrocinados ───────────────────────────────────────────
+
+export function FilterUnsponsoredPostsInspector({ config, onChange }: InspectorFieldProps) {
+  const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
+
+  return (
+    <>
+      <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3 space-y-1">
+        <p className="font-syne font-bold text-accent">Como funciona</p>
+        <p>Recebe o array de posts do bloco anterior e retorna apenas os que ainda <strong>não</strong> foram patrocinados.</p>
+        <p className="mt-1">Verifica em duas fontes:</p>
+        <p>① Tabela interna do FlowAds (posts criados aqui)</p>
+        <p>② API do Meta Ads (posts patrocinados fora do FlowAds)</p>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">ID DA CONTA INSTAGRAM (opcional)</label>
+        <VariableAutocomplete
+          value={(config.instagram_account_id as string) || ''}
+          onChange={(v) => set('instagram_account_id', v)}
+          placeholder="Deixe vazio para usar o do cliente"
+          rows={1}
+        />
+      </div>
+
+      <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3 space-y-1">
+        <p className="font-syne font-bold text-accent">Saída disponível</p>
+        <p><code className="text-accent">{'{{posts}}'}</code> — array só com posts não patrocinados</p>
+        <p><code className="text-accent">{'{{total}}'}</code> — quantidade de posts não patrocinados</p>
+        <p><code className="text-accent">{'{{posts_pulados}}'}</code> — quantidade já patrocinados (ignorados)</p>
+      </div>
+    </>
+  )
+}
+
 export function CreateAudienceInspector({ config, onChange }: InspectorFieldProps) {
   const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
 

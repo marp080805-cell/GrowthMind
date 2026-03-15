@@ -36,6 +36,7 @@ import {
   AudiencesInspector,
   CreateAudienceInspector,
   CreateAdsFromNewPostsInspector,
+  FilterUnsponsoredPostsInspector,
 } from './inspectors/meta-actions'
 
 // AI
@@ -101,6 +102,7 @@ const INSPECTOR_MAP: Record<string, React.ComponentType<InspectorFieldProps>> = 
   'meta.fetch_creative_insights': CreativeInsightsInspector,
   'meta.fetch_instagram_posts': InstagramPostsInspector,
   'meta.fetch_audiences': AudiencesInspector,
+  'meta.filter_unsponsored_posts': FilterUnsponsoredPostsInspector,
 
   // Meta — Criação
   'meta.create_campaign': CreateCampaignInspector,

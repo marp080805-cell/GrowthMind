@@ -409,6 +409,20 @@ async function executeMeta(
     }
 
     case 'create_ad': {
+      // Se vier source_instagram_media_id, cria criativo a partir de post existente do Instagram
+      if (config.source_instagram_media_id) {
+        const instagramAccountId = (config.instagram_actor_id as string) || context.client?.instagram_account_id
+        if (!instagramAccountId) throw new Error('ID da conta Instagram não encontrado. Configure no cadastro do cliente.')
+        const result = await meta.createAdFromInstagramPost({
+          postId: config.source_instagram_media_id as string,
+          instagramAccountId,
+          adsetId: config.adset_id as string,
+          adName: (config.name as string) || `Post ${config.source_instagram_media_id}`,
+          status: (config.status as string) || 'PAUSED',
+        })
+        return { anuncio_criado: result, ad_id: result.ad_id, creative_id: result.creative_id }
+      }
+
       const result = await meta.createAd({
         adset_id: config.adset_id as string,
         name: config.name as string,
@@ -439,6 +453,47 @@ async function executeMeta(
         optimization_goal: config.optimization_goal as string | undefined,
       })
       return { boost_criado: result, ...result }
+    }
+
+    case 'filter_unsponsored_posts': {
+      const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
+      const posts = (inputRecord.posts as Array<{ id: string; timestamp: string; media_type: string }>) || []
+      const instagramAccountId = (config.instagram_account_id as string)
+        || (inputRecord.instagram_account_id as string)
+        || context.client?.instagram_account_id
+      const clientId = context.client?.id
+
+      if (!posts.length) return { posts: [], total: 0, posts_pulados: 0, instagram_account_id: instagramAccountId }
+
+      // 1. Posts já registrados na nossa tabela
+      const { data: alreadySponsored } = await supabase
+        .from('sponsored_posts')
+        .select('post_id')
+        .eq('client_id', clientId)
+      const sponsoredIds = new Set((alreadySponsored || []).map((r: { post_id: string }) => r.post_id))
+
+      // 2. Verificar via Meta API (detecta posts patrocinados fora do FlowAds)
+      for (const post of posts) {
+        if (!sponsoredIds.has(post.id)) {
+          const alreadyInMeta = await meta.isInstagramPostAlreadySponsored(post.id)
+          if (alreadyInMeta) {
+            sponsoredIds.add(post.id)
+            await supabase.from('sponsored_posts').upsert({
+              client_id: clientId,
+              instagram_account_id: instagramAccountId,
+              post_id: post.id,
+            }, { onConflict: 'client_id,post_id', ignoreDuplicates: true })
+          }
+        }
+      }
+
+      const filteredPosts = posts.filter((p) => !sponsoredIds.has(p.id))
+      return {
+        posts: filteredPosts,
+        total: filteredPosts.length,
+        posts_pulados: posts.length - filteredPosts.length,
+        instagram_account_id: instagramAccountId,
+      }
     }
 
     case 'create_ads_from_new_posts': {
