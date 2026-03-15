@@ -180,12 +180,29 @@ function SettingsPageInner() {
                 <CheckCircle size={15} className="text-green-500" />
                 <span className="text-sm text-text2">Conta Meta conectada</span>
               </div>
-              <button
-                onClick={() => window.location.href = `${API_URL}/auth/meta/connect?type=settings`}
-                className="text-xs text-text3 hover:text-text2 underline transition-colors"
-              >
-                Reconectar
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => window.location.href = `${API_URL}/auth/meta/connect?type=settings`}
+                  className="text-xs text-text3 hover:text-text2 underline transition-colors"
+                >
+                  Reconectar
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!confirm('Desconectar conta Meta? O token será removido.')) return
+                    try {
+                      const updated = await settingsApi.update({ meta_token: '' } as Partial<Settings>)
+                      setSettings(updated)
+                      success('Conta Meta desconectada.')
+                    } catch {
+                      error('Erro ao desconectar')
+                    }
+                  }}
+                  className="text-xs text-red-400 hover:text-red-300 underline transition-colors"
+                >
+                  Desconectar
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-2">
