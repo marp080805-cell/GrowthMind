@@ -1,7 +1,10 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 import { VariableAutocomplete } from '../variable-autocomplete'
 import type { InspectorFieldProps } from '../inspector'
+import { campaignsApi, type Campaign } from '@/lib/api'
 
 const OPTIMIZATION_GOALS = [
   'REACH', 'IMPRESSIONS', 'LINK_CLICKS', 'LANDING_PAGE_VIEWS',
@@ -41,17 +44,49 @@ export function FetchAdSetsInspector({ config, onChange }: InspectorFieldProps) 
 
 export function CreateAdSetInspector({ config, onChange }: InspectorFieldProps) {
   const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
+  const params = useParams<{ id?: string }>()
+  const clientId = params?.id
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const selectedCampaignId = (config.campaign_id as string) || ''
+
+  useEffect(() => {
+    if (clientId) {
+      campaignsApi.list(clientId).then(setCampaigns).catch(() => {})
+    }
+  }, [clientId])
+
+  const selectClass = "h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+  const inputClass = "h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent w-full"
 
   return (
     <>
       <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] font-syne font-semibold text-text3">ID DA CAMPANHA *</label>
-        <VariableAutocomplete
-          value={(config.campaign_id as string) || ''}
-          onChange={(v) => set('campaign_id', v)}
-          placeholder="{{campaign_id}}"
-          rows={1}
-        />
+        <label className="text-[10px] font-syne font-semibold text-text3">CAMPANHA *</label>
+        {campaigns.length > 0 ? (
+          <select
+            value={selectedCampaignId}
+            onChange={(e) => set('campaign_id', e.target.value)}
+            className={selectClass}
+          >
+            <option value="">Selecione a campanha...</option>
+            {campaigns.map((c) => (
+              <option key={c.meta_campaign_id} value={c.meta_campaign_id}>
+                {c.name} {c.status !== 'ACTIVE' ? `(${c.status})` : ''}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="text"
+            placeholder="{{campaign_id}} ou ID da campanha"
+            value={selectedCampaignId}
+            onChange={(e) => set('campaign_id', e.target.value)}
+            className={inputClass}
+          />
+        )}
+        {!campaigns.length && (
+          <p className="text-[10px] text-text3">Sincronize campanhas na aba do cliente para selecionar pelo nome.</p>
+        )}
       </div>
 
       <div className="flex flex-col gap-1.5">

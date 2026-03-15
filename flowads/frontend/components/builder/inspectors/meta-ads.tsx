@@ -1,7 +1,10 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 import { VariableAutocomplete } from '../variable-autocomplete'
 import type { InspectorFieldProps } from '../inspector'
+import { campaignsApi, adsetsApi, type Campaign, type AdSet } from '@/lib/api'
 
 const CTA_OPTIONS = [
   'NO_BUTTON', 'SHOP_NOW', 'LEARN_MORE', 'SIGN_UP', 'CONTACT_US',
@@ -53,18 +56,109 @@ export function FetchAdsInspector({ config, onChange }: InspectorFieldProps) {
 export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
   const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
   const useExistingCreative = !!(config.creative_id as string)
+  const params = useParams<{ id?: string }>()
+  const clientId = params?.id
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [adsets, setAdsets] = useState<AdSet[]>([])
+  const [loadingAdsets, setLoadingAdsets] = useState(false)
+  const selectedCampaignId = (config.campaign_id as string) || ''
+  const selectedAdsetId = (config.adset_id as string) || ''
+
+  useEffect(() => {
+    if (clientId) {
+      campaignsApi.list(clientId).then(setCampaigns).catch(() => {})
+    }
+  }, [clientId])
+
+  useEffect(() => {
+    if (clientId && selectedCampaignId) {
+      setLoadingAdsets(true)
+      setAdsets([])
+      adsetsApi.list(clientId, selectedCampaignId)
+        .then(setAdsets)
+        .catch(() => {})
+        .finally(() => setLoadingAdsets(false))
+    } else {
+      setAdsets([])
+    }
+  }, [clientId, selectedCampaignId])
+
+  const selectClass = "h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+  const inputClass = "h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent w-full"
 
   return (
     <>
+      {/* Campaign dropdown */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] font-syne font-semibold text-text3">ID DO ADSET *</label>
-        <VariableAutocomplete
-          value={(config.adset_id as string) || ''}
-          onChange={(v) => set('adset_id', v)}
-          placeholder="{{adset_id}}"
-          rows={1}
-        />
+        <label className="text-[10px] font-syne font-semibold text-text3">CAMPANHA *</label>
+        {campaigns.length > 0 ? (
+          <select
+            value={selectedCampaignId}
+            onChange={(e) => { set('campaign_id', e.target.value); set('adset_id', '') }}
+            className={selectClass}
+          >
+            <option value="">Selecione a campanha...</option>
+            {campaigns.map((c) => (
+              <option key={c.meta_campaign_id} value={c.meta_campaign_id}>
+                {c.name} {c.status !== 'ACTIVE' ? `(${c.status})` : ''}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="text"
+            placeholder="{{campaign_id}} ou ID da campanha"
+            value={selectedCampaignId}
+            onChange={(e) => { set('campaign_id', e.target.value); set('adset_id', '') }}
+            className={inputClass}
+          />
+        )}
+        {!campaigns.length && (
+          <p className="text-[10px] text-text3">Sincronize campanhas na aba do cliente para selecionar pelo nome.</p>
+        )}
       </div>
+
+      {/* Adset dropdown */}
+      {selectedCampaignId && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-syne font-semibold text-text3">CONJUNTO DE ANÚNCIOS *</label>
+          {loadingAdsets ? (
+            <div className={`${inputClass} flex items-center text-text3`}>Carregando conjuntos...</div>
+          ) : adsets.length > 0 ? (
+            <select
+              value={selectedAdsetId}
+              onChange={(e) => set('adset_id', e.target.value)}
+              className={selectClass}
+            >
+              <option value="">Selecione o conjunto...</option>
+              {adsets.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} {a.status !== 'ACTIVE' ? `(${a.status})` : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              placeholder="{{adset_id}} ou ID do conjunto"
+              value={selectedAdsetId}
+              onChange={(e) => set('adset_id', e.target.value)}
+              className={inputClass}
+            />
+          )}
+        </div>
+      )}
+      {!selectedCampaignId && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-syne font-semibold text-text3">CONJUNTO DE ANÚNCIOS *</label>
+          <VariableAutocomplete
+            value={selectedAdsetId}
+            onChange={(v) => set('adset_id', v)}
+            placeholder="{{adset_id}} — selecione uma campanha acima"
+            rows={1}
+          />
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <label className="text-[10px] font-syne font-semibold text-text3">NOME DO ANÚNCIO *</label>
