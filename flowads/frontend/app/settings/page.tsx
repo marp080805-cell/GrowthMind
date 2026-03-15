@@ -12,7 +12,7 @@ import { settingsApi, type Settings, type AIModel } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 import {
   CheckCircle, XCircle, Eye, EyeOff, Plus, Trash2,
-  Save, RefreshCw
+  Save, RefreshCw, Copy, Link
 } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/backend'
@@ -119,13 +119,11 @@ function SettingsPageInner() {
       if (e.data?.type === 'meta_connected') {
         window.removeEventListener('message', onMessage)
         popup?.close()
-        // Reload settings to show new token
         settingsApi.get().then(setSettings).catch(() => {})
         success('Meta conectado com sucesso!')
       }
     }
     window.addEventListener('message', onMessage)
-    // Cleanup if popup is closed manually
     const interval = setInterval(() => {
       if (popup?.closed) {
         clearInterval(interval)
@@ -133,6 +131,17 @@ function SettingsPageInner() {
         settingsApi.get().then(setSettings).catch(() => {})
       }
     }, 1000)
+  }
+
+  const copyMetaOAuthLink = async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/meta/connect?type=settings&format=url`)
+      const { url } = await res.json() as { url: string }
+      await navigator.clipboard.writeText(url)
+      success('Link copiado! Cole no navegador onde o Facebook está logado.')
+    } catch {
+      error('Erro ao gerar link')
+    }
   }
 
   const otherIntegrations = [
@@ -232,6 +241,13 @@ function SettingsPageInner() {
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
                 Conectar com Facebook
+              </button>
+              <button
+                onClick={copyMetaOAuthLink}
+                className="flex items-center justify-center gap-2 h-9 w-full rounded-[12px] text-text3 text-xs font-medium border border-[var(--border)] hover:text-text2 hover:border-accent transition-colors"
+              >
+                <Copy size={13} />
+                Copiar link (para colar em outro navegador)
               </button>
             </div>
           )}

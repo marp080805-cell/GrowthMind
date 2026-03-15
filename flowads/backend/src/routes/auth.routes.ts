@@ -14,7 +14,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // ─── Meta OAuth ────────────────────────────────────────────────────────────
 
   fastify.get('/auth/meta/connect', async (req, reply) => {
-    const { client_id, type } = req.query as { client_id?: string; type?: string }
+    const { client_id, type, format } = req.query as { client_id?: string; type?: string; format?: string }
     const appId = process.env.META_APP_ID
     const redirectUri = process.env.META_REDIRECT_URI
     if (!appId || !redirectUri) return reply.status(500).send({ message: 'META_APP_ID ou META_REDIRECT_URI não configurados' })
@@ -32,7 +32,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     url.searchParams.set('state', state)
     url.searchParams.set('response_type', 'code')
 
-    console.log('[Meta OAuth] Redirecting to Facebook OAuth', { type, redirect_uri: redirectUri })
+    console.log('[Meta OAuth] Generating OAuth URL', { type, redirect_uri: redirectUri, format })
+
+    // Return URL as JSON for copy-link feature
+    if (format === 'url') {
+      return { url: url.toString(), redirect_uri: redirectUri }
+    }
+
     return reply.redirect(url.toString())
   })
 
