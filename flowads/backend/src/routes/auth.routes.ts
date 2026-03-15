@@ -32,27 +32,29 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     url.searchParams.set('state', state)
     url.searchParams.set('response_type', 'code')
 
+    console.log('[Meta OAuth] Redirecting to Facebook OAuth', { type, redirect_uri: redirectUri })
     return reply.redirect(url.toString())
   })
 
   fastify.get('/auth/meta/callback', async (req, reply) => {
-    const { code, state, error_reason } = req.query as { code?: string; state?: string; error_reason?: string }
+    const { code, state, error_reason, error_description } = req.query as {
+      code?: string; state?: string; error_reason?: string; error_description?: string
+    }
     const frontendUrl = process.env.FRONTEND_URL || 'https://growthmind.zi-ai.site'
     const appId = process.env.META_APP_ID!
     const appSecret = process.env.META_APP_SECRET!
     const redirectUri = process.env.META_REDIRECT_URI!
 
-    if (error_reason || !code) {
-      return reply.redirect(`${frontendUrl}/clients?meta_error=cancelled`)
-    }
+    const successUrl = `${frontendUrl}/auth/meta/success`
+    const errorUrl = (msg: string) => `${frontendUrl}/auth/meta/success?error=${encodeURIComponent(msg)}`
 
-    let clientId = 'new'
-    let connectionType = 'client'
-    try {
-      const stateData = JSON.parse(Buffer.from(state || '', 'base64url').toString())
-      clientId = stateData.client_id || 'new'
-      connectionType = stateData.type || 'client'
-    } catch { /* ignore */ }
+    console.log('[Meta OAuth Callback] received', { has_code: !!code, error_reason, error_description })
+
+    if (error_reason || !code) {
+      const msg = error_description || error_reason || 'cancelled'
+      console.error('[Meta OAuth Callback] Error from Facebook:', msg)
+      return reply.redirect(errorUrl(msg))
+    }
 
     // Troca code por short-lived token
     const tokenUrl = new URL('https://graph.facebook.com/v21.0/oauth/access_token')
@@ -62,10 +64,15 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     tokenUrl.searchParams.set('code', code)
 
     const tokenRes = await fetch(tokenUrl.toString())
-    const tokenData = await tokenRes.json() as { access_token?: string }
+    const tokenData = await tokenRes.json() as { access_token?: string; error?: { message?: string } }
+    console.log('[Meta OAuth Callback] short-lived token response:', {
+      ok: !!tokenData.access_token,
+      error: tokenData.error?.message,
+    })
 
     if (!tokenData.access_token) {
-      return reply.redirect(`${frontendUrl}/clients?meta_error=token_failed`)
+      const msg = tokenData.error?.message || 'token_exchange_failed'
+      return reply.redirect(errorUrl(msg))
     }
 
     // Troca por long-lived token (60 dias)
@@ -76,23 +83,50 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     longUrl.searchParams.set('fb_exchange_token', tokenData.access_token)
 
     const longRes = await fetch(longUrl.toString())
-    const longData = await longRes.json() as { access_token?: string }
+    const longData = await longRes.json() as { access_token?: string; error?: { message?: string } }
     const finalToken = longData.access_token || tokenData.access_token
+    console.log('[Meta OAuth Callback] long-lived token obtained:', !!longData.access_token)
 
-    // Settings-level connection: save to settings table
+    // Parse state
+    let clientId = 'new'
+    let connectionType = 'client'
+    try {
+      const stateData = JSON.parse(Buffer.from(state || '', 'base64url').toString())
+      clientId = stateData.client_id || 'new'
+      connectionType = stateData.type || 'client'
+    } catch { /* ignore */ }
+
+    console.log('[Meta OAuth Callback] saving token for:', connectionType, clientId)
+
+    // Settings-level connection: upsert into settings table
     if (connectionType === 'settings') {
-      const { data: existing } = await supabase.from('settings').select('id').single()
+      const { data: existing, error: selectErr } = await supabase.from('settings').select('id').single()
+      console.log('[Meta OAuth Callback] settings select:', { found: !!existing, error: selectErr?.message })
+
+      let saveError: string | null = null
       if (existing) {
-        await supabase.from('settings').update({ meta_token: finalToken }).eq('id', existing.id)
+        const { error: updateErr } = await supabase
+          .from('settings')
+          .update({ meta_token: finalToken, updated_at: new Date().toISOString() })
+          .eq('id', existing.id)
+        if (updateErr) { saveError = updateErr.message; console.error('[Meta OAuth Callback] update error:', updateErr.message) }
+        else console.log('[Meta OAuth Callback] settings updated successfully')
       } else {
-        await supabase.from('settings').insert({ meta_token: finalToken })
+        const { error: insertErr } = await supabase
+          .from('settings')
+          .insert({ meta_token: finalToken })
+        if (insertErr) { saveError = insertErr.message; console.error('[Meta OAuth Callback] insert error:', insertErr.message) }
+        else console.log('[Meta OAuth Callback] settings inserted successfully')
       }
-      return reply.redirect(`${frontendUrl}/auth/meta/success`)
+
+      if (saveError) return reply.redirect(errorUrl('save_failed: ' + saveError))
+      return reply.redirect(successUrl)
     }
 
-    // Client-level connection (legacy)
+    // Client-level connection
     if (clientId !== 'new') {
-      await supabase.from('clients').update({ meta_token: finalToken }).eq('id', clientId)
+      const { error: clientErr } = await supabase.from('clients').update({ meta_token: finalToken }).eq('id', clientId)
+      if (clientErr) console.error('[Meta OAuth Callback] client update error:', clientErr.message)
       return reply.redirect(`${frontendUrl}/clients?meta_connected=${clientId}`)
     }
 
