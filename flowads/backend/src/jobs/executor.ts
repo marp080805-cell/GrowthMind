@@ -457,7 +457,17 @@ async function executeMeta(
 
     case 'filter_unsponsored_posts': {
       const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
-      const posts = (inputRecord.posts as Array<{ id: string; timestamp: string; media_type: string }>) || []
+      // source_posts: user can specify {{posts}} from any previous node; after interpolation it becomes a JSON string
+      // Falls back to input.posts or input.input.posts (when preceded by logic.if which wraps input)
+      let posts: Array<{ id: string; timestamp: string; media_type: string }> = []
+      const sourcePosts = config.source_posts as string | undefined
+      if (sourcePosts && sourcePosts.trim()) {
+        try { posts = JSON.parse(sourcePosts) } catch { posts = [] }
+      } else {
+        posts = (inputRecord.posts as Array<{ id: string; timestamp: string; media_type: string }>)
+          || ((inputRecord.input as Record<string, unknown>)?.posts as Array<{ id: string; timestamp: string; media_type: string }>)
+          || []
+      }
       const instagramAccountId = (config.instagram_account_id as string)
         || (inputRecord.instagram_account_id as string)
         || context.client?.instagram_account_id
@@ -766,8 +776,13 @@ async function executeLogic(
 
     case 'if': {
       const { variable, operator, value } = config as Record<string, string>
-      // variable might be a literal value already (interpolated) or a path
-      const actual = variable !== undefined ? String(variable) : String(input)
+      const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
+      const rawVar = variable !== undefined ? String(variable) : ''
+      // If variable is a plain key name (no {{}} in original, interpolation left it unchanged),
+      // look it up in the input object. If it was already interpolated (e.g. "11"), use as-is.
+      const actual = (rawVar && Object.prototype.hasOwnProperty.call(inputRecord, rawVar))
+        ? String(inputRecord[rawVar])
+        : rawVar !== '' ? rawVar : String(input)
       let result = false
       switch (operator) {
         case '>': result = parseFloat(actual) > parseFloat(value); break
