@@ -238,7 +238,7 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
                 rows={1}
               />
             )}
-            <p className="text-[10px] text-text3">Página do Facebook vinculada à conta Instagram.</p>
+            <p className="text-[10px] text-text3">Deixe vazio para usar a página do cliente.</p>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-syne font-semibold text-text3">ID DA CONTA INSTAGRAM (opcional)</label>

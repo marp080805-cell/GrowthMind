@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { clientsApi, settingsApi, type Client, type MetaAccount, type MetaInstagramAccount } from '@/lib/api'
+import { clientsApi, pagesApi, settingsApi, type Client, type MetaAccount, type MetaInstagramAccount } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 
 interface ClientFormProps {
@@ -22,6 +22,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [loading, setLoading] = useState(false)
   const [metaAccounts, setMetaAccounts] = useState<MetaAccount[]>([])
   const [instagramAccounts, setInstagramAccounts] = useState<MetaInstagramAccount[]>([])
+  const [pages, setPages] = useState<{ id: string; name: string }[]>([])
   const [loadingAccounts, setLoadingAccounts] = useState(false)
   const [manualInstagram, setManualInstagram] = useState(false)
 
@@ -32,6 +33,7 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
     context: client?.context || '',
     ad_account_id: client?.ad_account_id || '',
     instagram_account_id: client?.instagram_account_id || '',
+    facebook_page_id: client?.facebook_page_id || '',
   })
 
   const set = (key: string, value: string) =>
@@ -54,6 +56,15 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       })
       .finally(() => setLoadingAccounts(false))
   }, [])
+
+  // Load Facebook Pages if editing existing client
+  useEffect(() => {
+    if (client?.id) {
+      pagesApi.list(client.id)
+        .then(res => setPages(res.pages))
+        .catch(() => {})
+    }
+  }, [client?.id])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -192,6 +203,32 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           <p className="text-xs text-text3">
             Conecte sua conta Meta em <a href="/settings" className="text-accent hover:underline">Configurações</a> para ver as opções disponíveis.
           </p>
+        )}
+      </div>
+
+      {/* Página do Facebook */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium text-text2 font-syne">Página do Facebook</label>
+        {pages.length > 0 ? (
+          <select
+            value={form.facebook_page_id}
+            onChange={(e) => set('facebook_page_id', e.target.value)}
+            className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent transition-colors"
+          >
+            <option value="">Selecione a página...</option>
+            {pages.map((p) => (
+              <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+            ))}
+          </select>
+        ) : (
+          <Input
+            placeholder="ID da página do Facebook (ex: 123456789)"
+            value={form.facebook_page_id}
+            onChange={(e) => set('facebook_page_id', e.target.value)}
+          />
+        )}
+        {!client?.id && (
+          <p className="text-xs text-text3">Salve o cliente primeiro para carregar as páginas disponíveis.</p>
         )}
       </div>
 

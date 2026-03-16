@@ -147,6 +147,7 @@ export interface Client {
   ad_account_id: string
   meta_token: string
   instagram_account_id: string
+  facebook_page_id?: string
   status: 'active' | 'paused'
   created_at: string
   automations_count?: number
