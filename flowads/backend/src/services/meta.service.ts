@@ -528,10 +528,10 @@ export class MetaService {
   }): Promise<{ ad_id: string; creative_id: string }> {
     const creativeBody = {
       name: `Creative - ${params.adName}`,
-      object_story_spec: JSON.stringify({
+      object_story_spec: {
         instagram_actor_id: params.instagramAccountId,
         link_data: { source_media_id: params.postId },
-      }),
+      },
       access_token: this.token,
     }
     const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
@@ -540,7 +540,7 @@ export class MetaService {
     const adBody = {
       adset_id: params.adsetId,
       name: params.adName,
-      creative: JSON.stringify({ creative_id: creativeId }),
+      creative: { creative_id: creativeId },
       status: params.status || 'ACTIVE',
       access_token: this.token,
     }

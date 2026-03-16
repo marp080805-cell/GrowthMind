@@ -47,7 +47,9 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
       ? 'ring-2 ring-green-500 shadow-[0_0_12px_rgba(34,197,94,0.4)]'
       : log.status === 'error'
         ? 'ring-2 ring-red-500 shadow-[0_0_12px_rgba(239,68,68,0.4)]'
-        : 'ring-2 ring-yellow-400 shadow-[0_0_12px_rgba(250,204,21,0.4)]'
+        : log.status === 'skipped'
+          ? 'ring-1 ring-zinc-600 opacity-50'
+          : 'ring-2 ring-yellow-400 shadow-[0_0_12px_rgba(250,204,21,0.4)]'
     : ''
 
   return (
@@ -72,6 +74,11 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
           {log.status === 'error' && (
             <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
               ✗ erro
+            </span>
+          )}
+          {log.status === 'skipped' && (
+            <span className="bg-zinc-700 text-zinc-400 text-[9px] font-bold px-1.5 py-0.5 rounded-full font-mono">
+              — pulado
             </span>
           )}
           {log.status === 'running' && (

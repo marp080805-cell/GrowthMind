@@ -222,6 +222,20 @@ export async function executeAutomation(
         const duration = Date.now() - startTime
         const message = err instanceof Error ? err.message : String(err)
 
+        if (message === 'BRANCH_SKIPPED') {
+          nodeLogs.push({
+            node_id: node.id,
+            node_type: node.type,
+            node_label: node.label || node.type,
+            status: 'skipped',
+            input: inputSnapshot,
+            output: null,
+            duration_ms: duration,
+          })
+          await updateLog('running')
+          continue
+        }
+
         if (message === 'FLOW_STOPPED') {
           nodeLogs.push({
             node_id: node.id,
@@ -880,7 +894,7 @@ async function executeLogic(
       // When condition is true we're on the inactive branch — pass through silently.
       const conditionValue = (input as Record<string, unknown>)?.condition
       if (typeof conditionValue === 'boolean' && conditionValue === true) {
-        return input // inactive branch — skip this stop
+        throw new Error('BRANCH_SKIPPED') // inactive branch — mark as skipped, not success
       }
       throw new Error('FLOW_STOPPED')
     }

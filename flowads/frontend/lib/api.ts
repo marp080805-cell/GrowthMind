@@ -225,7 +225,7 @@ export interface NodeLog {
   node_id: string
   node_type: string
   node_label: string
-  status: 'running' | 'success' | 'error'
+  status: 'running' | 'success' | 'error' | 'skipped'
   input: unknown
   output: unknown
   error?: string
