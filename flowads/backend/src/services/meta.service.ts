@@ -530,14 +530,12 @@ export class MetaService {
     adName: string
     status?: string
   }): Promise<{ ad_id: string; creative_id: string }> {
+    // When using source_instagram_media_id, Meta infers the Instagram actor from the post.
+    // Do NOT include instagram_actor_id — it causes error #100 even with a valid account id.
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
       access_token: this.token,
-    }
-    // instagram_actor_id is optional — Meta infers it from the post when using source_instagram_media_id
-    if (params.instagramAccountId) {
-      creativeBody.instagram_actor_id = params.instagramAccountId
     }
     const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
     const creativeId = creativeData.id as string
