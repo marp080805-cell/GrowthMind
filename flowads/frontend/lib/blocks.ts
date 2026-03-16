@@ -9,6 +9,7 @@ export interface BlockDefinition {
     inputs: string[]
     outputs: string[]
   }
+  defaultConfig?: Record<string, unknown>
 }
 
 export type Category =
