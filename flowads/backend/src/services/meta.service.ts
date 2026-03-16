@@ -531,18 +531,20 @@ export class MetaService {
     status?: string
   }): Promise<{ ad_id: string; creative_id: string }> {
     // source_instagram_media_id: correct field for promoting existing IG posts.
-    // instagram_user_id (NOT instagram_actor_id) is the correct field to associate the
-    // creative with an IG account at the adcreatives level.
+    // Meta infers the Instagram account from the post — no instagram_actor_id or
+    // instagram_user_id needed at this level (both cause Invalid parameter errors).
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
       access_token: this.token,
     }
-    if (params.instagramAccountId) {
-      creativeBody.instagram_user_id = params.instagramAccountId
+    let creativeId: string
+    try {
+      const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
+      creativeId = creativeData.id as string
+    } catch (err) {
+      throw new Error(`[adcreatives] ${err instanceof Error ? err.message : String(err)}`)
     }
-    const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
-    const creativeId = creativeData.id as string
 
     const adBody = {
       adset_id: params.adsetId,
@@ -551,9 +553,12 @@ export class MetaService {
       status: params.status || 'ACTIVE',
       access_token: this.token,
     }
-    const adData = await metaPost(`${this.accountUrl}/ads`, adBody)
-
-    return { ad_id: adData.id as string, creative_id: creativeId }
+    try {
+      const adData = await metaPost(`${this.accountUrl}/ads`, adBody)
+      return { ad_id: adData.id as string, creative_id: creativeId }
+    } catch (err) {
+      throw new Error(`[ads creative_id=${creativeId}] ${err instanceof Error ? err.message : String(err)}`)
+    }
   }
 
   // ─── Instagram Posts ─────────────────────────────────────────────────────
