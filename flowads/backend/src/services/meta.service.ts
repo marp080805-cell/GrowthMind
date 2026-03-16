@@ -525,16 +525,19 @@ export class MetaService {
 
   async createAdFromInstagramPost(params: {
     postId: string
-    instagramAccountId: string
+    instagramAccountId?: string
     adsetId: string
     adName: string
     status?: string
   }): Promise<{ ad_id: string; creative_id: string }> {
-    const creativeBody = {
+    const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
-      instagram_actor_id: params.instagramAccountId,
       access_token: this.token,
+    }
+    // instagram_actor_id is optional — Meta infers it from the post when using source_instagram_media_id
+    if (params.instagramAccountId) {
+      creativeBody.instagram_actor_id = params.instagramAccountId
     }
     const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
     const creativeId = creativeData.id as string
@@ -568,7 +571,7 @@ export class MetaService {
     // Period presets → milliseconds for client-side timestamp filtering
     // Note: /{ig-user-id}/media does not support since/until as date filters;
     // they are cursor-based pagination params. We filter by timestamp client-side.
-    if (period && period !== 'all') {
+    if (period && period !== 'all' && period !== 'custom') {
       untilMs = nowMs
       if (period === '24h') sinceMs = nowMs - 86400_000
       else if (period === '7d') sinceMs = nowMs - 7 * 86400_000
@@ -578,10 +581,10 @@ export class MetaService {
         const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0)
         sinceMs = d.getTime()
       }
-    } else if (dateFrom || dateTo) {
-      if (dateFrom) sinceMs = new Date(dateFrom).getTime()
-      if (dateTo) untilMs = new Date(dateTo + 'T23:59:59').getTime()
     }
+    // custom period or explicit dates
+    if (dateFrom) sinceMs = new Date(dateFrom).getTime()
+    if (dateTo) untilMs = new Date(dateTo + 'T23:59:59').getTime()
 
     const hasDateFilter = sinceMs !== undefined || untilMs !== undefined
 
@@ -618,9 +621,17 @@ export class MetaService {
     // Client-side media type filter
     if (mediaTypeFilter && mediaTypeFilter !== 'ALL') {
       if (mediaTypeFilter === 'FEED') {
-        posts = posts.filter(p => p.media_type === 'IMAGE' || p.media_type === 'CAROUSEL_ALBUM')
+        // Feed posts: fotos, carrosséis e vídeos de feed (excluindo Reels)
+        posts = posts.filter(p =>
+          p.media_type === 'IMAGE' ||
+          p.media_type === 'CAROUSEL_ALBUM' ||
+          (p.media_type === 'VIDEO' && p.media_product_type !== 'REELS')
+        )
       } else if (mediaTypeFilter === 'REELS') {
-        posts = posts.filter(p => p.media_product_type === 'REELS')
+        posts = posts.filter(p => p.media_product_type === 'REELS' || p.media_type === 'REELS')
+      } else if (mediaTypeFilter === 'VIDEO') {
+        // Vídeos de feed (não Reels)
+        posts = posts.filter(p => p.media_type === 'VIDEO' && p.media_product_type !== 'REELS')
       } else {
         posts = posts.filter(p => p.media_type === mediaTypeFilter)
       }

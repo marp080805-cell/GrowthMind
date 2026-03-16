@@ -163,8 +163,13 @@ export async function executeAutomation(
 
     let lastOutput: unknown = triggerPayload
 
+    // Nodes that belong to a loop body — handled inline, skip in main pass
+    const loopBodyNodes = new Set<string>()
+
     // Execute each node
     for (const node of ordered) {
+      if (loopBodyNodes.has(node.id)) continue
+
       if (node.type.startsWith('trigger.')) {
         // Triggers are just starting points
         // For instagram trigger, inject client's instagram_account_id as fallback
@@ -216,6 +221,83 @@ export async function executeAutomation(
           output,
           duration_ms: duration,
         })
+
+        // ── Loop: execute "each" branch for every item ──────────────────────
+        if (node.type === 'logic.loop') {
+          const loopResult = output as { items: unknown[]; total: number; item_var: string }
+          const items = loopResult.items || []
+          const itemVar = loopResult.item_var || 'item'
+
+          // Collect nodes reachable via "each" edges (BFS)
+          const eachTargets = edges
+            .filter(e => (e.source === node.id || e.source_node_id === node.id) &&
+                         (e.sourceHandle === 'each' || e.source_handle === 'each'))
+            .map(e => e.target || e.target_node_id || '').filter(Boolean)
+
+          const bodyNodeIds = new Set<string>()
+          const bfsQueue = [...eachTargets]
+          while (bfsQueue.length > 0) {
+            const nid = bfsQueue.shift()!
+            if (bodyNodeIds.has(nid)) continue
+            bodyNodeIds.add(nid)
+            edges
+              .filter(e => e.source === nid || e.source_node_id === nid)
+              .forEach(e => { const t = e.target || e.target_node_id || ''; if (t) bfsQueue.push(t) })
+          }
+
+          // Mark body nodes so main loop skips them
+          for (const id of bodyNodeIds) loopBodyNodes.add(id)
+
+          // Body nodes in original topological order
+          const bodyNodesOrdered = ordered.filter(n => bodyNodeIds.has(n.id))
+
+          // Execute each item through the body
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i]
+            const iterVars: Record<string, unknown> = { ...templateVars, [itemVar]: item, loop_index: i }
+            let iterLastOutput: unknown = item
+
+            for (const bodyNode of bodyNodesOrdered) {
+              const iterStart = Date.now()
+              const iterConfig = interpolateConfig(bodyNode.config, iterVars)
+              const iterInputSnapshot = iterLastOutput
+              try {
+                const iterOutput = await executeNode(bodyNode, iterConfig, iterLastOutput, context)
+                const iterDuration = Date.now() - iterStart
+                iterLastOutput = iterOutput
+                iterVars.input = iterOutput
+                if (iterOutput && typeof iterOutput === 'object') {
+                  Object.assign(iterVars, flattenOutput(iterOutput as Record<string, unknown>))
+                }
+                nodeLogs.push({
+                  node_id: bodyNode.id,
+                  node_type: bodyNode.type,
+                  node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`,
+                  status: 'success',
+                  input: iterInputSnapshot,
+                  output: iterOutput,
+                  duration_ms: iterDuration,
+                })
+              } catch (iterErr) {
+                const iterDuration = Date.now() - iterStart
+                const iterMsg = iterErr instanceof Error ? iterErr.message : String(iterErr)
+                if (iterMsg === 'BRANCH_SKIPPED') {
+                  nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'skipped', input: iterInputSnapshot, output: null, duration_ms: iterDuration })
+                  continue
+                }
+                nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'error', input: iterInputSnapshot, output: null, error: iterMsg, duration_ms: iterDuration })
+                break // stop this iteration on error, continue with next item
+              }
+            }
+            await updateLog('running')
+          }
+
+          // After loop, expose summary to "done" branch
+          lastOutput = { total: items.length, completed: items.length }
+          templateVars.input = lastOutput
+          templateVars.loop_total = items.length
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
         await updateLog('running')
       } catch (err) {
@@ -446,8 +528,7 @@ async function executeMeta(
     case 'create_ad': {
       // Se vier source_instagram_media_id, cria criativo a partir de post existente do Instagram
       if (config.source_instagram_media_id) {
-        const instagramAccountId = (config.instagram_actor_id as string) || context.client?.instagram_account_id
-        if (!instagramAccountId) throw new Error('ID da conta Instagram não encontrado. Configure no cadastro do cliente.')
+        const instagramAccountId = (config.instagram_actor_id as string) || context.client?.instagram_account_id || undefined
         const result = await meta.createAdFromInstagramPost({
           postId: config.source_instagram_media_id as string,
           instagramAccountId,
