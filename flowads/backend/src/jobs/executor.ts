@@ -194,6 +194,7 @@ export async function executeAutomation(
       const startTime = Date.now()
       const interpolatedConfig = interpolateConfig(node.config, templateVars)
 
+      const inputSnapshot = lastOutput
       try {
         const output = await executeNode(node, interpolatedConfig, lastOutput, context)
         const duration = Date.now() - startTime
@@ -211,7 +212,7 @@ export async function executeAutomation(
           node_type: node.type,
           node_label: node.label || node.type,
           status: 'success',
-          input: lastOutput,
+          input: inputSnapshot,
           output,
           duration_ms: duration,
         })
@@ -221,12 +222,27 @@ export async function executeAutomation(
         const duration = Date.now() - startTime
         const message = err instanceof Error ? err.message : String(err)
 
+        if (message === 'FLOW_STOPPED') {
+          nodeLogs.push({
+            node_id: node.id,
+            node_type: node.type,
+            node_label: node.label || node.type,
+            status: 'success',
+            input: inputSnapshot,
+            output: null,
+            duration_ms: duration,
+          })
+          await supabase.from('automations').update({ last_run_at: new Date().toISOString() }).eq('id', automationId)
+          await updateLog('success')
+          return executionId
+        }
+
         nodeLogs.push({
           node_id: node.id,
           node_type: node.type,
           node_label: node.label || node.type,
           status: 'error',
-          input: lastOutput,
+          input: inputSnapshot,
           output: null,
           error: message,
           duration_ms: duration,
