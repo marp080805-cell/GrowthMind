@@ -621,11 +621,11 @@ export class MetaService {
     // Client-side media type filter
     if (mediaTypeFilter && mediaTypeFilter !== 'ALL') {
       if (mediaTypeFilter === 'FEED') {
-        // Feed posts: fotos, carrosséis e vídeos de feed (excluindo Reels)
+        // Feed posts: fotos, carrosséis, vídeos e reels
         posts = posts.filter(p =>
           p.media_type === 'IMAGE' ||
           p.media_type === 'CAROUSEL_ALBUM' ||
-          (p.media_type === 'VIDEO' && p.media_product_type !== 'REELS')
+          p.media_type === 'VIDEO'
         )
       } else if (mediaTypeFilter === 'REELS') {
         posts = posts.filter(p => p.media_product_type === 'REELS' || p.media_type === 'REELS')

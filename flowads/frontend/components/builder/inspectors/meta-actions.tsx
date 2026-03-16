@@ -200,7 +200,7 @@ export function InstagramPostsInspector({ config, onChange }: InspectorFieldProp
           className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
         >
           <option value="ALL">Todos os tipos</option>
-          <option value="FEED">Feed (fotos e carrossel)</option>
+          <option value="FEED">Feed (fotos, carrossel e reels)</option>
           <option value="REELS">Reels</option>
           <option value="IMAGE">Apenas fotos</option>
           <option value="CAROUSEL_ALBUM">Apenas carrossel</option>
