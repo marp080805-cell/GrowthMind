@@ -530,12 +530,16 @@ export class MetaService {
     adName: string
     status?: string
   }): Promise<{ ad_id: string; creative_id: string }> {
-    // When using source_instagram_media_id, Meta infers the Instagram actor from the post.
-    // Do NOT include instagram_actor_id — it causes error #100 even with a valid account id.
+    // source_instagram_media_id: correct field for promoting existing IG posts.
+    // instagram_user_id (NOT instagram_actor_id) is the correct field to associate the
+    // creative with an IG account at the adcreatives level.
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
       access_token: this.token,
+    }
+    if (params.instagramAccountId) {
+      creativeBody.instagram_user_id = params.instagramAccountId
     }
     const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
     const creativeId = creativeData.id as string
@@ -543,7 +547,7 @@ export class MetaService {
     const adBody = {
       adset_id: params.adsetId,
       name: params.adName,
-      creative: { creative_id: creativeId },
+      creative: JSON.stringify({ creative_id: creativeId }),
       status: params.status || 'ACTIVE',
       access_token: this.token,
     }
@@ -619,11 +623,12 @@ export class MetaService {
     // Client-side media type filter
     if (mediaTypeFilter && mediaTypeFilter !== 'ALL') {
       if (mediaTypeFilter === 'FEED') {
-        // Feed posts: fotos, carrosséis, vídeos e reels
+        // Feed posts: fotos, carrosséis, vídeos de feed e reels
         posts = posts.filter(p =>
           p.media_type === 'IMAGE' ||
           p.media_type === 'CAROUSEL_ALBUM' ||
-          p.media_type === 'VIDEO'
+          p.media_type === 'VIDEO' ||
+          p.media_product_type === 'REELS'
         )
       } else if (mediaTypeFilter === 'REELS') {
         posts = posts.filter(p => p.media_product_type === 'REELS' || p.media_type === 'REELS')
