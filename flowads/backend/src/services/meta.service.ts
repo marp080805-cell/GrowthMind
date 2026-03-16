@@ -85,8 +85,12 @@ async function metaPost(url: string, body: Record<string, unknown>): Promise<Rec
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  const data = await res.json() as Record<string, unknown> & { error?: { message?: string } }
-  if (!res.ok || data.error) throw new Error((data.error as { message?: string })?.message || 'Erro na API do Meta')
+  const data = await res.json() as Record<string, unknown> & { error?: { message?: string; code?: number; error_subcode?: number } }
+  if (!res.ok || data.error) {
+    const e = data.error as { message?: string; code?: number; error_subcode?: number } | undefined
+    const code = e?.code ? ` [código ${e.code}${e.error_subcode ? '/' + e.error_subcode : ''}]` : ''
+    throw new Error((e?.message || 'Erro na API do Meta') + code)
+  }
   return data
 }
 
@@ -528,10 +532,8 @@ export class MetaService {
   }): Promise<{ ad_id: string; creative_id: string }> {
     const creativeBody = {
       name: `Creative - ${params.adName}`,
-      object_story_spec: {
-        instagram_actor_id: params.instagramAccountId,
-        link_data: { source_media_id: params.postId },
-      },
+      source_instagram_media_id: params.postId,
+      instagram_actor_id: params.instagramAccountId,
       access_token: this.token,
     }
     const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
