@@ -286,7 +286,7 @@ export async function executeAutomation(
                   continue
                 }
                 nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'error', input: iterInputSnapshot, output: null, error: iterMsg, duration_ms: iterDuration })
-                break // stop this iteration on error, continue with next item
+                break // stop remaining body nodes for this item, continue with next item
               }
             }
             await updateLog('running')
@@ -529,9 +529,11 @@ async function executeMeta(
       // Se vier source_instagram_media_id, cria criativo a partir de post existente do Instagram
       if (config.source_instagram_media_id) {
         const instagramAccountId = (config.instagram_actor_id as string) || context.client?.instagram_account_id || undefined
+        const pageId = (config.page_id as string) || undefined
         const result = await meta.createAdFromInstagramPost({
           postId: config.source_instagram_media_id as string,
           instagramAccountId,
+          pageId,
           adsetId: config.adset_id as string,
           adName: (config.name as string) || `Post ${config.source_instagram_media_id}`,
           status: (config.status as string) || 'PAUSED',

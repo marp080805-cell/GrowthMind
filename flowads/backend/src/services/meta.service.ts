@@ -526,18 +526,21 @@ export class MetaService {
   async createAdFromInstagramPost(params: {
     postId: string
     instagramAccountId?: string
+    pageId?: string
     adsetId: string
     adName: string
     status?: string
   }): Promise<{ ad_id: string; creative_id: string }> {
-    // source_instagram_media_id: correct field for promoting existing IG posts.
-    // Meta infers the Instagram account from the post — no instagram_actor_id or
-    // instagram_user_id needed at this level (both cause Invalid parameter errors).
+    // Per Meta Marketing API docs (Use Posts as Instagram Ads):
+    // adcreatives requires: object_id (FB Page ID), instagram_user_id (IG account ID),
+    // source_instagram_media_id (IG media ID).
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
       access_token: this.token,
     }
+    if (params.pageId) creativeBody.object_id = params.pageId
+    if (params.instagramAccountId) creativeBody.instagram_user_id = params.instagramAccountId
     let creativeId: string
     try {
       const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)

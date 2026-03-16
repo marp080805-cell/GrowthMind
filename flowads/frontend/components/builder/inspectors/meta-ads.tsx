@@ -211,6 +211,16 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
             <p className="text-[10px] text-text3">Use a variável do bloco anterior ou cole o ID do post diretamente.</p>
           </div>
           <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">ID DA PÁGINA DO FACEBOOK *</label>
+            <VariableAutocomplete
+              value={(config.page_id as string) || ''}
+              onChange={(v) => set('page_id', v)}
+              placeholder="Ex: 123456789"
+              rows={1}
+            />
+            <p className="text-[10px] text-text3">ID da Página do Facebook vinculada à conta Instagram. Obrigatório pela API da Meta.</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-syne font-semibold text-text3">ID DA CONTA INSTAGRAM (opcional)</label>
             <VariableAutocomplete
               value={(config.instagram_actor_id as string) || ''}
@@ -221,7 +231,7 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
           </div>
           <div className="bg-blue-500/5 rounded-[8px] p-2.5 border border-blue-500/10 text-[10px] text-text3">
             <p className="font-syne font-bold text-blue-400 mb-1">Como funciona</p>
-            <p>Cria um anúncio promovendo um post existente do Instagram. O Meta usa o <code>source_instagram_media_id</code> para criar o criativo automaticamente com o conteúdo do post.</p>
+            <p>Cria um anúncio promovendo um post existente do Instagram. Requer o ID da Página do Facebook vinculada à conta Instagram (campo <code>object_id</code> da API Meta).</p>
           </div>
         </>
       ) : useExistingCreative ? (
