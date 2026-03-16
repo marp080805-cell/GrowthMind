@@ -83,6 +83,7 @@ export function VariableAutocomplete({
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 })
   const [search, setSearch] = useState('')
   const [cursorPos, setCursorPos] = useState(0)
+  const [isDragOver, setIsDragOver] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -133,6 +134,21 @@ export function VariableAutocomplete({
     ),
   })).filter((g) => g.vars.length > 0)
 
+  const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault()
+    const variable = e.dataTransfer.getData('text/plain')
+    if (!variable || !textareaRef.current) {
+      setIsDragOver(false)
+      return
+    }
+    const ta = textareaRef.current
+    const start = ta.selectionStart ?? value.length
+    const end = ta.selectionEnd ?? value.length
+    const newValue = value.slice(0, start) + variable + value.slice(end)
+    onChange(newValue)
+    setIsDragOver(false)
+  }
+
   return (
     <div className="relative">
       <textarea
@@ -142,7 +158,10 @@ export function VariableAutocomplete({
         onKeyUp={handleKeyUp}
         placeholder={placeholder}
         rows={rows}
-        className={`w-full rounded-[10px] bg-surface border border-[var(--border)] text-text px-3 py-2 text-xs focus:outline-none focus:border-accent transition-colors resize-none placeholder:text-text3 ${className}`}
+        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={handleDrop}
+        className={`w-full rounded-[10px] bg-surface border text-text px-3 py-2 text-xs focus:outline-none transition-colors resize-none placeholder:text-text3 ${isDragOver ? 'border-accent border-2' : 'border-[var(--border)] focus:border-accent'} ${className}`}
       />
       {showDropdown && (
         <div

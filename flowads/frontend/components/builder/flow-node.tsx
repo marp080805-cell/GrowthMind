@@ -4,11 +4,13 @@ import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { getBlock, CATEGORY_COLORS } from '@/lib/blocks'
 import { cn } from '@/lib/utils'
+import type { NodeLog } from '@/lib/api'
 
 export interface FlowNodeData extends Record<string, unknown> {
   type: string
   label?: string
   config?: Record<string, unknown>
+  executionLog?: NodeLog | null
 }
 
 function getConfigPreview(type: string, config: Record<string, unknown>): string | null {
@@ -37,17 +39,49 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
 
   const color = CATEGORY_COLORS[block.category] || '#505870'
   const preview = getConfigPreview(nodeData.type, nodeData.config || {})
+  const log = nodeData.executionLog as NodeLog | null | undefined
+
+  // Execution ring color
+  const ringClass = log
+    ? log.status === 'success'
+      ? 'ring-2 ring-green-500 shadow-[0_0_12px_rgba(34,197,94,0.4)]'
+      : log.status === 'error'
+        ? 'ring-2 ring-red-500 shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+        : 'ring-2 ring-yellow-400 shadow-[0_0_12px_rgba(250,204,21,0.4)]'
+    : ''
 
   return (
     <div
       className={cn(
-        'min-w-[200px] max-w-[240px] rounded-[12px] border overflow-hidden',
-        'bg-surface shadow-lg transition-all duration-150',
+        'min-w-[200px] max-w-[240px] rounded-[12px] border overflow-visible',
+        'bg-surface shadow-lg transition-all duration-150 relative',
         selected
           ? 'border-accent shadow-[0_0_20px_rgba(79,111,255,0.2)]'
-          : 'border-[var(--border)] hover:border-[var(--border2)]'
+          : 'border-[var(--border)] hover:border-[var(--border2)]',
+        ringClass
       )}
     >
+      {/* Execution status badge */}
+      {log && (
+        <div className="absolute -top-2.5 -right-2 z-10 flex items-center gap-0.5">
+          {log.status === 'success' && (
+            <span className="bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full font-mono">
+              ✓ {log.duration_ms}ms
+            </span>
+          )}
+          {log.status === 'error' && (
+            <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+              ✗ erro
+            </span>
+          )}
+          {log.status === 'running' && (
+            <span className="bg-yellow-400 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+              ⟳ rodando
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div
         className="flex items-center gap-2 px-3 py-2"

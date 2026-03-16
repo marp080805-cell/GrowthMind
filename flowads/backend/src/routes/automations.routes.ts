@@ -160,4 +160,16 @@ export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
     if (error) throw error
     return data || []
   })
+
+  // Single execution by ID (used for live polling during execution)
+  fastify.get('/executions/:id', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const { data, error } = await supabase
+      .from('execution_logs')
+      .select('*')
+      .eq('id', id)
+      .single()
+    if (error || !data) return reply.status(404).send({ message: 'Execução não encontrada' })
+    return data
+  })
 }

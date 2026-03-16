@@ -1,8 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { getBlock } from '@/lib/blocks'
 import { Button } from '@/components/ui/button'
 import { X, Trash2 } from 'lucide-react'
+import type { NodeLog } from '@/lib/api'
+import { OutputTree } from './output-tree'
 
 // Triggers
 import { ScheduleInspector } from './inspectors/schedule'
@@ -86,6 +89,7 @@ interface InspectorProps {
   onLabelChange: (label: string) => void
   onDelete: () => void
   onClose: () => void
+  executionLog?: NodeLog
 }
 
 const INSPECTOR_MAP: Record<string, React.ComponentType<InspectorFieldProps>> = {
@@ -167,6 +171,8 @@ export interface InspectorFieldProps {
   nodeId: string
 }
 
+type Tab = 'config' | 'input' | 'output'
+
 export function Inspector({
   nodeId,
   nodeType,
@@ -176,9 +182,13 @@ export function Inspector({
   onLabelChange,
   onDelete,
   onClose,
+  executionLog,
 }: InspectorProps) {
   const block = getBlock(nodeType)
   const FieldComponent = INSPECTOR_MAP[nodeType] || GenericInspector
+  const [tab, setTab] = useState<Tab>('config')
+
+  const hasExecution = !!executionLog
 
   return (
     <div className="w-[270px] h-full bg-bg2 border-l border-[var(--border)] flex flex-col overflow-hidden shrink-0">
@@ -213,9 +223,63 @@ export function Inspector({
         />
       </div>
 
-      {/* Fields */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <FieldComponent config={config} onChange={onConfigChange} nodeId={nodeId} />
+      {/* Tabs — only shown when execution data exists */}
+      {hasExecution && (
+        <div className="flex border-b border-[var(--border)] shrink-0">
+          {(['config', 'input', 'output'] as Tab[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={`flex-1 py-1.5 text-[10px] font-syne font-bold transition-colors ${
+                tab === t
+                  ? 'text-accent border-b-2 border-accent -mb-px'
+                  : 'text-text3 hover:text-text'
+              }`}
+            >
+              {t === 'config' ? 'CONFIG' : t === 'input' ? 'ENTRADA' : 'SAÍDA'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        {(!hasExecution || tab === 'config') && (
+          <div className="p-4 space-y-4">
+            <FieldComponent config={config} onChange={onConfigChange} nodeId={nodeId} />
+          </div>
+        )}
+
+        {hasExecution && tab === 'input' && (
+          <div className="p-2">
+            {executionLog.input !== undefined && executionLog.input !== null ? (
+              <OutputTree data={executionLog.input} draggable={false} path="input" />
+            ) : (
+              <p className="text-[10px] text-text3 px-2 py-2 italic">Sem dados de entrada</p>
+            )}
+          </div>
+        )}
+
+        {hasExecution && tab === 'output' && (
+          <div className="p-2">
+            {executionLog.status === 'error' && executionLog.error && (
+              <div className="mb-2 bg-red-500/10 border border-red-500/20 rounded-[6px] p-2 text-[10px] text-red-400 font-mono break-all">
+                {executionLog.error}
+              </div>
+            )}
+            {executionLog.output !== undefined && executionLog.output !== null ? (
+              <>
+                <p className="text-[9px] font-syne font-bold text-text3 mb-1 px-1">
+                  ARRASTE PARA USAR COMO VARIÁVEL
+                </p>
+                <OutputTree data={executionLog.output} draggable path="output" />
+              </>
+            ) : (
+              <p className="text-[10px] text-text3 px-2 py-2 italic">Sem dados de saída</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

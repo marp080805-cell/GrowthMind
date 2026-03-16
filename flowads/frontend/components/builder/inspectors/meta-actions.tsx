@@ -455,20 +455,9 @@ export function FilterUnsponsoredPostsInspector({ config, onChange }: InspectorF
 
   return (
     <>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] font-syne font-semibold text-text3">ARRAY DE POSTS *</label>
-        <VariableAutocomplete
-          value={(config.source_posts as string) || '{{posts}}'}
-          onChange={(v) => set('source_posts', v)}
-          placeholder="{{posts}}"
-          rows={1}
-        />
-        <p className="text-[10px] text-text3">Variável do nó anterior que contém o array de posts. Use <code>{'{{posts}}'}</code> se vier de "Buscar posts recentes".</p>
-      </div>
-
       <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3 space-y-1">
         <p className="font-syne font-bold text-accent">Como funciona</p>
-        <p>Recebe o array de posts e retorna apenas os que ainda <strong>não</strong> foram patrocinados.</p>
+        <p>Recebe automaticamente o array <code>{'{{posts}}'}</code> do fluxo e retorna apenas os que ainda <strong>não</strong> foram patrocinados.</p>
         <p className="mt-1">Verifica em duas fontes:</p>
         <p>① Tabela interna do FlowAds (posts criados aqui)</p>
         <p>② API do Meta Ads (posts patrocinados fora do FlowAds)</p>

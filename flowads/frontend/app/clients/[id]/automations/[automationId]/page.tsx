@@ -1,17 +1,27 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { BlockPalette } from '@/components/builder/palette'
 import { BuilderCanvas } from '@/components/builder/canvas'
+import { ExecutionPanel } from '@/components/builder/execution-panel'
 import { ToastProvider } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Toggle } from '@/components/ui/toggle'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAutomation } from '@/hooks/use-automation'
-import { automationsApi, clientsApi, type AutomationNode, type AutomationEdge, type Client } from '@/lib/api'
+import {
+  automationsApi,
+  clientsApi,
+  executionsApi,
+  type AutomationNode,
+  type AutomationEdge,
+  type Client,
+  type ExecutionLog,
+  type NodeLog,
+} from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
-import { ArrowLeft, Save, Play, Zap } from 'lucide-react'
+import { ArrowLeft, Save, Play, Zap, List } from 'lucide-react'
 import Link from 'next/link'
 
 export default function BuilderPage() {
@@ -27,6 +37,14 @@ export default function BuilderPage() {
   const [running, setRunning] = useState(false)
   const [automationName, setAutomationName] = useState('')
 
+  // Execution state
+  const [executions, setExecutions] = useState<ExecutionLog[]>([])
+  const [liveExecutionId, setLiveExecutionId] = useState<string | null>(null)
+  const [executionState, setExecutionState] = useState<Record<string, NodeLog>>({})
+  const [showExecutions, setShowExecutions] = useState(false)
+  const [pollingActive, setPollingActive] = useState(false)
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   useEffect(() => {
     clientsApi.get(clientId).then(setClient).catch(() => {})
   }, [clientId])
@@ -39,18 +57,57 @@ export default function BuilderPage() {
     }
   }, [automation])
 
-  // Handle new automation
   useEffect(() => {
     if (automationId === 'new') {
       setAutomationName('Nova Automação')
     }
   }, [automationId])
 
+  // Load executions on open
+  useEffect(() => {
+    if (automationId !== 'new') {
+      automationsApi.logs(automationId).then(setExecutions).catch(() => {})
+    }
+  }, [automationId])
+
+  // Polling for live execution
+  useEffect(() => {
+    if (!pollingActive || !liveExecutionId) return
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const log = await executionsApi.get(liveExecutionId)
+
+        // Build per-node state map
+        const state: Record<string, NodeLog> = {}
+        for (const nodeLog of log.log_data || []) {
+          state[nodeLog.node_id] = nodeLog
+        }
+        setExecutionState(state)
+
+        // Refresh execution list
+        const allLogs = await automationsApi.logs(automationId)
+        setExecutions(allLogs)
+
+        if (log.status !== 'running') {
+          setPollingActive(false)
+          setRunning(false)
+          if (pollingRef.current) clearInterval(pollingRef.current)
+        }
+      } catch {
+        // ignore transient errors
+      }
+    }, 1500)
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current)
+    }
+  }, [pollingActive, liveExecutionId, automationId])
+
   const handleChange = useCallback(
     (newNodes: AutomationNode[], newEdges: AutomationEdge[]) => {
       setNodes(newNodes)
       setEdges(newEdges)
-      // Auto-save with debounce handled in parent
     },
     []
   )
@@ -76,12 +133,20 @@ export default function BuilderPage() {
   const handleRun = async () => {
     if (!automation) return
     setRunning(true)
+    setExecutionState({})
     try {
-      await automationsApi.run(automation.id)
-      success('Automação iniciada! Verifique os logs em breve.')
+      const result = await automationsApi.run(automation.id)
+      const execId = result.executionId
+      if (execId) {
+        setLiveExecutionId(execId)
+        setPollingActive(true)
+        setShowExecutions(true)
+      } else {
+        success('Automação iniciada! Verifique os logs em breve.')
+        setRunning(false)
+      }
     } catch {
       error('Erro ao executar automação')
-    } finally {
       setRunning(false)
     }
   }
@@ -128,6 +193,25 @@ export default function BuilderPage() {
 
         <div className="flex-1" />
 
+        {/* Executions button */}
+        <button
+          type="button"
+          onClick={() => setShowExecutions(!showExecutions)}
+          className={`flex items-center gap-1.5 text-xs font-syne font-semibold px-3 py-1.5 rounded-[8px] border transition-all ${
+            showExecutions
+              ? 'bg-accent/10 border-accent text-accent'
+              : 'bg-surface border-[var(--border)] text-text2 hover:text-text hover:border-[var(--border2)]'
+          }`}
+        >
+          <List size={12} />
+          Execuções
+          {executions.length > 0 && (
+            <span className="bg-surface2 text-text3 rounded-full px-1.5 py-0.5 text-[10px] leading-none">
+              {executions.length}
+            </span>
+          )}
+        </button>
+
         {/* Controls */}
         {automation && (
           <Toggle
@@ -156,15 +240,26 @@ export default function BuilderPage() {
       </div>
 
       {/* Builder Body */}
-      <div className="flex flex-1 overflow-hidden">
-        <BlockPalette />
-        <BuilderCanvas
-          key={automation?.id ?? automationId}
-          initialNodes={automation?.nodes ?? nodes}
-          initialEdges={automation?.edges ?? edges}
-          onChange={handleChange}
-          isActive={automation?.is_active}
-        />
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden">
+          <BlockPalette />
+          <BuilderCanvas
+            key={automation?.id ?? automationId}
+            initialNodes={automation?.nodes ?? nodes}
+            initialEdges={automation?.edges ?? edges}
+            onChange={handleChange}
+            isActive={automation?.is_active}
+            executionState={executionState}
+          />
+        </div>
+
+        {showExecutions && (
+          <ExecutionPanel
+            executions={executions}
+            liveExecutionId={liveExecutionId}
+            onClose={() => setShowExecutions(false)}
+          />
+        )}
       </div>
 
       <ToastProvider />

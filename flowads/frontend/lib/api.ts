@@ -91,6 +91,11 @@ export const agentsApi = {
     api.delete(`/clients/${clientId}/agents/${agentId}`),
 }
 
+// Single execution (for live polling)
+export const executionsApi = {
+  get: (id: string) => api.get<ExecutionLog>(`/executions/${id}`),
+}
+
 // Presets
 export const presetsApi = {
   list: () => api.get<Preset[]>('/presets'),

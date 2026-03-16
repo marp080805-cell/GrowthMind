@@ -21,7 +21,7 @@ import { FlowNode } from './flow-node'
 import { Inspector } from './inspector'
 import { getBlock } from '@/lib/blocks'
 import dagre from 'dagre'
-import type { AutomationNode, AutomationEdge } from '@/lib/api'
+import type { AutomationNode, AutomationEdge, NodeLog } from '@/lib/api'
 
 const nodeTypes: NodeTypes = { flowNode: FlowNode as NodeTypes[string] }
 
@@ -30,9 +30,10 @@ interface BuilderCanvasProps {
   initialEdges: AutomationEdge[]
   onChange: (nodes: AutomationNode[], edges: AutomationEdge[]) => void
   isActive?: boolean
+  executionState?: Record<string, NodeLog>
 }
 
-function apiNodesToFlow(apiNodes: AutomationNode[]): Node[] {
+function apiNodesToFlow(apiNodes: AutomationNode[], executionState: Record<string, NodeLog> = {}): Node[] {
   return apiNodes.map((n) => ({
     id: n.id,
     type: 'flowNode',
@@ -41,6 +42,7 @@ function apiNodesToFlow(apiNodes: AutomationNode[]): Node[] {
       type: n.type,
       label: n.label,
       config: n.config || {},
+      executionLog: executionState[n.id] || null,
     },
   }))
 }
@@ -70,17 +72,30 @@ function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
   })
 }
 
-export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive }: BuilderCanvasProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState(apiNodesToFlow(initialNodes))
+export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, executionState = {} }: BuilderCanvasProps) {
+  const [nodes, setNodes, onNodesChange] = useNodesState(apiNodesToFlow(initialNodes, executionState))
   const [edges, setEdges, onEdgesChange] = useEdgesState(apiEdgesToFlow(initialEdges))
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
   const wrapper = useRef<HTMLDivElement>(null)
 
-  // Update edges animation based on active state
+  // Update edge animation based on active state
   useEffect(() => {
     setEdges((eds) => eds.map((e) => ({ ...e, animated: isActive || false })))
   }, [isActive])
+
+  // Update executionLog data on each node when executionState changes
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((n) => ({
+        ...n,
+        data: {
+          ...n.data,
+          executionLog: executionState[n.id] || null,
+        },
+      }))
+    )
+  }, [executionState])
 
   const notifyChange = useCallback(
     (ns: Node[], es: Edge[]) => {
@@ -144,7 +159,8 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive }
         data: {
           type: blockType,
           label: block?.label || blockType,
-          config: {},
+          config: (block as { defaultConfig?: Record<string, unknown> })?.defaultConfig || {},
+          executionLog: null,
         },
       }
 
@@ -261,6 +277,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive }
           onLabelChange={handleLabelChange}
           onDelete={handleDeleteNode}
           onClose={() => setSelectedNodeId(null)}
+          executionLog={(selectedNode.data.executionLog as NodeLog) || undefined}
         />
       )}
     </div>
