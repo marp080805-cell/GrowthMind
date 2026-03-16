@@ -21,7 +21,7 @@ import {
   type NodeLog,
 } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
-import { ArrowLeft, Save, Play, Zap, List } from 'lucide-react'
+import { ArrowLeft, Save, Play, Zap, AlignJustify } from 'lucide-react'
 import Link from 'next/link'
 
 export default function BuilderPage() {
@@ -203,7 +203,7 @@ export default function BuilderPage() {
               : 'bg-surface border-[var(--border)] text-text2 hover:text-text hover:border-[var(--border2)]'
           }`}
         >
-          <List size={12} />
+          <AlignJustify size={12} />
           Execuções
           {executions.length > 0 && (
             <span className="bg-surface2 text-text3 rounded-full px-1.5 py-0.5 text-[10px] leading-none">
