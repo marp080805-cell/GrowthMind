@@ -13,7 +13,12 @@ function interpolate(template: string, vars: Record<string, unknown>): string {
     const keys = key.trim().split('.')
     let val: unknown = vars
     for (const k of keys) {
-      val = (val as Record<string, unknown>)?.[k]
+      const arrayMatch = k.match(/^\[(\d+)\]$/)
+      if (arrayMatch) {
+        val = (val as unknown[])?.[parseInt(arrayMatch[1])]
+      } else {
+        val = (val as Record<string, unknown>)?.[k]
+      }
     }
     if (val === undefined || val === null) return ''
     if (typeof val === 'object') return JSON.stringify(val)
@@ -854,8 +859,15 @@ async function executeLogic(
       try { return JSON.parse(template) } catch { return template }
     }
 
-    case 'stop':
+    case 'stop': {
+      // If preceded by a logic.if, only stop when the condition was false.
+      // When condition is true we're on the inactive branch — pass through silently.
+      const conditionValue = (input as Record<string, unknown>)?.condition
+      if (typeof conditionValue === 'boolean' && conditionValue === true) {
+        return input // inactive branch — skip this stop
+      }
       throw new Error('FLOW_STOPPED')
+    }
 
     default:
       return input
