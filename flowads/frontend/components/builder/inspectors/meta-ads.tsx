@@ -94,7 +94,7 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
         {campaigns.length > 0 ? (
           <select
             value={selectedCampaignId}
-            onChange={(e) => { set('campaign_id', e.target.value); set('adset_id', '') }}
+            onChange={(e) => onChange({ ...config, campaign_id: e.target.value, adset_id: '' })}
             className={selectClass}
           >
             <option value="">Selecione a campanha...</option>
@@ -109,7 +109,7 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
             type="text"
             placeholder="{{campaign_id}} ou ID da campanha"
             value={selectedCampaignId}
-            onChange={(e) => { set('campaign_id', e.target.value); set('adset_id', '') }}
+            onChange={(e) => onChange({ ...config, campaign_id: e.target.value, adset_id: '' })}
             className={inputClass}
           />
         )}
