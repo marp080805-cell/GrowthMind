@@ -80,16 +80,27 @@ export interface MetaInstagramAccount {
 }
 
 async function metaPost(url: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  // Meta Graph API is form-encoded by design; complex fields are JSON strings
+  const formData = new URLSearchParams()
+  for (const [key, value] of Object.entries(body)) {
+    if (value === undefined || value === null) continue
+    if (typeof value === 'object') {
+      formData.set(key, JSON.stringify(value))
+    } else {
+      formData.set(key, String(value))
+    }
+  }
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: formData.toString(),
   })
-  const data = await res.json() as Record<string, unknown> & { error?: { message?: string; code?: number; error_subcode?: number } }
+  const data = await res.json() as Record<string, unknown> & { error?: { message?: string; code?: number; error_subcode?: number; error_user_msg?: string; error_user_title?: string } }
   if (!res.ok || data.error) {
-    const e = data.error as { message?: string; code?: number; error_subcode?: number } | undefined
+    const e = data.error as { message?: string; code?: number; error_subcode?: number; error_user_msg?: string; error_user_title?: string } | undefined
     const code = e?.code ? ` [código ${e.code}${e.error_subcode ? '/' + e.error_subcode : ''}]` : ''
-    throw new Error((e?.message || 'Erro na API do Meta') + code)
+    const detail = e?.error_user_msg ? ` — ${e.error_user_msg}` : ''
+    throw new Error((e?.message || 'Erro na API do Meta') + code + detail)
   }
   return data
 }
@@ -199,7 +210,7 @@ export class MetaService {
 
   async duplicateCampaign(campaignId: string, newName?: string): Promise<{ id: string }> {
     const body: Record<string, unknown> = { access_token: this.token }
-    if (newName) body.rename_options = JSON.stringify({ rename_strategy: 'CUSTOM_RENAME', rename_prefix: newName })
+    if (newName) body.rename_options = { rename_strategy: 'CUSTOM_RENAME', rename_prefix: newName }
     const data = await metaPost(`${META_API}/${campaignId}/copies`, body)
     const copies = (data.copies as { id: string }[] | undefined)
     return { id: copies?.[0]?.id || data.id as string }
@@ -237,7 +248,7 @@ export class MetaService {
       name: params.name,
       optimization_goal: params.optimization_goal,
       billing_event: params.billing_event,
-      targeting: JSON.stringify(params.targeting),
+      targeting: params.targeting,
       status: params.status || 'PAUSED',
       access_token: this.token,
     }
@@ -261,7 +272,7 @@ export class MetaService {
     if (params.name) body.name = params.name
     if (params.status) body.status = params.status
     if (params.daily_budget) body.daily_budget = Math.round(params.daily_budget * 100)
-    if (params.targeting) body.targeting = JSON.stringify(params.targeting)
+    if (params.targeting) body.targeting = params.targeting
     if (params.end_time) body.end_time = params.end_time
     await metaPost(`${META_API}/${adSetId}`, body)
   }
@@ -327,7 +338,7 @@ export class MetaService {
 
       const creativeBody: Record<string, unknown> = {
         name: `Creative - ${params.name}`,
-        object_story_spec: JSON.stringify(objectStorySpec),
+        object_story_spec: objectStorySpec,
         access_token: this.token,
       }
       const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
@@ -337,7 +348,7 @@ export class MetaService {
     const adBody = {
       adset_id: params.adset_id,
       name: params.name,
-      creative: JSON.stringify({ creative_id: creativeId }),
+      creative: { creative_id: creativeId },
       status: params.status || 'PAUSED',
       access_token: this.token,
     }
@@ -353,7 +364,7 @@ export class MetaService {
     const body: Record<string, unknown> = { access_token: this.token }
     if (params.name) body.name = params.name
     if (params.status) body.status = params.status
-    if (params.creative_id) body.creative = JSON.stringify({ creative_id: params.creative_id })
+    if (params.creative_id) body.creative = { creative_id: params.creative_id }
     await metaPost(`${META_API}/${adId}`, body)
   }
 
@@ -469,9 +480,7 @@ export class MetaService {
     const adBody = {
       adset_id: adSet.id,
       name: `Boost Ad - ${params.post_id}`,
-      creative: JSON.stringify({
-        object_story_id: `${params.page_id}_${params.post_id}`,
-      }),
+      creative: { object_story_id: `${params.page_id}_${params.post_id}` },
       status: 'ACTIVE',
       access_token: this.token,
     }
@@ -785,8 +794,8 @@ export class MetaService {
     }
     if (params.description) body.description = params.description
     if (params.pixel_id) body.pixel_id = params.pixel_id
-    if (params.rule) body.rule = JSON.stringify(params.rule)
-    if (params.lookalike_spec) body.lookalike_spec = JSON.stringify(params.lookalike_spec)
+    if (params.rule) body.rule = params.rule
+    if (params.lookalike_spec) body.lookalike_spec = params.lookalike_spec
     const data = await metaPost(`${this.accountUrl}/customaudiences`, body)
     return { id: data.id as string, name: params.name }
   }

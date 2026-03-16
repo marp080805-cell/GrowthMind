@@ -118,6 +118,19 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
     }
   })
 
+  fastify.get('/settings/facebook-pages', async (req, reply) => {
+    const { data: settings } = await supabase.from('settings').select('meta_token').single()
+    if (!settings?.meta_token) return reply.status(400).send({ message: 'Meta não conectado nas configurações' })
+    try {
+      const meta = new MetaService(settings.meta_token, '')
+      const pages = await meta.getFacebookPages()
+      return { pages }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao buscar páginas'
+      return reply.status(400).send({ message })
+    }
+  })
+
   fastify.get('/settings/models', async () => {
     const { data: settings } = await supabase.from('settings').select('available_models').single()
     return settings?.available_models || getDefaultModels()

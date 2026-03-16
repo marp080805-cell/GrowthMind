@@ -70,6 +70,8 @@ export const adsetsApi = {
 export const pagesApi = {
   list: (clientId: string) =>
     api.get<{ pages: { id: string; name: string }[] }>(`/clients/${clientId}/facebook-pages`),
+  listFromSettings: () =>
+    api.get<{ pages: { id: string; name: string }[] }>('/settings/facebook-pages'),
 }
 
 // Automations

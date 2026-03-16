@@ -57,13 +57,12 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       .finally(() => setLoadingAccounts(false))
   }, [])
 
-  // Load Facebook Pages if editing existing client
+  // Load Facebook Pages — via client if editing, via settings otherwise
   useEffect(() => {
-    if (client?.id) {
-      pagesApi.list(client.id)
-        .then(res => setPages(res.pages))
-        .catch(() => {})
-    }
+    const loadPages = client?.id
+      ? pagesApi.list(client.id)
+      : pagesApi.listFromSettings()
+    loadPages.then(res => setPages(res.pages)).catch(() => {})
   }, [client?.id])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -226,9 +225,6 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
             value={form.facebook_page_id}
             onChange={(e) => set('facebook_page_id', e.target.value)}
           />
-        )}
-        {!client?.id && (
-          <p className="text-xs text-text3">Salve o cliente primeiro para carregar as páginas disponíveis.</p>
         )}
       </div>
 
