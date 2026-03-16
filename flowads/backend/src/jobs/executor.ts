@@ -565,7 +565,7 @@ async function executeMeta(
       return {
         ads_criados,
         posts_pulados: posts.length - newPosts.length,
-        patrocinados_externamente: externallySponsored.length,
+        patrocinados_externamente: toUpsert2.length,
         detalhes,
       }
     }
