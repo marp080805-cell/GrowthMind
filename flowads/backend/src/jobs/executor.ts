@@ -916,16 +916,39 @@ async function executeLogic(
     }
 
     case 'loop': {
-      // Resolve the list from input
       const listPath = config.list as string
       let list: unknown[] = []
       if (Array.isArray(input)) {
+        // Input itself is the array (e.g. connected directly to filter output)
         list = input
-      } else if (listPath && input && typeof input === 'object') {
-        const keys = listPath.replace(/\{\{|\}\}/g, '').trim().split('.')
-        let val: unknown = input
-        for (const k of keys) val = (val as Record<string, unknown>)?.[k]
-        if (Array.isArray(val)) list = val
+      } else if (listPath) {
+        // After interpolation, {{posts}} becomes a JSON string — try JSON.parse first
+        try {
+          const parsed = JSON.parse(listPath)
+          if (Array.isArray(parsed)) { list = parsed }
+        } catch {
+          // Fallback: path traversal from input
+          if (input && typeof input === 'object') {
+            const keys = listPath.replace(/\{\{|\}\}/g, '').trim().split('.')
+            let val: unknown = input
+            for (const k of keys) val = (val as Record<string, unknown>)?.[k]
+            if (Array.isArray(val)) list = val
+          }
+        }
+      } else if (input && typeof input === 'object' && !Array.isArray(input)) {
+        // Auto-detect: find the first array in input or one level deep (handles IF node output)
+        const obj = input as Record<string, unknown>
+        const topArrays = Object.values(obj).filter(Array.isArray)
+        if (topArrays.length === 1) {
+          list = topArrays[0] as unknown[]
+        } else {
+          for (const v of Object.values(obj)) {
+            if (v && typeof v === 'object' && !Array.isArray(v)) {
+              const nested = Object.values(v as Record<string, unknown>).filter(Array.isArray)
+              if (nested.length >= 1) { list = nested[0] as unknown[]; break }
+            }
+          }
+        }
       }
       const maxIter = (config.max_iterations as number) || 100
       return { items: list.slice(0, maxIter), total: list.length, item_var: config.item_var || 'item' }
