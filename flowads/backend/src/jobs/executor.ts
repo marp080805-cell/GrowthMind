@@ -472,19 +472,18 @@ async function executeMeta(
         .eq('client_id', clientId)
       const sponsoredIds = new Set((alreadySponsored || []).map((r: { post_id: string }) => r.post_id))
 
-      // 2. Verificar via Meta API (detecta posts patrocinados fora do FlowAds)
+      // 2. Verificar via Meta API uma única vez (em vez de N chamadas no loop)
+      //    GET /ads?fields=creative{source_instagram_media_id}&filtering=[effective_status IN [...]]
+      const metaSponsoredIds = await meta.getSponsoredInstagramPostIds()
+      const toUpsert: Array<{ client_id: string; instagram_account_id: string; post_id: string }> = []
       for (const post of posts) {
-        if (!sponsoredIds.has(post.id)) {
-          const alreadyInMeta = await meta.isInstagramPostAlreadySponsored(post.id)
-          if (alreadyInMeta) {
-            sponsoredIds.add(post.id)
-            await supabase.from('sponsored_posts').upsert({
-              client_id: clientId,
-              instagram_account_id: instagramAccountId,
-              post_id: post.id,
-            }, { onConflict: 'client_id,post_id', ignoreDuplicates: true })
-          }
+        if (!sponsoredIds.has(post.id) && metaSponsoredIds.has(post.id)) {
+          sponsoredIds.add(post.id)
+          toUpsert.push({ client_id: clientId as string, instagram_account_id: instagramAccountId as string, post_id: post.id })
         }
+      }
+      if (toUpsert.length) {
+        await supabase.from('sponsored_posts').upsert(toUpsert, { onConflict: 'client_id,post_id', ignoreDuplicates: true })
       }
 
       const filteredPosts = posts.filter((p) => !sponsoredIds.has(p.id))
@@ -515,22 +514,17 @@ async function executeMeta(
         .eq('client_id', clientId)
       const sponsoredIds = new Set((alreadySponsored || []).map((r: { post_id: string }) => r.post_id))
 
-      // 2. Verificar via Meta API (detecta posts patrocinados fora do FlowAds)
-      const externallySponsored: string[] = []
+      // 2. Verificar via Meta API uma única vez
+      const metaSponsoredIds2 = await meta.getSponsoredInstagramPostIds()
+      const toUpsert2: Array<{ client_id: string; instagram_account_id: string; post_id: string }> = []
       for (const post of posts) {
-        if (!sponsoredIds.has(post.id)) {
-          const alreadyInMeta = await meta.isInstagramPostAlreadySponsored(post.id)
-          if (alreadyInMeta) {
-            externallySponsored.push(post.id)
-            sponsoredIds.add(post.id)
-            // Registrar na nossa tabela para consultas futuras mais rápidas
-            await supabase.from('sponsored_posts').upsert({
-              client_id: clientId,
-              instagram_account_id: instagramAccountId,
-              post_id: post.id,
-            }, { onConflict: 'client_id,post_id', ignoreDuplicates: true })
-          }
+        if (!sponsoredIds.has(post.id) && metaSponsoredIds2.has(post.id)) {
+          sponsoredIds.add(post.id)
+          toUpsert2.push({ client_id: clientId as string, instagram_account_id: instagramAccountId as string, post_id: post.id })
         }
+      }
+      if (toUpsert2.length) {
+        await supabase.from('sponsored_posts').upsert(toUpsert2, { onConflict: 'client_id,post_id', ignoreDuplicates: true })
       }
 
       // Filtrar apenas posts novos (não patrocinados em nenhuma fonte)

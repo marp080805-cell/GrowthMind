@@ -476,26 +476,45 @@ export class MetaService {
     return { campaign_id: campaign.id, adset_id: adSet.id, ad_id: adData.id as string }
   }
 
-  // ─── Check if Instagram Post is Already Running as Ad ────────────────────
+  // ─── Check if Instagram Posts are Already Running as Ads ────────────────
 
-  async isInstagramPostAlreadySponsored(postId: string): Promise<boolean> {
+  /**
+   * Busca todos os IDs de posts do Instagram que já estão sendo usados em anúncios
+   * ativos/pausados/em revisão nesta conta de anúncios.
+   *
+   * Usa GET /act_{id}/ads?fields=creative{source_instagram_media_id}
+   * com filtering por effective_status — endpoint e filtro oficialmente suportados pela Meta API.
+   */
+  async getSponsoredInstagramPostIds(): Promise<Set<string>> {
     try {
       const params = new URLSearchParams({
-        fields: 'id',
+        fields: 'creative{source_instagram_media_id}',
         filtering: JSON.stringify([{
-          field: 'source_instagram_media_id',
-          operator: 'EQUAL',
-          value: postId,
+          field: 'effective_status',
+          operator: 'IN',
+          value: ['ACTIVE', 'PAUSED', 'PENDING_REVIEW', 'CAMPAIGN_PAUSED', 'ADSET_PAUSED'],
         }]),
-        limit: '1',
+        limit: '500',
         access_token: this.token,
       })
-      const data = await metaGet<{ data?: unknown[] }>(`${this.accountUrl}/adcreatives?${params}`)
-      return (data.data?.length ?? 0) > 0
+      const ads = await metaGetAll<{ creative?: { source_instagram_media_id?: string } }>(
+        `${this.accountUrl}/ads?${params}`
+      )
+      const ids = new Set<string>()
+      for (const ad of ads) {
+        if (ad.creative?.source_instagram_media_id) {
+          ids.add(ad.creative.source_instagram_media_id)
+        }
+      }
+      return ids
     } catch {
-      // If Meta API doesn't support this filter, fall back gracefully
-      return false
+      return new Set()
     }
+  }
+
+  async isInstagramPostAlreadySponsored(postId: string): Promise<boolean> {
+    const ids = await this.getSponsoredInstagramPostIds()
+    return ids.has(postId)
   }
 
   // ─── Create Ad from Existing Instagram Post ──────────────────────────────
