@@ -546,10 +546,10 @@ export class MetaService {
       throw new Error(`[adcreatives] ${err instanceof Error ? err.message : String(err)}`)
     }
 
-    const adBody = {
+    const adBody: Record<string, unknown> = {
       adset_id: params.adsetId,
       name: params.adName,
-      creative: JSON.stringify({ creative_id: creativeId }),
+      creative: { creative_id: creativeId }, // object, not JSON string (Content-Type: application/json)
       status: params.status || 'ACTIVE',
       access_token: this.token,
     }
@@ -557,7 +557,7 @@ export class MetaService {
       const adData = await metaPost(`${this.accountUrl}/ads`, adBody)
       return { ad_id: adData.id as string, creative_id: creativeId }
     } catch (err) {
-      throw new Error(`[ads creative_id=${creativeId}] ${err instanceof Error ? err.message : String(err)}`)
+      throw new Error(`[ads adset=${params.adsetId} creative=${creativeId}] ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
