@@ -93,6 +93,20 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
     }
   })
 
+  fastify.get('/clients/:id/facebook-pages', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const { data: client } = await supabase.from('clients').select('meta_token').eq('id', id).single()
+    if (!client?.meta_token) return reply.status(400).send({ message: 'Token Meta não configurado' })
+    try {
+      const meta = new MetaService(client.meta_token, '')
+      const pages = await meta.getFacebookPages()
+      return { pages }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao buscar páginas'
+      return reply.status(400).send({ message })
+    }
+  })
+
   // Campaigns
   fastify.get('/clients/:id/campaigns', async (req) => {
     const { id } = req.params as { id: string }

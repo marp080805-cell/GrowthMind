@@ -651,6 +651,13 @@ export class MetaService {
     return posts.slice(0, limit)
   }
 
+  async getFacebookPages(): Promise<{ id: string; name: string }[]> {
+    const data = await metaGet<{ data?: { id: string; name: string }[] }>(
+      `${META_API}/me/accounts?fields=id,name&limit=200&access_token=${this.token}`
+    )
+    return data.data || []
+  }
+
   async getInstagramAccounts(adAccountIds: string[] = []): Promise<MetaInstagramAccount[]> {
     const seen = new Set<string>()
     const accounts: MetaInstagramAccount[] = []

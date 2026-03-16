@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { VariableAutocomplete } from '../variable-autocomplete'
 import type { InspectorFieldProps } from '../inspector'
-import { campaignsApi, adsetsApi, type Campaign, type AdSet } from '@/lib/api'
+import { campaignsApi, adsetsApi, pagesApi, type Campaign, type AdSet } from '@/lib/api'
 
 const CTA_OPTIONS = [
   'NO_BUTTON', 'SHOP_NOW', 'LEARN_MORE', 'SIGN_UP', 'CONTACT_US',
@@ -61,12 +61,19 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [adsets, setAdsets] = useState<AdSet[]>([])
   const [loadingAdsets, setLoadingAdsets] = useState(false)
+  const [pages, setPages] = useState<{ id: string; name: string }[]>([])
   const selectedCampaignId = (config.campaign_id as string) || ''
   const selectedAdsetId = (config.adset_id as string) || ''
 
   useEffect(() => {
     if (clientId) {
       campaignsApi.list(clientId).then(setCampaigns).catch(() => {})
+    }
+  }, [clientId])
+
+  useEffect(() => {
+    if (clientId) {
+      pagesApi.list(clientId).then(res => setPages(res.pages)).catch(() => {})
     }
   }, [clientId])
 
@@ -211,14 +218,27 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
             <p className="text-[10px] text-text3">Use a variável do bloco anterior ou cole o ID do post diretamente.</p>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-syne font-semibold text-text3">ID DA PÁGINA DO FACEBOOK *</label>
-            <VariableAutocomplete
-              value={(config.page_id as string) || ''}
-              onChange={(v) => set('page_id', v)}
-              placeholder="Ex: 123456789"
-              rows={1}
-            />
-            <p className="text-[10px] text-text3">ID da Página do Facebook vinculada à conta Instagram. Obrigatório pela API da Meta.</p>
+            <label className="text-[10px] font-syne font-semibold text-text3">PÁGINA DO FACEBOOK *</label>
+            {pages.length > 0 ? (
+              <select
+                value={(config.page_id as string) || ''}
+                onChange={(e) => set('page_id', e.target.value)}
+                className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+              >
+                <option value="">Selecione a página...</option>
+                {pages.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            ) : (
+              <VariableAutocomplete
+                value={(config.page_id as string) || ''}
+                onChange={(v) => set('page_id', v)}
+                placeholder="Ex: 123456789"
+                rows={1}
+              />
+            )}
+            <p className="text-[10px] text-text3">Página do Facebook vinculada à conta Instagram.</p>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-syne font-semibold text-text3">ID DA CONTA INSTAGRAM (opcional)</label>

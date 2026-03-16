@@ -66,6 +66,12 @@ export const adsetsApi = {
     api.get<AdSet[]>(`/clients/${clientId}/adsets?campaign_id=${encodeURIComponent(campaignId)}`),
 }
 
+// Facebook Pages
+export const pagesApi = {
+  list: (clientId: string) =>
+    api.get<{ pages: { id: string; name: string }[] }>(`/clients/${clientId}/facebook-pages`),
+}
+
 // Automations
 export const automationsApi = {
   list: (clientId: string) => api.get<Automation[]>(`/clients/${clientId}/automations`),
