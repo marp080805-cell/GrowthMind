@@ -218,7 +218,7 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const meta = new MetaService(token, client.ad_account_id)
       const adsets = await meta.getAdSets(campaign_id)
-      return adsets
+      return adsets.filter((a) => a.status === 'ACTIVE')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao buscar adsets'
       return reply.status(400).send({ message })
