@@ -7,7 +7,7 @@ async function request<T>(
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...options.headers,
     },
     credentials: 'include',
