@@ -240,7 +240,7 @@ export default function AgentesPage() {
       >
         <div className="flex gap-2">
           <Button variant="ghost" onClick={() => setDeleting(null)} className="flex-1">Cancelar</Button>
-          <Button variant="destructive" onClick={handleDelete} className="flex-1">Remover</Button>
+          <Button variant="danger" onClick={handleDelete} className="flex-1">Remover</Button>
         </div>
       </Modal>
     </Shell>

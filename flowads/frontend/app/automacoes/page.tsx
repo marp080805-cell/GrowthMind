@@ -343,7 +343,7 @@ export default function AutomacoesPage() {
       >
         <div className="flex gap-2">
           <Button variant="ghost" onClick={() => setDeleting(null)} className="flex-1">Cancelar</Button>
-          <Button variant="destructive" onClick={() => deleting && handleDelete(deleting)} className="flex-1">
+          <Button variant="danger" onClick={() => deleting && handleDelete(deleting)} className="flex-1">
             Remover
           </Button>
         </div>
