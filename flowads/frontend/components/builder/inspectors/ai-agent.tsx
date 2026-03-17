@@ -1,6 +1,9 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 import { VariableAutocomplete } from '../variable-autocomplete'
+import { agentsApi, type Agent } from '@/lib/api'
 import type { InspectorFieldProps } from '../inspector'
 
 const MODELS = [
@@ -9,10 +12,55 @@ const MODELS = [
 ]
 
 export function AIAgentInspector({ config, onChange }: InspectorFieldProps) {
+  const params = useParams<{ id?: string }>()
+  const clientId = params?.id
+  const [agents, setAgents] = useState<Agent[]>([])
+
+  useEffect(() => {
+    if (clientId) {
+      agentsApi.list(clientId).then(setAgents).catch(() => {})
+    }
+  }, [clientId])
+
   const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
+
+  const loadFromAgent = (agentId: string) => {
+    const agent = agents.find((a) => a.id === agentId)
+    if (!agent) return
+    onChange({
+      ...config,
+      name: agent.name,
+      model: agent.model,
+      system_prompt: agent.system_prompt,
+      human_message: agent.human_message,
+      temperature: agent.temperature,
+      max_tokens: agent.max_tokens,
+      output_format: agent.output_format,
+      output_schema: agent.output_schema ? JSON.stringify(agent.output_schema, null, 2) : '',
+      memory_enabled: agent.memory_enabled,
+      _agent_id: agent.id,
+    })
+  }
 
   return (
     <>
+      {agents.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-syne font-semibold text-text3">CARREGAR DE AGENTE EXISTENTE</label>
+          <select
+            value={(config._agent_id as string) || ''}
+            onChange={(e) => loadFromAgent(e.target.value)}
+            className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+          >
+            <option value="">Configurar manualmente...</option>
+            {agents.map((a) => (
+              <option key={a.id} value={a.id}>{a.name} — {a.model}</option>
+            ))}
+          </select>
+          <p className="text-[10px] text-text3">Ao selecionar, os campos abaixo são preenchidos com os dados do agente.</p>
+        </div>
+      )}
+
       <div className="flex flex-col gap-1.5">
         <label className="text-[10px] font-syne font-semibold text-text3">NOME</label>
         <input

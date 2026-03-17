@@ -77,6 +77,7 @@ export const pagesApi = {
 // Automations
 export const automationsApi = {
   list: (clientId: string) => api.get<Automation[]>(`/clients/${clientId}/automations`),
+  listAll: () => api.get<(Automation & { client_name: string })[]>('/automations'),
   get: (id: string) => api.get<AutomationWithNodes>(`/automations/${id}`),
   create: (clientId: string, data: Partial<Automation>) =>
     api.post<Automation>(`/clients/${clientId}/automations`, data),
@@ -93,11 +94,14 @@ export const automationsApi = {
     }>(`/automations/${id}/run-node`, { nodeId, inputData }),
   logs: (id: string) => api.get<ExecutionLog[]>(`/automations/${id}/logs`),
   delete: (id: string) => api.delete(`/automations/${id}`),
+  duplicate: (id: string, targetClientId: string) =>
+    api.post<Automation>(`/automations/${id}/duplicate`, { target_client_id: targetClientId }),
 }
 
 // Agents
 export const agentsApi = {
   list: (clientId: string) => api.get<Agent[]>(`/clients/${clientId}/agents`),
+  listAll: () => api.get<(Agent & { client_name: string })[]>('/agents'),
   create: (clientId: string, data: Partial<Agent>) =>
     api.post<Agent>(`/clients/${clientId}/agents`, data),
   update: (clientId: string, agentId: string, data: Partial<Agent>) =>

@@ -4,6 +4,63 @@ import { executeAutomation, executeSingleNode } from '../jobs/executor'
 import { scheduleAutomation, unscheduleAutomation } from '../jobs/scheduler'
 
 export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
+  // List ALL automations across all clients (for /automacoes global page)
+  fastify.get('/automations', async () => {
+    const { data, error } = await supabase
+      .from('automations')
+      .select('*, clients(id, name)')
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data || []).map((a) => ({
+      ...a,
+      client_name: (a.clients as { name: string } | null)?.name || '',
+    }))
+  })
+
+  // Duplicate automation to another client
+  fastify.post('/automations/:id/duplicate', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const { target_client_id } = req.body as { target_client_id: string }
+    if (!target_client_id) return reply.status(400).send({ message: 'target_client_id é obrigatório' })
+
+    const { data: source, error: srcErr } = await supabase
+      .from('automations')
+      .select('*')
+      .eq('id', id)
+      .single()
+    if (srcErr || !source) return reply.status(404).send({ message: 'Automação não encontrada' })
+
+    const { data: nodes } = await supabase.from('automation_nodes').select('*').eq('automation_id', id)
+    const { data: edges } = await supabase.from('automation_edges').select('*').eq('automation_id', id)
+
+    // Create new automation
+    const { data: newAuto, error: autoErr } = await supabase
+      .from('automations')
+      .insert({
+        client_id: target_client_id,
+        name: `${source.name} (cópia)`,
+        description: source.description,
+        is_active: false,
+      })
+      .select()
+      .single()
+    if (autoErr || !newAuto) return reply.status(500).send({ message: 'Erro ao criar automação' })
+
+    // Copy nodes
+    if (nodes && nodes.length > 0) {
+      const newNodes = nodes.map((n) => ({ ...n, automation_id: newAuto.id }))
+      await supabase.from('automation_nodes').insert(newNodes)
+    }
+
+    // Copy edges
+    if (edges && edges.length > 0) {
+      const newEdges = edges.map((e) => ({ ...e, automation_id: newAuto.id }))
+      await supabase.from('automation_edges').insert(newEdges)
+    }
+
+    return newAuto
+  })
+
   fastify.get('/automations/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
 

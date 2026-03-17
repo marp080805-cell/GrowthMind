@@ -9,7 +9,7 @@ import {
   Zap,
   Settings,
   LogOut,
-  Layers,
+  Bot,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -25,7 +25,8 @@ const navItems = [
   {
     section: 'FERRAMENTAS',
     items: [
-      { href: '/presets', icon: Layers, label: 'Presets', badge: '8' },
+      { href: '/automacoes', icon: Zap, label: 'Automações' },
+      { href: '/agentes', icon: Bot, label: 'Agentes' },
       { href: '/users', icon: Users, label: 'Usuários' },
     ],
   },

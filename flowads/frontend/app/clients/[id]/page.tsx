@@ -17,12 +17,13 @@ import {
   clientsApi, campaignsApi, automationsApi, agentsApi,
   type Client, type Campaign, type Automation, type Agent, type ExecutionLog
 } from '@/lib/api'
+import { useRouter } from 'next/navigation'
 import {
   getInitials, getAvatarColor, formatDateTime, formatDuration
 } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import {
-  Pencil, RefreshCw, Plus, Layers, Play, Pause,
+  Pencil, RefreshCw, Plus, Copy,
   CheckCircle, XCircle, Loader2, ChevronRight
 } from 'lucide-react'
 import Link from 'next/link'
@@ -31,6 +32,7 @@ type Tab = 'overview' | 'campaigns' | 'automations' | 'agents' | 'logs'
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const { success, error } = useToast()
 
   const [client, setClient] = useState<Client | null>(null)
@@ -47,6 +49,8 @@ export default function ClientDetailPage() {
   const [showEditClient, setShowEditClient] = useState(false)
   const [showAgentForm, setShowAgentForm] = useState(false)
   const [editingAgent, setEditingAgent] = useState<Agent | undefined>()
+  const [duplicatingAuto, setDuplicatingAuto] = useState<Automation | null>(null)
+  const [duplicatingSaving, setDuplicatingSaving] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -96,6 +100,22 @@ export default function ClientDetailPage() {
       )
     } catch {
       error('Erro ao alternar automação')
+    }
+  }
+
+  const handleDuplicateAuto = async () => {
+    if (!duplicatingAuto) return
+    setDuplicatingSaving(true)
+    try {
+      const auto = await automationsApi.duplicate(duplicatingAuto.id, id)
+      setAutomations((prev) => [auto, ...prev])
+      setDuplicatingAuto(null)
+      success('Automação duplicada! Abrindo builder...')
+      router.push(`/clients/${id}/automations/${auto.id}`)
+    } catch {
+      error('Erro ao duplicar automação')
+    } finally {
+      setDuplicatingSaving(false)
     }
   }
 
@@ -265,10 +285,6 @@ export default function ClientDetailPage() {
         {tab === 'automations' && (
           <div>
             <div className="flex items-center gap-2 justify-end mb-4">
-              <Link href={`/presets?clientId=${id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-                <Layers size={14} />
-                Usar Preset
-              </Link>
               <Link href={`/clients/${id}/automations/new`} className={buttonVariants({ size: 'sm' })}>
                 <Plus size={14} />
                 Nova Automação
@@ -296,6 +312,13 @@ export default function ClientDetailPage() {
                         {formatDateTime(auto.last_run_at)}
                       </span>
                     )}
+                    <button
+                      title="Duplicar automação"
+                      onClick={() => setDuplicatingAuto(auto)}
+                      className="p-1.5 rounded-[8px] hover:bg-surface2 text-text3 hover:text-text transition-colors"
+                    >
+                      <Copy size={14} />
+                    </button>
                     <Link href={`/clients/${id}/automations/${auto.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
                       Editar
                       <ChevronRight size={13} />
@@ -410,6 +433,21 @@ export default function ClientDetailPage() {
           }}
           onCancel={() => setShowAgentForm(false)}
         />
+      </Modal>
+
+      {/* Duplicate Automation Modal */}
+      <Modal
+        open={!!duplicatingAuto}
+        onClose={() => setDuplicatingAuto(null)}
+        title={`Duplicar: ${duplicatingAuto?.name}`}
+        description="Uma cópia pausada será criada para este mesmo cliente."
+      >
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => setDuplicatingAuto(null)} className="flex-1">Cancelar</Button>
+          <Button onClick={handleDuplicateAuto} loading={duplicatingSaving} className="flex-1">
+            Duplicar automação
+          </Button>
+        </div>
       </Modal>
 
       {/* Log Drawer */}

@@ -246,4 +246,17 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
     if (error) throw error
     return reply.status(204).send()
   })
+
+  // List ALL agents across all clients (for /agentes global page)
+  fastify.get('/agents', async () => {
+    const { data, error } = await supabase
+      .from('agents')
+      .select('*, clients(id, name)')
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data || []).map((a) => ({
+      ...a,
+      client_name: (a.clients as { name: string } | null)?.name || '',
+    }))
+  })
 }
