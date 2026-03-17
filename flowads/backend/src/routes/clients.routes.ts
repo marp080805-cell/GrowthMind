@@ -43,31 +43,53 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete('/clients/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
 
-    // 1. Get all automation IDs
-    const { data: automations } = await supabase.from('automations').select('id').eq('client_id', id)
-    const automationIds = (automations || []).map((a) => a.id)
+    try {
+      // 1. Get all automation IDs
+      const { data: automations } = await supabase.from('automations').select('id').eq('client_id', id)
+      const automationIds = (automations || []).map((a: { id: string }) => a.id)
 
-    if (automationIds.length > 0) {
-      // 2. Delete execution logs (no CASCADE on automation_id FK)
-      await supabase.from('execution_logs').delete().in('automation_id', automationIds)
-      // 3. Delete nodes and edges (have CASCADE but delete explicitly for safety)
-      await supabase.from('automation_nodes').delete().in('automation_id', automationIds)
-      await supabase.from('automation_edges').delete().in('automation_id', automationIds)
-      // 4. Delete automations
-      await supabase.from('automations').delete().in('id', automationIds)
+      if (automationIds.length > 0) {
+        // 2. Get all execution log IDs for these automations
+        const { data: logs } = await supabase.from('execution_logs').select('id').in('automation_id', automationIds)
+        const logIds = (logs || []).map((l: { id: string }) => l.id)
+
+        // 3. Delete agent_memory FIRST (references execution_logs.id AND clients.id — no CASCADE)
+        if (logIds.length > 0) {
+          const { error: e1 } = await supabase.from('agent_memory').delete().in('execution_id', logIds)
+          if (e1) console.error('[delete client] agent_memory by execution_id:', e1.message)
+        }
+
+        // 4. Delete execution_logs (now safe)
+        const { error: e2 } = await supabase.from('execution_logs').delete().in('automation_id', automationIds)
+        if (e2) console.error('[delete client] execution_logs:', e2.message)
+
+        // 5. Delete nodes and edges
+        await supabase.from('automation_nodes').delete().in('automation_id', automationIds)
+        await supabase.from('automation_edges').delete().in('automation_id', automationIds)
+
+        // 6. Delete automations
+        await supabase.from('automations').delete().in('id', automationIds)
+      }
+
+      // 7. Delete remaining agent_memory by client_id (in case client_id differs from execution-based ones)
+      await supabase.from('agent_memory').delete().eq('client_id', id)
+
+      // 8. Delete agents, campaigns, sponsored_posts
+      await supabase.from('agents').delete().eq('client_id', id)
+      await supabase.from('campaigns').delete().eq('client_id', id)
+      await supabase.from('sponsored_posts').delete().eq('client_id', id)
+
+      // 9. Finally delete the client
+      const { error } = await supabase.from('clients').delete().eq('id', id)
+      if (error) {
+        console.error('[delete client] clients:', error.message)
+        throw error
+      }
+      return reply.status(204).send()
+    } catch (err) {
+      console.error('[delete client] FATAL:', err)
+      throw err
     }
-
-    // 5. Delete agent_memory (no CASCADE on client_id FK)
-    await supabase.from('agent_memory').delete().eq('client_id', id)
-    // 6. Delete agents, campaigns, sponsored_posts (all have CASCADE but explicit is safer)
-    await supabase.from('agents').delete().eq('client_id', id)
-    await supabase.from('campaigns').delete().eq('client_id', id)
-    await supabase.from('sponsored_posts').delete().eq('client_id', id)
-
-    // 7. Finally delete the client
-    const { error } = await supabase.from('clients').delete().eq('id', id)
-    if (error) throw error
-    return reply.status(204).send()
   })
 
   fastify.get('/clients/:id/meta-accounts', async (req, reply) => {

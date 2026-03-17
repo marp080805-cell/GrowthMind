@@ -153,11 +153,33 @@ export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete('/automations/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
     await unscheduleAutomation(id)
-    // Delete execution_logs first (no CASCADE on automation_id FK)
-    await supabase.from('execution_logs').delete().eq('automation_id', id)
-    const { error } = await supabase.from('automations').delete().eq('id', id)
-    if (error) throw error
-    return reply.status(204).send()
+
+    try {
+      // 1. Get execution log IDs for this automation
+      const { data: logs } = await supabase.from('execution_logs').select('id').eq('automation_id', id)
+      const logIds = (logs || []).map((l: { id: string }) => l.id)
+
+      // 2. Delete agent_memory FIRST (references execution_logs.id — no CASCADE)
+      if (logIds.length > 0) {
+        const { error: e1 } = await supabase.from('agent_memory').delete().in('execution_id', logIds)
+        if (e1) console.error('[delete automation] agent_memory:', e1.message)
+      }
+
+      // 3. Delete execution_logs (now safe)
+      const { error: e2 } = await supabase.from('execution_logs').delete().eq('automation_id', id)
+      if (e2) console.error('[delete automation] execution_logs:', e2.message)
+
+      // 4. Delete the automation (nodes/edges cascade)
+      const { error } = await supabase.from('automations').delete().eq('id', id)
+      if (error) {
+        console.error('[delete automation] automations:', error.message)
+        throw error
+      }
+      return reply.status(204).send()
+    } catch (err) {
+      console.error('[delete automation] FATAL:', err)
+      throw err
+    }
   })
 
   fastify.post('/automations/:id/toggle', async (req, reply) => {

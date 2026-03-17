@@ -45,12 +45,19 @@ export const usersRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.delete('/users/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
-    // Nullify user_id on clients referencing this user (no CASCADE on FK)
-    await supabase.from('clients').update({ user_id: null }).eq('user_id', id)
-    // Delete from auth first (may cascade to public.users via trigger)
-    await supabase.auth.admin.deleteUser(id).catch(() => null)
-    // Delete from public.users (no-op if cascade already handled it)
-    await supabase.from('users').delete().eq('id', id)
+
+    // 1. Nullify clients.user_id (no CASCADE on FK)
+    const { error: e1 } = await supabase.from('clients').update({ user_id: null }).eq('user_id', id)
+    if (e1) console.error('[delete user] nullify clients.user_id:', e1.message)
+
+    // 2. Delete from auth (suppress errors — user may not exist in auth)
+    const { error: authErr } = await supabase.auth.admin.deleteUser(id)
+    if (authErr) console.error('[delete user] auth.admin.deleteUser:', authErr.message)
+
+    // 3. Delete from public.users (no-op if cascade already removed it)
+    const { error: e3 } = await supabase.from('users').delete().eq('id', id)
+    if (e3) console.error('[delete user] public.users:', e3.message)
+
     return reply.status(204).send()
   })
 }
