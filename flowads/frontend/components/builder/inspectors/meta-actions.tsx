@@ -214,7 +214,7 @@ export function InstagramPostsInspector({ config, onChange }: InspectorFieldProp
           value={period}
           onChange={(e) => {
             const newPeriod = e.target.value
-            const updated = { ...config, period: newPeriod }
+            const updated: Record<string, unknown> = { ...config, period: newPeriod }
             if (newPeriod !== 'custom') { updated.date_from = ''; updated.date_to = '' }
             onChange(updated)
           }}
