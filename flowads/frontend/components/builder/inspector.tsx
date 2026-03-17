@@ -53,6 +53,7 @@ import { SendReportInspector, SendFileInspector } from './inspectors/whatsapp-ex
 
 // Logic
 import { ConditionalInspector } from './inspectors/conditional'
+import { SwitchInspector } from './inspectors/switch'
 import { LoopInspector } from './inspectors/loop'
 import { WaitInspector } from './inspectors/wait'
 import { FilterInspector, TransformInspector, MergeInspector, StopInspector } from './inspectors/logic-extras'
@@ -142,6 +143,7 @@ const INSPECTOR_MAP: Record<string, React.ComponentType<InspectorFieldProps>> = 
 
   // Logic
   'logic.if': ConditionalInspector,
+  'logic.switch': SwitchInspector,
   'logic.loop': LoopInspector,
   'logic.wait': WaitInspector,
   'logic.merge': MergeInspector,

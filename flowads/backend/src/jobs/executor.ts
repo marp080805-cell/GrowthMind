@@ -300,6 +300,54 @@ export async function executeAutomation(
         }
         // ────────────────────────────────────────────────────────────────────
 
+        // ── Switch: route to matched case, skip all others ───────────────────
+        if (node.type === 'logic.switch') {
+          const switchResult = output as { matched_case: string; input: unknown }
+          const matchedHandle = switchResult.matched_case
+          const cases = (node.config?.cases || []) as Array<{ id: string }>
+          const allHandles = [...cases.map(c => c.id), 'default']
+          const inactiveHandles = allHandles.filter(h => h !== matchedHandle)
+
+          // Protect nodes reachable from matched handle
+          const activeTargets = edges
+            .filter(e => (e.source === node.id || e.source_node_id === node.id) &&
+                         (e.sourceHandle === matchedHandle || e.source_handle === matchedHandle))
+            .map(e => e.target || e.target_node_id || '').filter(Boolean)
+          const activeReachable = new Set<string>()
+          const activeBfs = [...activeTargets]
+          while (activeBfs.length > 0) {
+            const nid = activeBfs.shift()!
+            if (activeReachable.has(nid)) continue
+            activeReachable.add(nid)
+            edges.filter(e => e.source === nid || e.source_node_id === nid)
+              .forEach(e => { const t = e.target || e.target_node_id || ''; if (t) activeBfs.push(t) })
+          }
+
+          // Skip all inactive branches
+          for (const h of inactiveHandles) {
+            const targets = edges
+              .filter(e => (e.source === node.id || e.source_node_id === node.id) &&
+                           (e.sourceHandle === h || e.source_handle === h))
+              .map(e => e.target || e.target_node_id || '').filter(Boolean)
+            const bfs = [...targets]
+            while (bfs.length > 0) {
+              const nid = bfs.shift()!
+              if (skippedBranchNodes.has(nid) || activeReachable.has(nid)) continue
+              skippedBranchNodes.add(nid)
+              edges.filter(e => e.source === nid || e.source_node_id === nid)
+                .forEach(e => { const t = e.target || e.target_node_id || ''; if (t && !activeReachable.has(t)) bfs.push(t) })
+            }
+          }
+
+          const switchBaseInput = (switchResult.input && typeof switchResult.input === 'object')
+            ? (switchResult.input as Record<string, unknown>)
+            : {}
+          lastOutput = { ...switchBaseInput, matched_case: matchedHandle }
+          templateVars.input = lastOutput
+          Object.assign(templateVars, flattenOutput(switchBaseInput))
+        }
+        // ────────────────────────────────────────────────────────────────────
+
         // ── Loop: execute "each" branch for every item ──────────────────────
         if (node.type === 'logic.loop') {
           const loopResult = output as { items: unknown[]; total: number; item_var: string }
@@ -958,6 +1006,17 @@ async function executeLogic(
         (config.unit === 'minutes' ? 60000 : config.unit === 'hours' ? 3600000 : 1000)
       await new Promise((r) => setTimeout(r, Math.min(ms, 30000))) // max 30s in execution
       return input
+    }
+
+    case 'switch': {
+      const { variable, cases } = config as { variable: string; cases?: Array<{ id: string; label: string; value: string }> }
+      const actual = String(variable ?? input ?? '')
+      for (const c of (cases || [])) {
+        if (c.value && actual.toLowerCase().includes(c.value.toLowerCase())) {
+          return { matched_case: c.id, input }
+        }
+      }
+      return { matched_case: 'default', input }
     }
 
     case 'if': {

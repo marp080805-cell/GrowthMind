@@ -103,6 +103,7 @@ export const BLOCKS: BlockDefinition[] = [
 
   // LOGIC
   { type: 'logic.if', label: 'Condicional (IF)', description: 'Divide fluxo em dois caminhos', icon: '❓', category: 'logic', color: CATEGORY_COLORS.logic, handles: { inputs: ['default'], outputs: ['yes', 'no'] } },
+  { type: 'logic.switch', label: 'Switch', description: 'Roteia para N saídas por palavra-chave ou valor', icon: '🔀', category: 'logic', color: CATEGORY_COLORS.logic, handles: { inputs: ['default'], outputs: ['default'] }, defaultConfig: { variable: '', cases: [] } },
   { type: 'logic.loop', label: 'Loop', description: 'Itera sobre lista de itens', icon: '🔄', category: 'logic', color: CATEGORY_COLORS.logic, handles: { inputs: ['default'], outputs: ['each', 'done'] } },
   { type: 'logic.wait', label: 'Aguardar', description: 'Pausa execução por tempo configurável', icon: '⏳', category: 'logic', color: CATEGORY_COLORS.logic, handles: { inputs: ['default'], outputs: ['default'] } },
   { type: 'logic.merge', label: 'Mesclar dados', description: 'Combina saídas de dois caminhos paralelos', icon: '🔀', category: 'logic', color: CATEGORY_COLORS.logic, handles: { inputs: ['a', 'b'], outputs: ['default'] } },

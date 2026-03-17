@@ -32,6 +32,11 @@ function getConfigPreview(type: string, config: Record<string, unknown>): string
     const { variable, operator, value } = config as Record<string, string>
     if (variable && operator) return `${variable} ${operator} ${value || ''}`
   }
+  if (type === 'logic.switch') {
+    const cases = (config.cases as Array<{ label: string }>) || []
+    if (cases.length > 0) return `${cases.length} caso${cases.length > 1 ? 's' : ''} + padrão`
+    return 'Configure os casos'
+  }
   return null
 }
 
@@ -212,43 +217,45 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
         />
       ))}
 
-      {/* Output handles */}
-      {block.handles.outputs.map((handle, i) => {
-        const isMulti = block.handles.outputs.length > 1
-        const label = isMulti
-          ? handle === 'yes' ? 'Sim' : handle === 'no' ? 'Não' : handle === 'each' ? 'Cada item' : handle === 'done' ? 'Fim' : handle
-          : undefined
-
-        return (
+      {/* Output handles — switch generates dynamic handles from config.cases */}
+      {(() => {
+        let outputs: { id: string; label?: string }[]
+        if (nodeData.type === 'logic.switch') {
+          const cases = (nodeData.config?.cases as Array<{ id: string; label: string }>) || []
+          outputs = [...cases.map(c => ({ id: c.id, label: c.label || c.id })), { id: 'default', label: 'Padrão' }]
+        } else {
+          outputs = block.handles.outputs.map(h => {
+            const label = block.handles.outputs.length > 1
+              ? h === 'yes' ? 'Sim' : h === 'no' ? 'Não' : h === 'each' ? 'Cada item' : h === 'done' ? 'Fim' : h
+              : undefined
+            return { id: h, label }
+          })
+        }
+        return outputs.map((out, i) => (
           <Handle
-            key={`out-${handle}`}
+            key={`out-${out.id}`}
             type="source"
             position={Position.Bottom}
-            id={handle}
+            id={out.id}
             style={{
               background: color,
               border: '2px solid var(--surface)',
               width: 10,
               height: 10,
-              left: isMulti ? `${((i + 1) / (block.handles.outputs.length + 1)) * 100}%` : '50%',
+              left: outputs.length === 1 ? '50%' : `${((i + 1) / (outputs.length + 1)) * 100}%`,
             }}
           >
-            {label && (
+            {out.label && (
               <span
                 className="absolute text-[9px] font-syne font-bold whitespace-nowrap"
-                style={{
-                  bottom: -18,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  color,
-                }}
+                style={{ bottom: -18, left: '50%', transform: 'translateX(-50%)', color }}
               >
-                {label}
+                {out.label}
               </span>
             )}
           </Handle>
-        )
-      })}
+        ))
+      })()}
     </div>
   )
 })
