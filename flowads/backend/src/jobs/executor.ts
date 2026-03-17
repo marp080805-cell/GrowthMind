@@ -1389,7 +1389,23 @@ export async function executeSingleNode(
       continue
     }
 
-    const templateVars = { ...baseTemplateVars, input: lastOutput }
+    // If the previous node was a Loop, inject the first item into templateVars
+    // so {{item.id}} and similar variables work when testing loop-body nodes.
+    let loopItemVars: Record<string, unknown> = {}
+    const chainIdx = chain.indexOf(currentNode)
+    if (chainIdx > 0) {
+      const prevNode = chain[chainIdx - 1]
+      if (prevNode.type === 'logic.loop') {
+        const loopOutput = nodeOutputs[prevNode.id]?.output as { items?: unknown[]; item_var?: string } | undefined
+        const items = loopOutput?.items || []
+        const itemVar = loopOutput?.item_var || 'item'
+        if (items.length > 0) {
+          loopItemVars = { [itemVar]: items[0], loop_index: 0 }
+        }
+      }
+    }
+
+    const templateVars = { ...baseTemplateVars, ...loopItemVars, input: lastOutput }
     const interpolatedConfig = interpolateConfig(currentNode.config, templateVars)
     const startTime = Date.now()
     try {
