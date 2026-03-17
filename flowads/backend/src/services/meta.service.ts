@@ -547,15 +547,16 @@ export class MetaService {
       throw new Error('Página do Facebook não configurada. Selecione a página no bloco "Criar anúncio" ou cadastre-a no perfil do cliente.')
     }
 
-    const objectStorySpec: Record<string, unknown> = { page_id: params.pageId }
-    if (params.instagramAccountId) objectStorySpec.instagram_actor_id = params.instagramAccountId
-
+    // Use top-level object_id + instagram_user_id (not object_story_spec) — this is the format
+    // that Meta accepts for "Use Posts as Instagram Ads" and was confirmed working.
+    // object_story_spec with instagram_actor_id causes "must be a valid Instagram account id" errors.
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
-      object_story_spec: objectStorySpec,
+      object_id: params.pageId,
       access_token: this.token,
     }
+    if (params.instagramAccountId) creativeBody.instagram_user_id = params.instagramAccountId
     let creativeId: string
     try {
       const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
