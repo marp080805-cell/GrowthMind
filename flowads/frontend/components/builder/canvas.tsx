@@ -27,6 +27,7 @@ import { Inspector } from './inspector'
 import { getBlock } from '@/lib/blocks'
 import dagre from 'dagre'
 import type { AutomationNode, AutomationEdge, NodeLog } from '@/lib/api'
+import { automationsApi } from '@/lib/api'
 
 const nodeTypes: NodeTypes = { flowNode: FlowNode as NodeTypes[string] }
 
@@ -285,20 +286,60 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
     [selectedNodeId, edges, notifyChange]
   )
 
-  const handleDeleteNode = useCallback(() => {
+  const handleDeleteNode = useCallback((nodeIdOverride?: string) => {
+    const targetId = nodeIdOverride || selectedNodeId
+    if (!targetId) return
     setNodes((nds) => {
-      const updated = nds.filter((n) => n.id !== selectedNodeId)
+      const updated = nds.filter((n) => n.id !== targetId)
       setEdges((eds) => {
         const filteredEdges = eds.filter(
-          (e) => e.source !== selectedNodeId && e.target !== selectedNodeId
+          (e) => e.source !== targetId && e.target !== targetId
         )
         notifyChange(updated, filteredEdges)
         return filteredEdges
       })
       return updated
     })
-    setSelectedNodeId(null)
+    if (targetId === selectedNodeId) setSelectedNodeId(null)
   }, [selectedNodeId, notifyChange])
+
+  const handleRunNode = useCallback(async (nodeId: string) => {
+    if (!automationId) return
+    // Mark node as running
+    setNodes((nds) => nds.map((n) =>
+      n.id === nodeId
+        ? { ...n, data: { ...n.data, executionLog: { node_id: nodeId, status: 'running', duration_ms: 0, node_type: n.data.type as string, node_label: n.data.label as string, input: null, output: null } as NodeLog } }
+        : n
+    ))
+    const incomingEdge = edges.find((e) => e.target === nodeId)
+    const inputData = incomingEdge ? (executionState[incomingEdge.source]?.output ?? null) : null
+    try {
+      const result = await automationsApi.runNode(automationId, nodeId, inputData)
+      setNodes((nds) => nds.map((n) =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, executionLog: { node_id: nodeId, status: result.error ? 'error' : 'success', output: result.output, error: result.error, duration_ms: result.duration_ms, input: inputData, node_type: n.data.type as string, node_label: n.data.label as string } as NodeLog } }
+          : n
+      ))
+    } catch (err) {
+      setNodes((nds) => nds.map((n) =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, executionLog: { node_id: nodeId, status: 'error', error: err instanceof Error ? err.message : String(err), duration_ms: 0, input: null, output: null, node_type: n.data.type as string, node_label: n.data.label as string } as NodeLog } }
+          : n
+      ))
+    }
+  }, [automationId, edges, executionState])
+
+  const handleToggleNodeDisabled = useCallback((nodeId: string) => {
+    setNodes((nds) => {
+      const updated = nds.map((n) => {
+        if (n.id !== nodeId) return n
+        const config = (n.data.config as Record<string, unknown>) || {}
+        return { ...n, data: { ...n.data, config: { ...config, _disabled: !config._disabled } } }
+      })
+      notifyChange(updated, edges)
+      return updated
+    })
+  }, [edges, notifyChange])
 
   const handleAutoLayout = useCallback(() => {
     const laid = autoLayout(nodes, edges)
@@ -311,7 +352,16 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
       {/* Canvas */}
       <div ref={wrapper} className="flex-1 h-full relative" onDrop={onDrop} onDragOver={onDragOver}>
         <ReactFlow
-          nodes={nodes.map((n) => ({ ...n, selected: n.id === selectedNodeId }))}
+          nodes={nodes.map((n) => ({
+            ...n,
+            selected: n.id === selectedNodeId,
+            data: {
+              ...n.data,
+              _onDelete: () => handleDeleteNode(n.id),
+              _onRunNode: automationId ? () => handleRunNode(n.id) : undefined,
+              _onToggleDisabled: () => handleToggleNodeDisabled(n.id),
+            },
+          }))}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}

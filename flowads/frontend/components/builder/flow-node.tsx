@@ -1,6 +1,6 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { getBlock, CATEGORY_COLORS } from '@/lib/blocks'
 import { cn } from '@/lib/utils'
@@ -11,6 +11,9 @@ export interface FlowNodeData extends Record<string, unknown> {
   label?: string
   config?: Record<string, unknown>
   executionLog?: NodeLog | null
+  _onDelete?: () => void
+  _onRunNode?: () => void
+  _onToggleDisabled?: () => void
 }
 
 function getConfigPreview(type: string, config: Record<string, unknown>): string | null {
@@ -35,14 +38,22 @@ function getConfigPreview(type: string, config: Record<string, unknown>): string
 export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
   const nodeData = data as FlowNodeData
   const block = getBlock(nodeData.type)
+  const [hovered, setHovered] = useState(false)
+
   if (!block) return null
 
   const color = CATEGORY_COLORS[block.category] || '#505870'
   const preview = getConfigPreview(nodeData.type, nodeData.config || {})
   const log = nodeData.executionLog as NodeLog | null | undefined
+  const isDisabled = !!(nodeData.config as Record<string, unknown>)?._disabled
 
-  // Execution ring color
-  const ringClass = log
+  const onDelete = nodeData._onDelete
+  const onRunNode = nodeData._onRunNode
+  const onToggleDisabled = nodeData._onToggleDisabled
+
+  const ringClass = isDisabled
+    ? 'ring-1 ring-zinc-600 opacity-50'
+    : log
     ? log.status === 'success'
       ? 'ring-2 ring-green-500 shadow-[0_0_12px_rgba(34,197,94,0.4)]'
       : log.status === 'error'
@@ -52,8 +63,12 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
           : 'ring-2 ring-yellow-400 shadow-[0_0_12px_rgba(250,204,21,0.4)]'
     : ''
 
+  const showToolbar = hovered && (onDelete || onRunNode || onToggleDisabled)
+
   return (
     <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       className={cn(
         'min-w-[200px] max-w-[240px] rounded-[12px] border overflow-visible',
         'bg-surface shadow-lg transition-all duration-150 relative',
@@ -63,8 +78,56 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
         ringClass
       )}
     >
+      {/* Hover toolbar */}
+      {showToolbar && (
+        <div className="absolute -top-9 left-0 right-0 flex justify-center z-50 pointer-events-none">
+          <div className="pointer-events-auto flex items-center gap-0.5 bg-surface border border-[var(--border2)] rounded-[8px] px-1.5 py-1 shadow-xl nodrag nopan">
+            {onRunNode && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onRunNode() }}
+                className="flex items-center gap-1 text-green-400 hover:text-green-300 hover:bg-green-500/10 transition-colors text-[9px] font-syne font-bold px-1.5 py-0.5 rounded"
+                title="Executar este node"
+              >
+                ▶ Run
+              </button>
+            )}
+            {onRunNode && onToggleDisabled && (
+              <div className="w-px h-3 bg-[var(--border)]" />
+            )}
+            {onToggleDisabled && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onToggleDisabled() }}
+                className={`text-[9px] font-syne font-bold px-1.5 py-0.5 rounded transition-colors ${
+                  isDisabled
+                    ? 'text-yellow-400 hover:bg-yellow-500/10'
+                    : 'text-text2 hover:bg-surface2'
+                }`}
+                title={isDisabled ? 'Ativar node' : 'Desativar node'}
+              >
+                {isDisabled ? '● Ativar' : '○ Desativar'}
+              </button>
+            )}
+            {(onRunNode || onToggleDisabled) && onDelete && (
+              <div className="w-px h-3 bg-[var(--border)]" />
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDelete() }}
+                className="text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-[10px] px-1.5 py-0.5 rounded"
+                title="Deletar node"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Execution status badge */}
-      {log && (
+      {log && !isDisabled && (
         <div className="absolute -top-2.5 -right-2 z-10 flex items-center gap-0.5">
           {log.status === 'success' && (
             <span className="bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full font-mono">
@@ -86,6 +149,15 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
               ⟳ rodando
             </span>
           )}
+        </div>
+      )}
+
+      {/* Disabled badge */}
+      {isDisabled && (
+        <div className="absolute -top-2.5 -right-2 z-10">
+          <span className="bg-zinc-700 text-zinc-400 text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+            desativado
+          </span>
         </div>
       )}
 

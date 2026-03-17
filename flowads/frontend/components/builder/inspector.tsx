@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { getBlock } from '@/lib/blocks'
 import { Button } from '@/components/ui/button'
@@ -195,19 +195,31 @@ export function Inspector({
   const params = useParams<{ automationId?: string }>()
   const resolvedAutomationId = automationId || params?.automationId
 
-  // Decide initial tab: if we have previous output to show, start on input; else config
   const [tab, setTab] = useState<Tab>('config')
   const [testRunning, setTestRunning] = useState(false)
   const [testResult, setTestResult] = useState<{ output?: unknown; error?: string; duration_ms?: number } | null>(null)
   const [inputExpanded, setInputExpanded] = useState(true)
 
   const hasExecution = !!executionLog
-  // Show input panel if there's previous node output (from execution) OR from test result
   const inputData = executionLog?.input ?? previousNodeLog?.output
   const outputData = testResult?.output ?? executionLog?.output
   const outputError = testResult?.error ?? (executionLog?.status === 'error' ? executionLog.error : undefined)
   const hasInput = inputData !== undefined && inputData !== null
   const hasOutput = outputData !== undefined && outputData !== null || !!outputError
+
+  // Wide mode: show split panel when we have input data from previous node
+  const wideMode = hasInput
+
+  // Reset to config tab when switching between wide/narrow or changing nodes
+  useEffect(() => {
+    setTab('config')
+    setTestResult(null)
+  }, [nodeId])
+
+  // In wide mode, 'input' tab doesn't exist — redirect to config
+  useEffect(() => {
+    if (wideMode && tab === 'input') setTab('config')
+  }, [wideMode, tab])
 
   const handleTest = async () => {
     if (!resolvedAutomationId) return
@@ -216,7 +228,6 @@ export function Inspector({
     try {
       const result = await automationsApi.runNode(resolvedAutomationId, nodeId, inputData ?? null)
       setTestResult(result)
-      // Switch to output tab to show result
       setTab('output')
     } catch (err) {
       setTestResult({ error: err instanceof Error ? err.message : String(err) })
@@ -228,8 +239,12 @@ export function Inspector({
 
   const isTrigger = nodeType.startsWith('trigger.')
 
+  // Tabs to show — in wide mode, no 'input' tab (it's always visible on the left)
+  const tabs: Tab[] = wideMode ? ['config', 'output'] : ['config', 'input', 'output']
+  const tabLabel = (t: Tab) => t === 'config' ? 'CONFIG' : t === 'input' ? 'ENTRADA' : 'SAÍDA'
+
   return (
-    <div className="w-[300px] h-full bg-bg2 border-l border-[var(--border)] flex flex-col overflow-hidden shrink-0">
+    <div className={`${wideMode ? 'w-[580px]' : 'w-[300px]'} h-full bg-bg2 border-l border-[var(--border)] flex flex-col overflow-hidden shrink-0 transition-[width] duration-200`}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-[var(--border)] shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -239,7 +254,6 @@ export function Inspector({
           </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {/* Test button */}
           {!isTrigger && resolvedAutomationId && (
             <button
               type="button"
@@ -276,100 +290,130 @@ export function Inspector({
         />
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-[var(--border)] shrink-0">
-        {(['config', 'input', 'output'] as Tab[]).map((t) => {
-          const label = t === 'config' ? 'CONFIG' : t === 'input' ? 'ENTRADA' : 'SAÍDA'
-          const hasBadge = (t === 'input' && hasInput) || (t === 'output' && hasOutput)
-          return (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={`flex-1 py-1.5 text-[10px] font-syne font-bold transition-colors relative ${
-                tab === t
-                  ? 'text-accent border-b-2 border-accent -mb-px'
-                  : 'text-text3 hover:text-text'
-              }`}
+      {/* Main body — split in wide mode */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* LEFT PANEL: Previous node output — only in wide mode */}
+        {wideMode && (
+          <div className="w-[250px] border-r border-[var(--border)] flex flex-col overflow-hidden shrink-0">
+            <div
+              className="flex items-center gap-1 px-2 py-1.5 border-b border-[var(--border)] bg-bg3 shrink-0 cursor-pointer select-none"
+              onClick={() => setInputExpanded(v => !v)}
             >
-              {label}
-              {hasBadge && (
-                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />
-              )}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        {/* CONFIG TAB */}
-        {tab === 'config' && (
-          <div className="p-3 space-y-3">
-            <FieldComponent config={config} onChange={onConfigChange} nodeId={nodeId} />
+              {inputExpanded
+                ? <ChevronDown size={10} className="text-text3 shrink-0" />
+                : <ChevronRight size={10} className="text-text3 shrink-0" />}
+              <div className="min-w-0">
+                <p className="text-[9px] font-syne font-bold text-text3 uppercase">← Saída do node anterior</p>
+                <p className="text-[8px] text-text3 opacity-60">Arraste os campos para a config →</p>
+              </div>
+            </div>
+            {inputExpanded && (
+              <div className="flex-1 overflow-y-auto p-1">
+                <OutputTree data={inputData} draggable path="input" />
+              </div>
+            )}
           </div>
         )}
 
-        {/* INPUT TAB */}
-        {tab === 'input' && (
-          <div className="p-2">
-            {hasInput ? (
-              <>
-                <div
-                  className="flex items-center gap-1 px-1 py-1 cursor-pointer select-none"
-                  onClick={() => setInputExpanded(v => !v)}
+        {/* RIGHT PANEL: Config + output tab */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+
+          {/* Tabs */}
+          <div className="flex border-b border-[var(--border)] shrink-0">
+            {tabs.map((t) => {
+              const hasBadge = (t === 'input' && hasInput) || (t === 'output' && hasOutput)
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTab(t)}
+                  className={`flex-1 py-1.5 text-[10px] font-syne font-bold transition-colors relative ${
+                    tab === t
+                      ? 'text-accent border-b-2 border-accent -mb-px'
+                      : 'text-text3 hover:text-text'
+                  }`}
                 >
-                  {inputExpanded ? <ChevronDown size={11} className="text-text3" /> : <ChevronRight size={11} className="text-text3" />}
-                  <p className="text-[9px] font-syne font-bold text-text3">
-                    DADOS DO NODE ANTERIOR — arraste para usar como variável
-                  </p>
-                </div>
-                {inputExpanded && (
-                  <OutputTree data={inputData} draggable path="input" />
-                )}
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
-                <p className="text-[10px] text-text3">Sem dados de entrada ainda.</p>
-                <p className="text-[9px] text-text3 opacity-70">Execute o fluxo ou teste este node para ver os dados aqui.</p>
-              </div>
-            )}
+                  {tabLabel(t)}
+                  {hasBadge && (
+                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />
+                  )}
+                </button>
+              )
+            })}
           </div>
-        )}
 
-        {/* OUTPUT TAB */}
-        {tab === 'output' && (
-          <div className="p-2">
-            {/* Error display */}
-            {outputError && (
-              <div className="mb-2 bg-red-500/10 border border-red-500/20 rounded-[6px] p-2 text-[10px] text-red-400 font-mono break-all">
-                {outputError}
+          {/* Tab content */}
+          <div className="flex-1 overflow-y-auto">
+
+            {/* CONFIG TAB */}
+            {tab === 'config' && (
+              <div className="p-3 space-y-3">
+                <FieldComponent config={config} onChange={onConfigChange} nodeId={nodeId} />
               </div>
             )}
-            {/* Duration badge */}
-            {(testResult?.duration_ms !== undefined || executionLog?.duration_ms !== undefined) && (
-              <div className="mb-2 flex items-center gap-1">
-                <span className="text-[9px] bg-surface border border-[var(--border)] rounded-full px-2 py-0.5 text-text3">
-                  {testResult?.duration_ms ?? executionLog?.duration_ms}ms
-                </span>
-                {testResult && <span className="text-[9px] text-green-400 font-syne font-bold">TESTE</span>}
+
+            {/* INPUT TAB — only in narrow mode */}
+            {tab === 'input' && !wideMode && (
+              <div className="p-2">
+                {hasInput ? (
+                  <>
+                    <div
+                      className="flex items-center gap-1 px-1 py-1 cursor-pointer select-none"
+                      onClick={() => setInputExpanded(v => !v)}
+                    >
+                      {inputExpanded ? <ChevronDown size={11} className="text-text3" /> : <ChevronRight size={11} className="text-text3" />}
+                      <p className="text-[9px] font-syne font-bold text-text3">
+                        DADOS DO NODE ANTERIOR — arraste para usar como variável
+                      </p>
+                    </div>
+                    {inputExpanded && (
+                      <OutputTree data={inputData} draggable path="input" />
+                    )}
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
+                    <p className="text-[10px] text-text3">Sem dados de entrada ainda.</p>
+                    <p className="text-[9px] text-text3 opacity-70">Execute o fluxo ou teste este node para ver os dados aqui.</p>
+                  </div>
+                )}
               </div>
             )}
-            {hasOutput && !outputError ? (
-              <>
-                <p className="text-[9px] font-syne font-bold text-text3 mb-1 px-1">
-                  SAÍDA — arraste para usar como variável
-                </p>
-                <OutputTree data={outputData} draggable path="output" />
-              </>
-            ) : !outputError ? (
-              <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
-                <p className="text-[10px] text-text3">Sem dados de saída ainda.</p>
-                <p className="text-[9px] text-text3 opacity-70">Clique em &quot;Testar&quot; para executar este node isoladamente.</p>
+
+            {/* OUTPUT TAB */}
+            {tab === 'output' && (
+              <div className="p-2">
+                {outputError && (
+                  <div className="mb-2 bg-red-500/10 border border-red-500/20 rounded-[6px] p-2 text-[10px] text-red-400 font-mono break-all">
+                    {outputError}
+                  </div>
+                )}
+                {(testResult?.duration_ms !== undefined || executionLog?.duration_ms !== undefined) && (
+                  <div className="mb-2 flex items-center gap-1">
+                    <span className="text-[9px] bg-surface border border-[var(--border)] rounded-full px-2 py-0.5 text-text3">
+                      {testResult?.duration_ms ?? executionLog?.duration_ms}ms
+                    </span>
+                    {testResult && <span className="text-[9px] text-green-400 font-syne font-bold">TESTE</span>}
+                  </div>
+                )}
+                {hasOutput && !outputError ? (
+                  <>
+                    <p className="text-[9px] font-syne font-bold text-text3 mb-1 px-1">
+                      SAÍDA — arraste para usar como variável
+                    </p>
+                    <OutputTree data={outputData} draggable path="output" />
+                  </>
+                ) : !outputError ? (
+                  <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
+                    <p className="text-[10px] text-text3">Sem dados de saída ainda.</p>
+                    <p className="text-[9px] text-text3 opacity-70">Clique em &quot;Testar&quot; para executar este node isoladamente.</p>
+                  </div>
+                ) : null}
               </div>
-            ) : null}
+            )}
+
           </div>
-        )}
+        </div>
       </div>
 
       {/* Execution status bar */}

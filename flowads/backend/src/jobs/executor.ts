@@ -187,6 +187,21 @@ export async function executeAutomation(
         continue
       }
 
+      // Skip disabled nodes — pass input through unchanged
+      if (node.config?._disabled === true) {
+        nodeLogs.push({
+          node_id: node.id,
+          node_type: node.type,
+          node_label: node.label || node.type,
+          status: 'skipped',
+          input: lastOutput,
+          output: lastOutput,
+          duration_ms: 0,
+        })
+        await updateLog('running')
+        continue
+      }
+
       if (node.type.startsWith('trigger.')) {
         // Triggers are just starting points
         // For instagram trigger, inject client's instagram_account_id as fallback
