@@ -11,16 +11,18 @@ import { CardSkeleton } from '@/components/ui/skeleton'
 import { useClients } from '@/hooks/use-client'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Search } from 'lucide-react'
-import type { Client } from '@/lib/api'
+import { clientsApi, type Client } from '@/lib/api'
 
 function ClientsPageInner() {
   const { clients, loading, setClients } = useClients()
   const [showModal, setShowModal] = useState(false)
   const [editingClient, setEditingClient] = useState<Partial<Client> | undefined>()
+  const [deletingClient, setDeletingClient] = useState<Client | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [search, setSearch] = useState('')
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { error } = useToast()
+  const { success, error } = useToast()
 
   useEffect(() => {
     const metaError = searchParams.get('meta_error')
@@ -38,6 +40,21 @@ function ClientsPageInner() {
     setClients((prev) => [client, ...prev])
     setShowModal(false)
     setEditingClient(undefined)
+  }
+
+  const handleDelete = async () => {
+    if (!deletingClient) return
+    setDeleting(true)
+    try {
+      await clientsApi.delete(deletingClient.id)
+      setClients((prev) => prev.filter((c) => c.id !== deletingClient.id))
+      setDeletingClient(null)
+      success('Cliente removido')
+    } catch {
+      error('Erro ao remover cliente')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -77,7 +94,7 @@ function ClientsPageInner() {
         ) : (
           <div className="grid grid-cols-3 gap-4">
             {filtered.map((client) => (
-              <ClientCard key={client.id} client={client} />
+              <ClientCard key={client.id} client={client} onDelete={setDeletingClient} />
             ))}
           </div>
         )}
@@ -95,6 +112,18 @@ function ClientsPageInner() {
           onSuccess={handleCreated}
           onCancel={() => { setShowModal(false); setEditingClient(undefined) }}
         />
+      </Modal>
+
+      <Modal
+        open={!!deletingClient}
+        onClose={() => setDeletingClient(null)}
+        title="Remover cliente"
+        description={`Remover "${deletingClient?.name}"? Todas as automações, campanhas e dados do cliente serão removidos permanentemente.`}
+      >
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => setDeletingClient(null)} className="flex-1">Cancelar</Button>
+          <Button variant="danger" onClick={handleDelete} loading={deleting} className="flex-1">Remover</Button>
+        </div>
       </Modal>
     </Shell>
   )

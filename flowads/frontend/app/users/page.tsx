@@ -19,6 +19,8 @@ export default function UsersPage() {
   const [showInvite, setShowInvite] = useState(false)
   const [inviteLoading, setInviteLoading] = useState(false)
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
+  const [deletingUser, setDeletingUser] = useState<User | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'manager' as 'admin' | 'manager' })
 
   useEffect(() => {
@@ -57,16 +59,20 @@ export default function UsersPage() {
     setMenuOpen(null)
   }
 
-  const handleDelete = async (userId: string) => {
-    if (!confirm('Tem certeza que deseja remover este usuário?')) return
+  const handleDelete = async () => {
+    if (!deletingUser) return
+    setDeleteLoading(true)
     try {
-      await usersApi.delete(userId)
-      setUsers((prev) => prev.filter((u) => u.id !== userId))
+      await usersApi.delete(deletingUser.id)
+      setUsers((prev) => prev.filter((u) => u.id !== deletingUser.id))
       success('Usuário removido')
+      setDeletingUser(null)
     } catch {
       error('Erro ao remover usuário')
+    } finally {
+      setDeleteLoading(false)
+      setMenuOpen(null)
     }
-    setMenuOpen(null)
   }
 
   return (
@@ -137,7 +143,7 @@ export default function UsersPage() {
                         {user.is_active ? 'Desativar' : 'Ativar'}
                       </button>
                       <button
-                        onClick={() => handleDelete(user.id)}
+                        onClick={() => { setDeletingUser(user); setMenuOpen(null) }}
                         className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red hover:bg-red/5 transition-colors"
                       >
                         <Trash2 size={14} />
@@ -151,6 +157,18 @@ export default function UsersPage() {
           </tbody>
         </table>
       </div>
+
+      <Modal
+        open={!!deletingUser}
+        onClose={() => setDeletingUser(null)}
+        title="Remover usuário"
+        description={`Remover "${deletingUser?.name}"? Esta ação não pode ser desfeita.`}
+      >
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => setDeletingUser(null)} className="flex-1">Cancelar</Button>
+          <Button variant="danger" onClick={handleDelete} loading={deleteLoading} className="flex-1">Remover</Button>
+        </div>
+      </Modal>
 
       <Modal
         open={showInvite}
