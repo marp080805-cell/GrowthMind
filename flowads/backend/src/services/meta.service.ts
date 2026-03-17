@@ -540,16 +540,25 @@ export class MetaService {
     adName: string
     status?: string
   }): Promise<{ ad_id: string; creative_id: string }> {
-    // Per Meta Marketing API docs (Use Posts as Instagram Ads):
-    // adcreatives requires: object_id (FB Page ID), instagram_user_id (IG account ID),
-    // source_instagram_media_id (IG media ID).
+    // Meta Marketing API: to use an existing Instagram post as an ad creative,
+    // object_story_spec with page_id + instagram_actor_id is REQUIRED alongside source_instagram_media_id.
+    // Passing only object_id (without instagram_user_id) causes Meta to interpret as a link ad → "link required".
+    if (!params.pageId) {
+      throw new Error('Página do Facebook não configurada. Selecione a página no bloco "Criar anúncio" ou cadastre-a no perfil do cliente.')
+    }
+    if (!params.instagramAccountId) {
+      throw new Error('Conta do Instagram não configurada. Preencha o ID da conta Instagram no perfil do cliente.')
+    }
+
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
+      object_story_spec: {
+        page_id: params.pageId,
+        instagram_actor_id: params.instagramAccountId,
+      },
       access_token: this.token,
     }
-    if (params.pageId) creativeBody.object_id = params.pageId
-    if (params.instagramAccountId) creativeBody.instagram_user_id = params.instagramAccountId
     let creativeId: string
     try {
       const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
