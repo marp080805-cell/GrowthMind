@@ -162,6 +162,53 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
   const wrapper = useRef<HTMLDivElement>(null)
 
+  // ── Undo history ──────────────────────────────────────────────────────────
+  const historyRef = useRef<{ nodes: Node[]; edges: Edge[] }[]>([])
+  const snapshotRef = useRef<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
+  snapshotRef.current = { nodes, edges }
+
+  const pushHistory = () => {
+    const { nodes: n, edges: e } = snapshotRef.current
+    historyRef.current = [...historyRef.current.slice(-49), { nodes: n, edges: e }]
+  }
+
+  const handleUndo = useCallback(() => {
+    const prev = historyRef.current.pop()
+    if (!prev) return
+    setNodes(prev.nodes)
+    setEdges(prev.edges)
+    const apiNodes: AutomationNode[] = prev.nodes.map((n) => ({
+      id: n.id,
+      type: n.data.type as string,
+      label: n.data.label as string,
+      config: (n.data.config || {}) as Record<string, unknown>,
+      position: n.position,
+    }))
+    const apiEdges: AutomationEdge[] = prev.edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle ?? undefined,
+      targetHandle: e.targetHandle ?? undefined,
+    }))
+    onChange(apiNodes, apiEdges)
+  }, [setNodes, setEdges, onChange])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        // Don't intercept if user is typing in an input/textarea
+        const tag = (e.target as HTMLElement)?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return
+        e.preventDefault()
+        handleUndo()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [handleUndo])
+  // ─────────────────────────────────────────────────────────────────────────
+
   // Update edge animation based on active state
   useEffect(() => {
     setEdges((eds) => eds.map((e) => ({ ...e, animated: isActive || false })))
@@ -203,6 +250,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      pushHistory()
       setEdges((eds) => {
         const newEdges = addEdge({
           ...connection,
@@ -236,6 +284,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
         y: e.clientY - bounds.top,
       })
 
+      pushHistory()
       const block = getBlock(blockType)
       const newNode: Node = {
         id: crypto.randomUUID(),
@@ -262,6 +311,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
 
   const handleConfigChange = useCallback(
     (config: Record<string, unknown>) => {
+      pushHistory()
       setNodes((nds) => {
         const updated = nds.map((n) =>
           n.id === selectedNodeId ? { ...n, data: { ...n.data, config } } : n
@@ -275,6 +325,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
 
   const handleLabelChange = useCallback(
     (label: string) => {
+      pushHistory()
       setNodes((nds) => {
         const updated = nds.map((n) =>
           n.id === selectedNodeId ? { ...n, data: { ...n.data, label } } : n
@@ -289,6 +340,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
   const handleDeleteNode = useCallback((nodeIdOverride?: string) => {
     const targetId = nodeIdOverride || selectedNodeId
     if (!targetId) return
+    pushHistory()
     setNodes((nds) => {
       const updated = nds.filter((n) => n.id !== targetId)
       setEdges((eds) => {
@@ -345,6 +397,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
   }, [automationId])
 
   const handleToggleNodeDisabled = useCallback((nodeId: string) => {
+    pushHistory()
     setNodes((nds) => {
       const updated = nds.map((n) => {
         if (n.id !== nodeId) return n
@@ -357,6 +410,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
   }, [edges, notifyChange])
 
   const handleAutoLayout = useCallback(() => {
+    pushHistory()
     const laid = autoLayout(nodes, edges)
     setNodes(laid)
     notifyChange(laid, edges)
