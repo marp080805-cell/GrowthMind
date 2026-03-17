@@ -92,7 +92,7 @@ interface InspectorProps {
   onDelete: () => void
   onClose: () => void
   executionLog?: NodeLog
-  previousNodeLog?: NodeLog
+  previousNodeLog?: NodeLog | null  // undefined = no previous node; null = has previous node but no execution yet
   automationId?: string
 }
 
@@ -207,8 +207,12 @@ export function Inspector({
   const hasInput = inputData !== undefined && inputData !== null
   const hasOutput = outputData !== undefined && outputData !== null || !!outputError
 
-  // Wide mode: show split panel when we have input data from previous node
-  const wideMode = hasInput
+  // Wide mode: show split panel whenever there's a connected previous node
+  // previousNodeLog === undefined means no previous node connected → narrow mode
+  // previousNodeLog === null means previous node exists but hasn't run yet → wide mode (show placeholder)
+  // previousNodeLog === NodeLog means has execution data → wide mode with data
+  const hasPreviousNode = previousNodeLog !== undefined
+  const wideMode = hasPreviousNode
 
   // Reset to config tab when switching between wide/narrow or changing nodes
   useEffect(() => {
@@ -310,7 +314,14 @@ export function Inspector({
             </div>
             {inputExpanded && (
               <div className="flex-1 overflow-y-auto p-1">
-                <OutputTree data={inputData} draggable path="input" />
+                {hasInput ? (
+                  <OutputTree data={inputData} draggable path="input" />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 gap-2 text-center px-3">
+                    <p className="text-[10px] text-text3">Sem dados ainda.</p>
+                    <p className="text-[9px] text-text3 opacity-60">Execute o fluxo ou clique ▶ Run no node anterior para ver os dados aqui.</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

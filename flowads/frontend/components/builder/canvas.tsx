@@ -305,21 +305,36 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
 
   const handleRunNode = useCallback(async (nodeId: string) => {
     if (!automationId) return
-    // Mark node as running
+    // Mark target node as running
     setNodes((nds) => nds.map((n) =>
       n.id === nodeId
         ? { ...n, data: { ...n.data, executionLog: { node_id: nodeId, status: 'running', duration_ms: 0, node_type: n.data.type as string, node_label: n.data.label as string, input: null, output: null } as NodeLog } }
         : n
     ))
-    const incomingEdge = edges.find((e) => e.target === nodeId)
-    const inputData = incomingEdge ? (executionState[incomingEdge.source]?.output ?? null) : null
     try {
-      const result = await automationsApi.runNode(automationId, nodeId, inputData)
-      setNodes((nds) => nds.map((n) =>
-        n.id === nodeId
-          ? { ...n, data: { ...n.data, executionLog: { node_id: nodeId, status: result.error ? 'error' : 'success', output: result.output, error: result.error, duration_ms: result.duration_ms, input: inputData, node_type: n.data.type as string, node_label: n.data.label as string } as NodeLog } }
-          : n
-      ))
+      // Backend runs all predecessors first, then the target node
+      const result = await automationsApi.runNode(automationId, nodeId, null)
+      // Apply execution logs to ALL nodes that ran (predecessors + target)
+      setNodes((nds) => nds.map((n) => {
+        const nodeResult = result.nodeOutputs?.[n.id]
+        if (!nodeResult) return n
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            executionLog: {
+              node_id: n.id,
+              status: nodeResult.error ? 'error' : 'success',
+              output: nodeResult.output,
+              error: nodeResult.error,
+              duration_ms: nodeResult.duration_ms,
+              input: nodeResult.input,
+              node_type: n.data.type as string,
+              node_label: n.data.label as string,
+            } as NodeLog,
+          },
+        }
+      }))
     } catch (err) {
       setNodes((nds) => nds.map((n) =>
         n.id === nodeId
@@ -327,7 +342,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
           : n
       ))
     }
-  }, [automationId, edges, executionState])
+  }, [automationId])
 
   const handleToggleNodeDisabled = useCallback((nodeId: string) => {
     setNodes((nds) => {
@@ -404,8 +419,11 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
       {/* Inspector */}
       {selectedNode && (() => {
         // Find the predecessor node (source of an edge pointing to selectedNode)
+        // undefined = no previous node; null = has previous node but no execution data yet
         const incomingEdge = edges.find(e => e.target === selectedNode.id)
-        const previousNodeLog = incomingEdge ? (executionState[incomingEdge.source] || null) : null
+        const previousNodeLog = incomingEdge
+          ? (executionState[incomingEdge.source] || null)
+          : undefined
         return (
           <Inspector
             nodeId={selectedNode.id}
@@ -417,7 +435,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
             onDelete={handleDeleteNode}
             onClose={() => setSelectedNodeId(null)}
             executionLog={(selectedNode.data.executionLog as NodeLog) || undefined}
-            previousNodeLog={previousNodeLog || undefined}
+            previousNodeLog={previousNodeLog}
             automationId={automationId}
           />
         )

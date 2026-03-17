@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useState } from 'react'
+import { memo, useState, useRef } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { getBlock, CATEGORY_COLORS } from '@/lib/blocks'
 import { cn } from '@/lib/utils'
@@ -39,6 +39,9 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
   const nodeData = data as FlowNodeData
   const block = getBlock(nodeData.type)
   const [hovered, setHovered] = useState(false)
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showHover = () => { if (hideTimer.current) clearTimeout(hideTimer.current); setHovered(true) }
+  const hideHover = () => { hideTimer.current = setTimeout(() => setHovered(false), 150) }
 
   if (!block) return null
 
@@ -67,8 +70,8 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
 
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={showHover}
+      onMouseLeave={hideHover}
       className={cn(
         'min-w-[200px] max-w-[240px] rounded-[12px] border overflow-visible',
         'bg-surface shadow-lg transition-all duration-150 relative',
@@ -81,7 +84,11 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
       {/* Hover toolbar */}
       {showToolbar && (
         <div className="absolute -top-9 left-0 right-0 flex justify-center z-50 pointer-events-none">
-          <div className="pointer-events-auto flex items-center gap-0.5 bg-surface border border-[var(--border2)] rounded-[8px] px-1.5 py-1 shadow-xl nodrag nopan">
+          <div
+          className="pointer-events-auto flex items-center gap-0.5 bg-surface border border-[var(--border2)] rounded-[8px] px-1.5 py-1 shadow-xl nodrag nopan"
+          onMouseEnter={showHover}
+          onMouseLeave={hideHover}
+        >
             {onRunNode && (
               <button
                 type="button"

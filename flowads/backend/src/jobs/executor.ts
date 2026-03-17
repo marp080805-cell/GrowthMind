@@ -1320,11 +1320,18 @@ async function executeDrive(
 
 // ─── SINGLE NODE EXECUTION (for testing) ─────────────────────────────────────
 
+export type SingleNodeResult = {
+  output: unknown
+  error?: string
+  duration_ms: number
+  nodeOutputs: Record<string, { output: unknown; error?: string; duration_ms: number; input: unknown }>
+}
+
 export async function executeSingleNode(
   automationId: string,
   nodeId: string,
-  inputData: unknown
-): Promise<{ output: unknown; error?: string; duration_ms: number }> {
+  _inputData: unknown  // kept for API compatibility; actual input comes from running predecessors
+): Promise<SingleNodeResult> {
   const { data: automation } = await supabase
     .from('automations')
     .select('*, automation_nodes(*), automation_edges(*)')
@@ -1334,8 +1341,9 @@ export async function executeSingleNode(
   if (!automation) throw new Error('Automação não encontrada')
 
   const nodes = (automation.automation_nodes || []) as AutomationNode[]
-  const node = nodes.find((n) => n.id === nodeId)
-  if (!node) throw new Error('Node não encontrado')
+  const edges = (automation.automation_edges || []) as AutomationEdge[]
+  const targetNode = nodes.find((n) => n.id === nodeId)
+  if (!targetNode) throw new Error('Node não encontrado')
 
   const { data: client } = automation.client_id
     ? await supabase.from('clients').select('*').eq('id', automation.client_id).single()
@@ -1348,22 +1356,75 @@ export async function executeSingleNode(
     campaigns,
     settings: settings || ({} as Settings),
     executionId: 'preview',
-    triggerPayload: inputData,
+    triggerPayload: _inputData,
   }
 
-  const templateVars: Record<string, unknown> = {
+  const baseTemplateVars: Record<string, unknown> = {
     hoje: new Date().toLocaleDateString('pt-BR'),
-    cliente: client ? { nome: (client as Client).name, contexto: (client as Client).context } : {},
-    input: inputData,
+    semana_atual: `semana de ${getWeekRange()}`,
+    mes_atual: new Date().toLocaleDateString('pt-BR', { month: 'long' }),
+    data_formatada: new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
+    cliente: client ? {
+      nome: (client as Client).name,
+      tipo_negocio: (client as Client).business_type,
+      contexto: (client as Client).context,
+      whatsapp: (client as Client).whatsapp,
+      instagram_account_id: (client as Client).instagram_account_id || '',
+    } : {},
+    campanhas: { todas: campaigns },
+    input: _inputData,
   }
 
-  const interpolatedConfig = interpolateConfig(node.config, templateVars)
-  const startTime = Date.now()
-  try {
-    const output = await executeNode(node, interpolatedConfig, inputData, context)
-    return { output, duration_ms: Date.now() - startTime }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return { output: null, error: message, duration_ms: Date.now() - startTime }
+  // Build topological order from trigger → targetNode, running all predecessors
+  const triggerNode = nodes.find((n) => n.type.startsWith('trigger.'))
+  const nodesToRun = triggerNode
+    ? buildTopologicalOrder(nodes, edges, triggerNode.id)
+    : [targetNode]
+
+  const targetIdx = nodesToRun.findIndex((n) => n.id === nodeId)
+  const chain = targetIdx >= 0 ? nodesToRun.slice(0, targetIdx + 1) : [targetNode]
+
+  const nodeOutputs: Record<string, { output: unknown; error?: string; duration_ms: number; input: unknown }> = {}
+  let lastOutput: unknown = _inputData
+
+  for (const currentNode of chain) {
+    // Skip disabled nodes
+    if (currentNode.config?._disabled === true) {
+      nodeOutputs[currentNode.id] = { output: lastOutput, duration_ms: 0, input: lastOutput }
+      continue
+    }
+
+    if (currentNode.type.startsWith('trigger.')) {
+      nodeOutputs[currentNode.id] = { output: _inputData, duration_ms: 0, input: null }
+      lastOutput = _inputData
+      continue
+    }
+
+    const templateVars = { ...baseTemplateVars, input: lastOutput }
+    const interpolatedConfig = interpolateConfig(currentNode.config, templateVars)
+    const startTime = Date.now()
+    try {
+      const output = await executeNode(currentNode, interpolatedConfig, lastOutput, context)
+      const duration = Date.now() - startTime
+      nodeOutputs[currentNode.id] = { output, duration_ms: duration, input: lastOutput }
+      lastOutput = output
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      const duration = Date.now() - startTime
+      nodeOutputs[currentNode.id] = { output: null, error: message, duration_ms: duration, input: lastOutput }
+      if (currentNode.id === nodeId) {
+        return { output: null, error: message, duration_ms: duration, nodeOutputs }
+      }
+      // Predecessor failed — report error on that predecessor
+      return { output: null, error: `Erro no node "${currentNode.label || currentNode.type}": ${message}`, duration_ms: 0, nodeOutputs }
+    }
+  }
+
+  const targetResult = nodeOutputs[nodeId]
+  return {
+    output: targetResult?.output ?? null,
+    error: targetResult?.error,
+    duration_ms: targetResult?.duration_ms ?? 0,
+    nodeOutputs,
   }
 }

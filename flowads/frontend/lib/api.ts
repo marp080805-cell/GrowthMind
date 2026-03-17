@@ -85,7 +85,12 @@ export const automationsApi = {
   toggle: (id: string) => api.post<Automation>(`/automations/${id}/toggle`),
   run: (id: string) => api.post<{ executionId: string }>(`/automations/${id}/run`),
   runNode: (id: string, nodeId: string, inputData?: unknown) =>
-    api.post<{ output: unknown; error?: string; duration_ms: number }>(`/automations/${id}/run-node`, { nodeId, inputData }),
+    api.post<{
+      output: unknown
+      error?: string
+      duration_ms: number
+      nodeOutputs?: Record<string, { output: unknown; error?: string; duration_ms: number; input: unknown }>
+    }>(`/automations/${id}/run-node`, { nodeId, inputData }),
   logs: (id: string) => api.get<ExecutionLog[]>(`/automations/${id}/logs`),
   delete: (id: string) => api.delete(`/automations/${id}`),
 }

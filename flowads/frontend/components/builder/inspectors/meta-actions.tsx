@@ -212,7 +212,12 @@ export function InstagramPostsInspector({ config, onChange }: InspectorFieldProp
         <label className="text-[10px] font-syne font-semibold text-text3">PERÍODO</label>
         <select
           value={period}
-          onChange={(e) => { set('period', e.target.value); if (e.target.value !== 'custom') { set('date_from', ''); set('date_to', '') } }}
+          onChange={(e) => {
+            const newPeriod = e.target.value
+            const updated = { ...config, period: newPeriod }
+            if (newPeriod !== 'custom') { updated.date_from = ''; updated.date_to = '' }
+            onChange(updated)
+          }}
           className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
         >
           <option value="all">Todos os posts</option>
