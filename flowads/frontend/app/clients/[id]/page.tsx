@@ -222,7 +222,9 @@ export default function ClientDetailPage() {
                   { label: 'Nome', value: client.name },
                   { label: 'Tipo de negócio', value: client.business_type },
                   { label: 'WhatsApp', value: client.whatsapp },
-                  { label: 'Conta Meta', value: client.ad_account_id },
+                  { label: 'Conta de anúncios (Meta)', value: client.ad_account_id },
+                  { label: 'Página do Facebook', value: client.facebook_page_id },
+                  { label: 'Conta do Instagram', value: client.instagram_account_id },
                 ].map(({ label, value }) => (
                   <div key={label}>
                     <p className="text-xs text-text3 mb-0.5">{label}</p>
