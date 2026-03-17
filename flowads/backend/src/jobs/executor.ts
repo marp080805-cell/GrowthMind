@@ -289,12 +289,14 @@ export async function executeAutomation(
               .forEach(e => { const t = e.target || e.target_node_id || ''; if (t && !activeReachable.has(t)) inactiveBfs.push(t) })
           }
 
-          // Pass the original input through (not the condition wrapper)
-          lastOutput = ifResult.input
-          templateVars.input = ifResult.input
-          if (ifResult.input && typeof ifResult.input === 'object') {
-            Object.assign(templateVars, flattenOutput(ifResult.input as Record<string, unknown>))
-          }
+          // Pass the original input through, preserving `condition` key so
+          // stop nodes on inactive branches can detect they should be skipped.
+          const ifBaseInput = (ifResult.input && typeof ifResult.input === 'object')
+            ? (ifResult.input as Record<string, unknown>)
+            : {}
+          lastOutput = { ...ifBaseInput, condition: ifResult.condition }
+          templateVars.input = lastOutput
+          Object.assign(templateVars, flattenOutput(ifBaseInput))
         }
         // ────────────────────────────────────────────────────────────────────
 

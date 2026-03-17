@@ -175,7 +175,7 @@ export interface InspectorFieldProps {
   nodeId: string
 }
 
-type Tab = 'config' | 'input' | 'output'
+type Tab = 'config' | 'input'
 
 export function Inspector({
   nodeId,
@@ -199,6 +199,7 @@ export function Inspector({
   const [testRunning, setTestRunning] = useState(false)
   const [testResult, setTestResult] = useState<{ output?: unknown; error?: string; duration_ms?: number } | null>(null)
   const [inputExpanded, setInputExpanded] = useState(true)
+  const [outputExpanded, setOutputExpanded] = useState(true)
 
   const hasExecution = !!executionLog
   const inputData = executionLog?.input ?? previousNodeLog?.output
@@ -218,12 +219,18 @@ export function Inspector({
   useEffect(() => {
     setTab('config')
     setTestResult(null)
+    setOutputExpanded(true)
   }, [nodeId])
 
   // In wide mode, 'input' tab doesn't exist — redirect to config
   useEffect(() => {
     if (wideMode && tab === 'input') setTab('config')
   }, [wideMode, tab])
+
+  // Auto-expand output when new data arrives
+  useEffect(() => {
+    if (hasOutput) setOutputExpanded(true)
+  }, [hasOutput])
 
   const handleTest = async () => {
     if (!resolvedAutomationId) return
@@ -244,8 +251,9 @@ export function Inspector({
   const isTrigger = nodeType.startsWith('trigger.')
 
   // Tabs to show — in wide mode, no 'input' tab (it's always visible on the left)
-  const tabs: Tab[] = wideMode ? ['config', 'output'] : ['config', 'input', 'output']
-  const tabLabel = (t: Tab) => t === 'config' ? 'CONFIG' : t === 'input' ? 'ENTRADA' : 'SAÍDA'
+  // Output is always shown as a bottom panel, not a tab
+  const tabs: Tab[] = wideMode ? ['config'] : ['config', 'input']
+  const tabLabel = (t: Tab) => t === 'config' ? 'CONFIG' : 'ENTRADA'
 
   return (
     <div className={`${wideMode ? 'w-[580px]' : 'w-[300px]'} h-full bg-bg2 border-l border-[var(--border)] flex flex-col overflow-hidden shrink-0 transition-[width] duration-200`}>
@@ -330,32 +338,34 @@ export function Inspector({
         {/* RIGHT PANEL: Config + output tab */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
-          {/* Tabs */}
-          <div className="flex border-b border-[var(--border)] shrink-0">
-            {tabs.map((t) => {
-              const hasBadge = (t === 'input' && hasInput) || (t === 'output' && hasOutput)
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTab(t)}
-                  className={`flex-1 py-1.5 text-[10px] font-syne font-bold transition-colors relative ${
-                    tab === t
-                      ? 'text-accent border-b-2 border-accent -mb-px'
-                      : 'text-text3 hover:text-text'
-                  }`}
-                >
-                  {tabLabel(t)}
-                  {hasBadge && (
-                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />
-                  )}
-                </button>
-              )
-            })}
-          </div>
+          {/* Tabs — only shown when there are multiple tabs */}
+          {tabs.length > 1 && (
+            <div className="flex border-b border-[var(--border)] shrink-0">
+              {tabs.map((t) => {
+                const hasBadge = t === 'input' && hasInput
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTab(t)}
+                    className={`flex-1 py-1.5 text-[10px] font-syne font-bold transition-colors relative ${
+                      tab === t
+                        ? 'text-accent border-b-2 border-accent -mb-px'
+                        : 'text-text3 hover:text-text'
+                    }`}
+                  >
+                    {tabLabel(t)}
+                    {hasBadge && (
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
-          {/* Tab content */}
-          <div className="flex-1 overflow-y-auto">
+          {/* Tab content — scrollable config area */}
+          <div className="flex-1 overflow-y-auto min-h-0">
 
             {/* CONFIG TAB */}
             {tab === 'config' && (
@@ -391,16 +401,37 @@ export function Inspector({
               </div>
             )}
 
-            {/* OUTPUT TAB */}
-            {tab === 'output' && (
-              <div className="p-2">
+          </div>
+
+          {/* ALWAYS-VISIBLE OUTPUT PANEL — bottom of right panel */}
+          <div className="shrink-0 border-t border-[var(--border)]">
+            <div
+              className="flex items-center gap-1 px-2 py-1.5 bg-bg3 cursor-pointer select-none"
+              onClick={() => setOutputExpanded(v => !v)}
+            >
+              {outputExpanded
+                ? <ChevronDown size={10} className="text-text3 shrink-0" />
+                : <ChevronRight size={10} className="text-text3 shrink-0" />}
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] font-syne font-bold text-text3 uppercase">Saída do node atual</p>
+                <p className="text-[8px] text-text3 opacity-60">Arraste os campos para usar como variável</p>
+              </div>
+              {hasOutput && (
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+              )}
+              {outputError && (
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+              )}
+            </div>
+            {outputExpanded && (
+              <div className="max-h-[200px] overflow-y-auto p-1">
                 {outputError && (
-                  <div className="mb-2 bg-red-500/10 border border-red-500/20 rounded-[6px] p-2 text-[10px] text-red-400 font-mono break-all">
+                  <div className="mb-1 bg-red-500/10 border border-red-500/20 rounded-[6px] p-2 text-[10px] text-red-400 font-mono break-all">
                     {outputError}
                   </div>
                 )}
                 {(testResult?.duration_ms !== undefined || executionLog?.duration_ms !== undefined) && (
-                  <div className="mb-2 flex items-center gap-1">
+                  <div className="mb-1 flex items-center gap-1 px-1">
                     <span className="text-[9px] bg-surface border border-[var(--border)] rounded-full px-2 py-0.5 text-text3">
                       {testResult?.duration_ms ?? executionLog?.duration_ms}ms
                     </span>
@@ -408,21 +439,15 @@ export function Inspector({
                   </div>
                 )}
                 {hasOutput && !outputError ? (
-                  <>
-                    <p className="text-[9px] font-syne font-bold text-text3 mb-1 px-1">
-                      SAÍDA — arraste para usar como variável
-                    </p>
-                    <OutputTree data={outputData} draggable path="output" />
-                  </>
+                  <OutputTree data={outputData} draggable path="output" />
                 ) : !outputError ? (
-                  <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
+                  <div className="flex flex-col items-center justify-center py-4 gap-1 text-center">
                     <p className="text-[10px] text-text3">Sem dados de saída ainda.</p>
-                    <p className="text-[9px] text-text3 opacity-70">Clique em &quot;Testar&quot; para executar este node isoladamente.</p>
+                    <p className="text-[9px] text-text3 opacity-70">Clique ▶ Testar para executar.</p>
                   </div>
                 ) : null}
               </div>
             )}
-
           </div>
         </div>
       </div>
