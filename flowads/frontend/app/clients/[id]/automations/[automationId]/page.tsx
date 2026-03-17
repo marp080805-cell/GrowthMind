@@ -27,7 +27,7 @@ import Link from 'next/link'
 export default function BuilderPage() {
   const { id: clientId, automationId } = useParams<{ id: string; automationId: string }>()
   const router = useRouter()
-  const { automation, loading, saving, save, toggle, setAutomation } = useAutomation(
+  const { automation, loading, saving, save, debouncedSave, toggle, setAutomation } = useAutomation(
     automationId === 'new' ? '' : automationId
   )
   const { success, error } = useToast()
@@ -108,8 +108,9 @@ export default function BuilderPage() {
     (newNodes: AutomationNode[], newEdges: AutomationEdge[]) => {
       setNodes(newNodes)
       setEdges(newEdges)
+      if (automationId !== 'new') debouncedSave(newNodes, newEdges)
     },
-    []
+    [automationId, debouncedSave]
   )
 
   const handleSave = async () => {

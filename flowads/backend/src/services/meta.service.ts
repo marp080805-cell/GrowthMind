@@ -569,7 +569,7 @@ export class MetaService {
       const adData = await metaPost(`${this.accountUrl}/ads`, adBody)
       return { ad_id: adData.id as string, creative_id: creativeId }
     } catch (err) {
-      throw new Error(`[ads adset=${params.adsetId} creative=${creativeId}] ${err instanceof Error ? err.message : String(err)}`)
+      throw new Error(`[ads account=act_${this.adAccountId} adset=${params.adsetId} creative=${creativeId}] ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 

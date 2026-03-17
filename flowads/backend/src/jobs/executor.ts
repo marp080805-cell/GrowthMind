@@ -526,6 +526,9 @@ async function executeMeta(
     }
 
     case 'create_ad': {
+      const adsetId = (config.adset_id as string) || ''
+      if (!adsetId) throw new Error('Conjunto de anúncios (adset_id) não configurado no bloco. Selecione um conjunto e salve a automação antes de executar.')
+
       // Se vier source_instagram_media_id, cria criativo a partir de post existente do Instagram
       if (config.source_instagram_media_id) {
         const instagramAccountId = (config.instagram_actor_id as string) || context.client?.instagram_account_id || undefined
@@ -534,7 +537,7 @@ async function executeMeta(
           postId: config.source_instagram_media_id as string,
           instagramAccountId,
           pageId,
-          adsetId: config.adset_id as string,
+          adsetId,
           adName: (config.name as string) || `Post ${config.source_instagram_media_id}`,
           status: (config.status as string) || 'PAUSED',
         })

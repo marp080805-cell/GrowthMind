@@ -22,12 +22,12 @@ export function useAutomation(id: string) {
   }, [id])
 
   const save = useCallback(
-    async (nodes: AutomationNode[], edges: AutomationEdge[]) => {
+    async (nodes: AutomationNode[], edges: AutomationEdge[], silent = false) => {
       if (!automation) return
       setSaving(true)
       try {
         await automationsApi.save(id, { nodes, edges })
-        success('Salvo com sucesso')
+        if (!silent) success('Salvo com sucesso')
       } catch {
         error('Erro ao salvar automação')
       } finally {
@@ -40,7 +40,7 @@ export function useAutomation(id: string) {
   const debouncedSave = useCallback(
     (nodes: AutomationNode[], edges: AutomationEdge[]) => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(() => save(nodes, edges), 2000)
+      saveTimer.current = setTimeout(() => save(nodes, edges, true), 2000)
     },
     [save]
   )
