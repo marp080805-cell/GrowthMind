@@ -85,12 +85,12 @@ export default function UsersPage() {
         </Button>
       }
     >
-      <div className="bg-surface border border-[var(--border)] rounded-lg overflow-hidden">
+      <div className="bg-surface border border-[var(--border)] rounded-lg overflow-visible">
         <table className="w-full">
           <thead>
             <tr className="border-b border-[var(--border)]">
-              {['Usuário', 'Email', 'Role', 'Status', 'Criado em', ''].map((h) => (
-                <th key={h} className="text-left text-xs font-syne font-semibold text-text3 px-4 py-3">
+              {['Usuário', 'Email', 'Role', 'Status', 'Criado em', ''].map((h, i, arr) => (
+                <th key={h} className={`text-left text-xs font-syne font-semibold text-text3 px-4 py-3 ${i === 0 ? 'rounded-tl-lg' : ''} ${i === arr.length - 1 ? 'rounded-tr-lg' : ''}`}>
                   {h}
                 </th>
               ))}
