@@ -239,10 +239,10 @@ export function Inspector({
     try {
       const result = await automationsApi.runNode(resolvedAutomationId, nodeId, inputData ?? null)
       setTestResult(result)
-      setTab('output')
+      setOutputExpanded(true)
     } catch (err) {
       setTestResult({ error: err instanceof Error ? err.message : String(err) })
-      setTab('output')
+      setOutputExpanded(true)
     } finally {
       setTestRunning(false)
     }
