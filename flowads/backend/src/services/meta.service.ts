@@ -541,22 +541,19 @@ export class MetaService {
     status?: string
   }): Promise<{ ad_id: string; creative_id: string }> {
     // Meta Marketing API: to use an existing Instagram post as an ad creative,
-    // object_story_spec with page_id + instagram_actor_id is REQUIRED alongside source_instagram_media_id.
-    // Passing only object_id (without instagram_user_id) causes Meta to interpret as a link ad → "link required".
+    // page_id is REQUIRED. instagram_actor_id is optional — Meta infers it from source_instagram_media_id.
+    // Using object_story_spec avoids "link required" error that occurs with top-level object_id alone.
     if (!params.pageId) {
       throw new Error('Página do Facebook não configurada. Selecione a página no bloco "Criar anúncio" ou cadastre-a no perfil do cliente.')
     }
-    if (!params.instagramAccountId) {
-      throw new Error('Conta do Instagram não configurada. Preencha o ID da conta Instagram no perfil do cliente.')
-    }
+
+    const objectStorySpec: Record<string, unknown> = { page_id: params.pageId }
+    if (params.instagramAccountId) objectStorySpec.instagram_actor_id = params.instagramAccountId
 
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
-      object_story_spec: {
-        page_id: params.pageId,
-        instagram_actor_id: params.instagramAccountId,
-      },
+      object_story_spec: objectStorySpec,
       access_token: this.token,
     }
     let creativeId: string
