@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { supabase } from '../lib/supabase'
-import { executeAutomation } from '../jobs/executor'
+import { executeAutomation, executeSingleNode } from '../jobs/executor'
 import { scheduleAutomation, unscheduleAutomation } from '../jobs/scheduler'
 
 export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -171,5 +171,18 @@ export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
       .single()
     if (error || !data) return reply.status(404).send({ message: 'Execução não encontrada' })
     return data
+  })
+
+  fastify.post('/automations/:id/run-node', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const { nodeId, inputData } = req.body as { nodeId: string; inputData?: unknown }
+    if (!nodeId) return reply.status(400).send({ message: 'nodeId é obrigatório' })
+    try {
+      const result = await executeSingleNode(id, nodeId, inputData ?? null)
+      return result
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return reply.status(400).send({ message })
+    }
   })
 }

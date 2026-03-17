@@ -165,10 +165,27 @@ export async function executeAutomation(
 
     // Nodes that belong to a loop body — handled inline, skip in main pass
     const loopBodyNodes = new Set<string>()
+    // Nodes on inactive IF branches — skip these
+    const skippedBranchNodes = new Set<string>()
 
     // Execute each node
     for (const node of ordered) {
       if (loopBodyNodes.has(node.id)) continue
+
+      // Skip nodes on inactive IF branches
+      if (skippedBranchNodes.has(node.id)) {
+        nodeLogs.push({
+          node_id: node.id,
+          node_type: node.type,
+          node_label: node.label || node.type,
+          status: 'skipped',
+          input: lastOutput,
+          output: null,
+          duration_ms: 0,
+        })
+        await updateLog('running')
+        continue
+      }
 
       if (node.type.startsWith('trigger.')) {
         // Triggers are just starting points
@@ -221,6 +238,50 @@ export async function executeAutomation(
           output,
           duration_ms: duration,
         })
+
+        // ── IF: mark inactive branch nodes as skipped ───────────────────────
+        if (node.type === 'logic.if') {
+          const ifResult = output as { condition: boolean; input: unknown }
+          const activeHandle = ifResult.condition ? 'yes' : 'no'
+          const inactiveHandle = ifResult.condition ? 'no' : 'yes'
+
+          // Collect all nodes reachable from active handle (to protect them)
+          const activeTargets = edges
+            .filter(e => (e.source === node.id || e.source_node_id === node.id) &&
+                         (e.sourceHandle === activeHandle || e.source_handle === activeHandle))
+            .map(e => e.target || e.target_node_id || '').filter(Boolean)
+          const activeReachable = new Set<string>()
+          const activeBfs = [...activeTargets]
+          while (activeBfs.length > 0) {
+            const nid = activeBfs.shift()!
+            if (activeReachable.has(nid)) continue
+            activeReachable.add(nid)
+            edges.filter(e => e.source === nid || e.source_node_id === nid)
+              .forEach(e => { const t = e.target || e.target_node_id || ''; if (t) activeBfs.push(t) })
+          }
+
+          // Collect inactive branch nodes (not reachable from active handle)
+          const inactiveTargets = edges
+            .filter(e => (e.source === node.id || e.source_node_id === node.id) &&
+                         (e.sourceHandle === inactiveHandle || e.source_handle === inactiveHandle))
+            .map(e => e.target || e.target_node_id || '').filter(Boolean)
+          const inactiveBfs = [...inactiveTargets]
+          while (inactiveBfs.length > 0) {
+            const nid = inactiveBfs.shift()!
+            if (skippedBranchNodes.has(nid) || activeReachable.has(nid)) continue
+            skippedBranchNodes.add(nid)
+            edges.filter(e => e.source === nid || e.source_node_id === nid)
+              .forEach(e => { const t = e.target || e.target_node_id || ''; if (t && !activeReachable.has(t)) inactiveBfs.push(t) })
+          }
+
+          // Pass the original input through (not the condition wrapper)
+          lastOutput = ifResult.input
+          templateVars.input = ifResult.input
+          if (ifResult.input && typeof ifResult.input === 'object') {
+            Object.assign(templateVars, flattenOutput(ifResult.input as Record<string, unknown>))
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────
 
         // ── Loop: execute "each" branch for every item ──────────────────────
         if (node.type === 'logic.loop') {
@@ -1239,5 +1300,55 @@ async function executeDrive(
 
     default:
       return input
+  }
+}
+
+// ─── SINGLE NODE EXECUTION (for testing) ─────────────────────────────────────
+
+export async function executeSingleNode(
+  automationId: string,
+  nodeId: string,
+  inputData: unknown
+): Promise<{ output: unknown; error?: string; duration_ms: number }> {
+  const { data: automation } = await supabase
+    .from('automations')
+    .select('*, automation_nodes(*), automation_edges(*)')
+    .eq('id', automationId)
+    .single()
+
+  if (!automation) throw new Error('Automação não encontrada')
+
+  const nodes = (automation.automation_nodes || []) as AutomationNode[]
+  const node = nodes.find((n) => n.id === nodeId)
+  if (!node) throw new Error('Node não encontrado')
+
+  const { data: client } = automation.client_id
+    ? await supabase.from('clients').select('*').eq('id', automation.client_id).single()
+    : { data: null }
+  const campaigns = automation.client_id ? await getCampaigns(automation.client_id) : []
+  const settings = await getSettings()
+
+  const context: ExecutionContext = {
+    client: client as Client,
+    campaigns,
+    settings: settings || ({} as Settings),
+    executionId: 'preview',
+    triggerPayload: inputData,
+  }
+
+  const templateVars: Record<string, unknown> = {
+    hoje: new Date().toLocaleDateString('pt-BR'),
+    cliente: client ? { nome: (client as Client).name, contexto: (client as Client).context } : {},
+    input: inputData,
+  }
+
+  const interpolatedConfig = interpolateConfig(node.config, templateVars)
+  const startTime = Date.now()
+  try {
+    const output = await executeNode(node, interpolatedConfig, inputData, context)
+    return { output, duration_ms: Date.now() - startTime }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { output: null, error: message, duration_ms: Date.now() - startTime }
   }
 }

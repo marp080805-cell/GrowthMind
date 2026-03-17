@@ -10,11 +10,16 @@ import {
   useNodesState,
   useEdgesState,
   BackgroundVariant,
+  EdgeLabelRenderer,
+  BaseEdge,
+  getSmoothStepPath,
   type Connection,
   type Node,
   type Edge,
   type NodeTypes,
+  type EdgeTypes,
   type ReactFlowInstance,
+  type EdgeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { FlowNode } from './flow-node'
@@ -25,12 +30,87 @@ import type { AutomationNode, AutomationEdge, NodeLog } from '@/lib/api'
 
 const nodeTypes: NodeTypes = { flowNode: FlowNode as NodeTypes[string] }
 
+// Custom edge with draggable midpoint for route control
+function FlowEdge({
+  id, sourceX, sourceY, targetX, targetY,
+  sourcePosition, targetPosition, data, selected, markerEnd, style,
+}: EdgeProps) {
+  const [midOffset, setMidOffset] = useState<{ x: number; y: number }>(
+    (data as Record<string, unknown>)?.midOffset as { x: number; y: number } || { x: 0, y: 0 }
+  )
+  const [dragging, setDragging] = useState(false)
+  const dragStart = useRef<{ mx: number; my: number; ox: number; oy: number } | null>(null)
+
+  const defaultMidX = (sourceX + targetX) / 2 + midOffset.x
+  const defaultMidY = (sourceY + targetY) / 2 + midOffset.y
+
+  const [edgePath] = getSmoothStepPath({
+    sourceX, sourceY, sourcePosition,
+    targetX, targetY, targetPosition,
+    centerX: defaultMidX,
+    centerY: defaultMidY,
+    borderRadius: 12,
+  })
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    dragStart.current = { mx: e.clientX, my: e.clientY, ox: midOffset.x, oy: midOffset.y }
+    setDragging(true)
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragStart.current) return
+      setMidOffset({
+        x: dragStart.current.ox + (ev.clientX - dragStart.current.mx),
+        y: dragStart.current.oy + (ev.clientY - dragStart.current.my),
+      })
+    }
+    const onUp = () => {
+      setDragging(false)
+      dragStart.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+      <EdgeLabelRenderer>
+        <div
+          style={{
+            position: 'absolute',
+            transform: `translate(-50%, -50%) translate(${defaultMidX}px,${defaultMidY}px)`,
+            pointerEvents: 'all',
+          }}
+          className="nodrag nopan"
+        >
+          <div
+            onMouseDown={onMouseDown}
+            className={`w-3 h-3 rounded-full border-2 cursor-grab active:cursor-grabbing transition-all ${
+              dragging || selected
+                ? 'bg-accent border-accent opacity-100 scale-125'
+                : 'bg-bg2 border-accent/40 opacity-0 hover:opacity-100'
+            }`}
+            title="Arraste para reposicionar a linha"
+          />
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  )
+}
+
+const edgeTypes: EdgeTypes = { flowEdge: FlowEdge as EdgeTypes[string] }
+
 interface BuilderCanvasProps {
   initialNodes: AutomationNode[]
   initialEdges: AutomationEdge[]
   onChange: (nodes: AutomationNode[], edges: AutomationEdge[]) => void
   isActive?: boolean
   executionState?: Record<string, NodeLog>
+  automationId?: string
 }
 
 function apiNodesToFlow(apiNodes: AutomationNode[], executionState: Record<string, NodeLog> = {}): Node[] {
@@ -50,12 +130,14 @@ function apiNodesToFlow(apiNodes: AutomationNode[], executionState: Record<strin
 function apiEdgesToFlow(apiEdges: AutomationEdge[]): Edge[] {
   return apiEdges.map((e) => ({
     id: e.id,
+    type: 'flowEdge',
     source: e.source,
     target: e.target,
     sourceHandle: e.sourceHandle || 'default',
     targetHandle: e.targetHandle || 'default',
     animated: false,
     style: { stroke: 'var(--accent)', strokeWidth: 2 },
+    data: {},
   }))
 }
 
@@ -72,7 +154,7 @@ function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
   })
 }
 
-export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, executionState = {} }: BuilderCanvasProps) {
+export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, executionState = {}, automationId }: BuilderCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(apiNodesToFlow(initialNodes, executionState))
   const [edges, setEdges, onEdgesChange] = useEdgesState(apiEdgesToFlow(initialEdges))
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
@@ -124,8 +206,10 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
         const newEdges = addEdge({
           ...connection,
           id: crypto.randomUUID(),
+          type: 'flowEdge',
           animated: isActive,
           style: { stroke: 'var(--accent)', strokeWidth: 2 },
+          data: {},
         }, eds)
         notifyChange(nodes, newEdges)
         return newEdges
@@ -236,10 +320,11 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
           onPaneClick={() => setSelectedNodeId(null)}
           onInit={setRfInstance}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
           snapToGrid
           snapGrid={[14, 14]}
-          defaultEdgeOptions={{ style: { stroke: 'var(--accent)', strokeWidth: 2 } }}
+          defaultEdgeOptions={{ type: 'flowEdge', style: { stroke: 'var(--accent)', strokeWidth: 2 }, data: {} }}
         >
           <Background
             variant={BackgroundVariant.Dots}
@@ -267,19 +352,26 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
       </div>
 
       {/* Inspector */}
-      {selectedNode && (
-        <Inspector
-          nodeId={selectedNode.id}
-          nodeType={selectedNode.data.type as string}
-          nodeLabel={(selectedNode.data.label as string) || ''}
-          config={(selectedNode.data.config as Record<string, unknown>) || {}}
-          onConfigChange={handleConfigChange}
-          onLabelChange={handleLabelChange}
-          onDelete={handleDeleteNode}
-          onClose={() => setSelectedNodeId(null)}
-          executionLog={(selectedNode.data.executionLog as NodeLog) || undefined}
-        />
-      )}
+      {selectedNode && (() => {
+        // Find the predecessor node (source of an edge pointing to selectedNode)
+        const incomingEdge = edges.find(e => e.target === selectedNode.id)
+        const previousNodeLog = incomingEdge ? (executionState[incomingEdge.source] || null) : null
+        return (
+          <Inspector
+            nodeId={selectedNode.id}
+            nodeType={selectedNode.data.type as string}
+            nodeLabel={(selectedNode.data.label as string) || ''}
+            config={(selectedNode.data.config as Record<string, unknown>) || {}}
+            onConfigChange={handleConfigChange}
+            onLabelChange={handleLabelChange}
+            onDelete={handleDeleteNode}
+            onClose={() => setSelectedNodeId(null)}
+            executionLog={(selectedNode.data.executionLog as NodeLog) || undefined}
+            previousNodeLog={previousNodeLog || undefined}
+            automationId={automationId}
+          />
+        )
+      })()}
     </div>
   )
 }

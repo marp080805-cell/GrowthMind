@@ -251,6 +251,7 @@ export default function BuilderPage() {
             onChange={handleChange}
             isActive={automation?.is_active}
             executionState={executionState}
+            automationId={automationId}
           />
         </div>
 
