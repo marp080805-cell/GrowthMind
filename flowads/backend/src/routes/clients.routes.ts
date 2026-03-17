@@ -61,7 +61,8 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
       await supabase.from('automations').delete().in('id', automationIds)
     }
 
-    // 5. Delete campaigns, agents, sponsored_posts
+    // 5. Delete agent_memory, campaigns, agents, sponsored_posts
+    await supabase.from('agent_memory').delete().eq('client_id', id)
     await supabase.from('campaigns').delete().eq('client_id', id)
     await supabase.from('agents').delete().eq('client_id', id)
     await supabase.from('sponsored_posts').delete().eq('client_id', id)

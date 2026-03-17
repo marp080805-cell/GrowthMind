@@ -45,9 +45,11 @@ export const usersRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.delete('/users/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
-    await supabase.auth.admin.deleteUser(id)
+    // Nullify user_id on clients referencing this user (no CASCADE on FK)
+    await supabase.from('clients').update({ user_id: null }).eq('user_id', id)
     const { error } = await supabase.from('users').delete().eq('id', id)
     if (error) throw error
+    await supabase.auth.admin.deleteUser(id)
     return reply.status(204).send()
   })
 }
