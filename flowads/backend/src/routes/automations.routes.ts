@@ -153,6 +153,8 @@ export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete('/automations/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
     await unscheduleAutomation(id)
+    // Delete execution_logs first (no CASCADE on automation_id FK)
+    await supabase.from('execution_logs').delete().eq('automation_id', id)
     const { error } = await supabase.from('automations').delete().eq('id', id)
     if (error) throw error
     return reply.status(204).send()
