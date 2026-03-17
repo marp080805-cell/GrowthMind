@@ -167,10 +167,14 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
     if (token && adAccountId) {
       try {
         const meta = new MetaService(token, adAccountId)
-        const campaigns = await meta.getCampaigns()
+        const allCampaigns = await meta.getCampaigns()
 
-        // Sync to DB
-        for (const campaign of campaigns) {
+        // Only keep ACTIVE campaigns
+        const activeCampaigns = allCampaigns.filter((c) => c.status === 'ACTIVE')
+        const activeIds = activeCampaigns.map((c) => c.id)
+
+        // Upsert active campaigns
+        for (const campaign of activeCampaigns) {
           await supabase.from('campaigns').upsert({
             client_id: id,
             meta_campaign_id: campaign.id,
@@ -181,12 +185,22 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
             synced_at: new Date().toISOString(),
           }, { onConflict: 'client_id,meta_campaign_id' })
         }
+
+        // Remove campaigns no longer active from DB
+        if (activeIds.length > 0) {
+          await supabase.from('campaigns').delete()
+            .eq('client_id', id)
+            .not('meta_campaign_id', 'in', `(${activeIds.map((i) => `"${i}"`).join(',')})`)
+        } else {
+          // No active campaigns — clear all for this client
+          await supabase.from('campaigns').delete().eq('client_id', id)
+        }
       } catch (err) {
         console.warn('Could not sync campaigns from Meta API:', err)
       }
     }
 
-    const { data } = await supabase.from('campaigns').select('*').eq('client_id', id)
+    const { data } = await supabase.from('campaigns').select('*').eq('client_id', id).eq('status', 'ACTIVE')
     return data || []
   })
 
