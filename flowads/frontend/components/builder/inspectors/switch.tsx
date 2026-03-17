@@ -1,8 +1,9 @@
 'use client'
 
+import { useRef, useState } from 'react'
 import { VariableAutocomplete } from '../variable-autocomplete'
 import type { InspectorFieldProps } from '../inspector'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, GripVertical } from 'lucide-react'
 
 interface SwitchCase {
   id: string
@@ -33,6 +34,31 @@ export function SwitchInspector({ config, onChange }: InspectorFieldProps) {
     set('cases', cases.filter(c => c.id !== id))
   }
 
+  // ── Drag-to-reorder ──────────────────────────────────────────────
+  const dragIndex = useRef<number | null>(null)
+  const [dragOver, setDragOver] = useState<number | null>(null)
+
+  const handleDragStart = (i: number) => { dragIndex.current = i }
+
+  const handleDragOver = (e: React.DragEvent, i: number) => {
+    e.preventDefault()
+    setDragOver(i)
+  }
+
+  const handleDrop = (targetIndex: number) => {
+    const from = dragIndex.current
+    if (from === null || from === targetIndex) { setDragOver(null); return }
+    const reordered = [...cases]
+    const [moved] = reordered.splice(from, 1)
+    reordered.splice(targetIndex, 0, moved)
+    set('cases', reordered)
+    dragIndex.current = null
+    setDragOver(null)
+  }
+
+  const handleDragEnd = () => { dragIndex.current = null; setDragOver(null) }
+  // ────────────────────────────────────────────────────────────────
+
   return (
     <>
       <div className="flex flex-col gap-1.5">
@@ -62,9 +88,22 @@ export function SwitchInspector({ config, onChange }: InspectorFieldProps) {
         )}
 
         {cases.map((c, i) => (
-          <div key={c.id} className="bg-bg3 border border-[var(--border)] rounded-[8px] p-2.5 flex flex-col gap-2">
+          <div
+            key={c.id}
+            draggable
+            onDragStart={() => handleDragStart(i)}
+            onDragOver={(e) => handleDragOver(e, i)}
+            onDrop={() => handleDrop(i)}
+            onDragEnd={handleDragEnd}
+            className={`bg-bg3 border rounded-[8px] p-2.5 flex flex-col gap-2 transition-all ${
+              dragOver === i ? 'border-accent shadow-[0_0_0_1px_var(--accent)] scale-[1.01]' : 'border-[var(--border)]'
+            }`}
+          >
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-syne font-bold text-accent">Saída {i + 1}</span>
+              <div className="flex items-center gap-1.5">
+                <GripVertical size={12} className="text-text3 cursor-grab active:cursor-grabbing shrink-0" />
+                <span className="text-[10px] font-syne font-bold text-accent">Saída {i + 1}</span>
+              </div>
               <button
                 onClick={() => removeCase(c.id)}
                 className="text-red-400 hover:text-red-300 transition-colors"
