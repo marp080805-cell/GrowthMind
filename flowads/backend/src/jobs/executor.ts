@@ -977,8 +977,8 @@ async function executeLogic(
         case '<=': result = parseFloat(actual) <= parseFloat(value); break
         case '=': result = actual === value; break
         case '!=': result = actual !== value; break
-        case 'contains': result = actual.includes(value); break
-        case 'not_contains': result = !actual.includes(value); break
+        case 'contains': result = actual.toLowerCase().includes(value.toLowerCase()); break
+        case 'not_contains': result = !actual.toLowerCase().includes(value.toLowerCase()); break
         case 'is_empty': result = !actual || actual === 'null' || actual === 'undefined'; break
         case 'not_empty': result = !!actual && actual !== 'null' && actual !== 'undefined'; break
       }
@@ -1047,8 +1047,8 @@ async function executeLogic(
           case '<=': return parseFloat(itemVal) <= parseFloat(value)
           case '=': return itemVal === value
           case '!=': return itemVal !== value
-          case 'contains': return itemVal.includes(value)
-          case 'not_contains': return !itemVal.includes(value)
+          case 'contains': return itemVal.toLowerCase().includes(value.toLowerCase())
+          case 'not_contains': return !itemVal.toLowerCase().includes(value.toLowerCase())
           case 'is_empty': return !itemVal
           case 'not_empty': return !!itemVal
           default: return true
