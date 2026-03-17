@@ -124,6 +124,9 @@ export const presetsApi = {
   list: () => api.get<Preset[]>('/presets'),
   apply: (presetId: string, clientId: string) =>
     api.post<Automation>('/presets/apply', { presetId, clientId }),
+  createFromAutomation: (data: { automation_id: string; name: string; description?: string; icon?: string; tags?: string[] }) =>
+    api.post<Preset>('/presets/from-automation', data),
+  delete: (id: string) => api.delete(`/presets/${id}`),
 }
 
 // Users

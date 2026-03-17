@@ -64,4 +64,41 @@ export const presetsRoutes: FastifyPluginAsync = async (fastify) => {
 
     return automation
   })
+
+  // Create preset from an existing automation
+  fastify.post('/presets/from-automation', async (req) => {
+    const { automation_id, name, description, icon, tags } = req.body as {
+      automation_id: string; name: string; description?: string; icon?: string; tags?: string[]
+    }
+
+    const [{ data: nodes }, { data: edges }] = await Promise.all([
+      supabase.from('automation_nodes').select('*').eq('automation_id', automation_id),
+      supabase.from('automation_edges').select('*').eq('automation_id', automation_id),
+    ])
+
+    const presetNodes = (nodes || []).map((n) => ({
+      id: n.id, type: n.type, label: n.label, config: n.config,
+      position: { x: n.position_x, y: n.position_y },
+    }))
+
+    const presetEdges = (edges || []).map((e) => ({
+      id: e.id, source: e.source_node_id, target: e.target_node_id,
+      sourceHandle: e.source_handle, targetHandle: e.target_handle,
+    }))
+
+    const { data, error } = await supabase.from('presets').insert({
+      name, description: description || '', icon: icon || '⚡',
+      tags: tags || [], nodes: presetNodes, edges: presetEdges, is_system: false,
+    }).select().single()
+
+    if (error) throw error
+    return data
+  })
+
+  fastify.delete('/presets/:id', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const { error } = await supabase.from('presets').delete().eq('id', id)
+    if (error) throw error
+    return reply.status(204).send()
+  })
 }

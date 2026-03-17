@@ -16,7 +16,7 @@ import { formatDateTime } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import {
   Plus, Copy, Pencil, Trash2, ChevronRight,
-  Layers, Search, Zap,
+  Layers, Search, Zap, BookmarkPlus,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -45,8 +45,16 @@ export default function AutomacoesPage() {
   const [targetClientId, setTargetClientId] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // Delete confirm
+  // Delete automation confirm
   const [deleting, setDeleting] = useState<string | null>(null)
+
+  // Delete template confirm
+  const [deletingPreset, setDeletingPreset] = useState<Preset | null>(null)
+
+  // Save as template modal
+  const [savingAsTemplate, setSavingAsTemplate] = useState<AutomationWithClient | null>(null)
+  const [templateForm, setTemplateForm] = useState({ name: '', description: '', icon: '⚡', tags: '' })
+  const [savingTemplate, setSavingTemplate] = useState(false)
 
   // New automation modal
   const [showNewModal, setShowNewModal] = useState(false)
@@ -103,6 +111,45 @@ export default function AutomacoesPage() {
       error(e instanceof Error ? e.message : 'Erro ao duplicar')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDeletePreset = async () => {
+    if (!deletingPreset) return
+    try {
+      await presetsApi.delete(deletingPreset.id)
+      setPresets((prev) => prev.filter((p) => p.id !== deletingPreset.id))
+      setDeletingPreset(null)
+      success('Template removido')
+    } catch {
+      error('Erro ao remover template')
+    }
+  }
+
+  const openSaveAsTemplate = (auto: AutomationWithClient) => {
+    setTemplateForm({ name: auto.name, description: '', icon: '⚡', tags: '' })
+    setSavingAsTemplate(auto)
+  }
+
+  const handleSaveAsTemplate = async () => {
+    if (!savingAsTemplate) return
+    setSavingTemplate(true)
+    try {
+      const tags = templateForm.tags.split(',').map((t) => t.trim()).filter(Boolean)
+      const preset = await presetsApi.createFromAutomation({
+        automation_id: savingAsTemplate.id,
+        name: templateForm.name,
+        description: templateForm.description,
+        icon: templateForm.icon,
+        tags,
+      })
+      setPresets((prev) => [...prev, preset])
+      setSavingAsTemplate(null)
+      success('Template criado com sucesso!')
+    } catch {
+      error('Erro ao criar template')
+    } finally {
+      setSavingTemplate(false)
     }
   }
 
@@ -214,6 +261,13 @@ export default function AutomacoesPage() {
                     >
                       <Copy size={14} />
                     </button>
+                    <button
+                      title="Salvar como template"
+                      onClick={() => openSaveAsTemplate(auto)}
+                      className="p-1.5 rounded-[8px] hover:bg-accent/10 text-text3 hover:text-accent transition-colors"
+                    >
+                      <BookmarkPlus size={14} />
+                    </button>
                     <Link
                       href={`/clients/${auto.client_id}/automations/${auto.id}`}
                       className="p-1.5 rounded-[8px] hover:bg-surface2 text-text3 hover:text-text transition-colors"
@@ -238,39 +292,56 @@ export default function AutomacoesPage() {
       )}
 
       {tab === 'templates' && (
-        <div className="grid grid-cols-3 gap-4">
-          {filteredPresets.map((preset) => (
-            <div
-              key={preset.id}
-              className="bg-surface border border-[var(--border)] rounded-lg p-5 hover:border-[var(--border2)] transition-all"
-            >
-              <div className="flex items-start gap-3 mb-3">
-                <span className="text-3xl">{preset.icon}</span>
-                <div>
-                  <h3 className="font-syne font-semibold text-text">{preset.name}</h3>
-                  <p className="text-xs text-text2 mt-0.5">{preset.description}</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {preset.tags.map((tag) => (
-                  <Badge key={tag} variant={TAG_COLORS[tag.toLowerCase()] || 'default'}>{tag}</Badge>
-                ))}
-              </div>
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-[10px] text-text3">{preset.nodes?.length || 0} blocos</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => { setDuplicating(preset); setIsDuplicatingPreset(true); setTargetClientId('') }}
-                >
-                  <Layers size={13} />
-                  Usar template
-                  <ChevronRight size={13} />
-                </Button>
-              </div>
+        <>
+          {filteredPresets.length === 0 ? (
+            <div className="text-center py-16 text-text3">
+              <Layers size={32} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">Nenhum template ainda</p>
+              <p className="text-xs mt-1 opacity-60">Clique em <BookmarkPlus size={12} className="inline" /> em uma automação para salvá-la como template</p>
             </div>
-          ))}
-        </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-4">
+              {filteredPresets.map((preset) => (
+                <div
+                  key={preset.id}
+                  className="relative group bg-surface border border-[var(--border)] rounded-lg p-5 hover:border-[var(--border2)] transition-all"
+                >
+                  <button
+                    onClick={() => setDeletingPreset(preset)}
+                    className="absolute top-3 right-3 p-1.5 rounded-[8px] opacity-0 group-hover:opacity-100 hover:bg-red/10 text-text3 hover:text-red transition-all"
+                    title="Excluir template"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                  <div className="flex items-start gap-3 mb-3">
+                    <span className="text-3xl">{preset.icon}</span>
+                    <div className="pr-6">
+                      <h3 className="font-syne font-semibold text-text">{preset.name}</h3>
+                      <p className="text-xs text-text2 mt-0.5">{preset.description}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {preset.tags.map((tag) => (
+                      <Badge key={tag} variant={TAG_COLORS[tag.toLowerCase()] || 'default'}>{tag}</Badge>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-[10px] text-text3">{preset.nodes?.length || 0} blocos</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setDuplicating(preset); setIsDuplicatingPreset(true); setTargetClientId('') }}
+                    >
+                      <Layers size={13} />
+                      Usar template
+                      <ChevronRight size={13} />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Duplicate / Apply modal */}
@@ -334,7 +405,7 @@ export default function AutomacoesPage() {
         </div>
       </Modal>
 
-      {/* Delete confirm */}
+      {/* Delete automation confirm */}
       <Modal
         open={!!deleting}
         onClose={() => setDeleting(null)}
@@ -346,6 +417,75 @@ export default function AutomacoesPage() {
           <Button variant="danger" onClick={() => deleting && handleDelete(deleting)} className="flex-1">
             Remover
           </Button>
+        </div>
+      </Modal>
+
+      {/* Delete template confirm */}
+      <Modal
+        open={!!deletingPreset}
+        onClose={() => setDeletingPreset(null)}
+        title="Remover template"
+        description={`Remover template "${deletingPreset?.name}"? Esta ação não pode ser desfeita.`}
+      >
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => setDeletingPreset(null)} className="flex-1">Cancelar</Button>
+          <Button variant="danger" onClick={handleDeletePreset} className="flex-1">Remover</Button>
+        </div>
+      </Modal>
+
+      {/* Save as template modal */}
+      <Modal
+        open={!!savingAsTemplate}
+        onClose={() => setSavingAsTemplate(null)}
+        title="Salvar como template"
+        description="Esta automação será salva como template reutilizável para qualquer cliente."
+      >
+        <div className="space-y-4">
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 w-16">
+              <label className="text-sm font-medium text-text2 font-syne">Ícone</label>
+              <input
+                value={templateForm.icon}
+                onChange={(e) => setTemplateForm((p) => ({ ...p, icon: e.target.value }))}
+                className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-center text-xl focus:outline-none focus:border-accent"
+                maxLength={2}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-sm font-medium text-text2 font-syne">Nome *</label>
+              <input
+                value={templateForm.name}
+                onChange={(e) => setTemplateForm((p) => ({ ...p, name: e.target.value }))}
+                className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent"
+                placeholder="Nome do template"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-text2 font-syne">Descrição</label>
+            <input
+              value={templateForm.description}
+              onChange={(e) => setTemplateForm((p) => ({ ...p, description: e.target.value }))}
+              className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent"
+              placeholder="Descreva o que essa automação faz..."
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-text2 font-syne">Tags <span className="text-text3 font-normal">(separadas por vírgula)</span></label>
+            <input
+              value={templateForm.tags}
+              onChange={(e) => setTemplateForm((p) => ({ ...p, tags: e.target.value }))}
+              className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent"
+              placeholder="ex: meta, instagram, agendamento"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setSavingAsTemplate(null)} className="flex-1">Cancelar</Button>
+            <Button onClick={handleSaveAsTemplate} loading={savingTemplate} disabled={!templateForm.name} className="flex-1">
+              <BookmarkPlus size={14} />
+              Salvar template
+            </Button>
+          </div>
         </div>
       </Modal>
     </Shell>
