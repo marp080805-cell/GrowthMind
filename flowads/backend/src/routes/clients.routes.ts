@@ -153,54 +153,53 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
     }
   })
 
-  // Campaigns
+  // Campaigns — read from DB (fast, no Meta API call)
   fastify.get('/clients/:id/campaigns', async (req) => {
+    const { id } = req.params as { id: string }
+    const { data } = await supabase.from('campaigns').select('*').eq('client_id', id).eq('status', 'ACTIVE').order('name', { ascending: true })
+    return data || []
+  })
+
+  // Campaigns sync — fetch from Meta API, update DB, return active
+  fastify.post('/clients/:id/campaigns/sync', async (req, reply) => {
     const { id } = req.params as { id: string }
 
     const { data: client } = await supabase.from('clients').select('*').eq('id', id).single()
-    if (!client) throw new Error('Cliente não encontrado')
+    if (!client) return reply.status(404).send({ message: 'Cliente não encontrado' })
 
-    // Fallback: use global settings token if client doesn't have its own
     const token = client.meta_token || (await supabase.from('settings').select('meta_token').single()).data?.meta_token
     const adAccountId = client.ad_account_id
 
-    if (token && adAccountId) {
-      try {
-        const meta = new MetaService(token, adAccountId)
-        const allCampaigns = await meta.getCampaigns()
+    if (!token || !adAccountId) return reply.status(400).send({ message: 'Token Meta ou Ad Account não configurado' })
 
-        // Only keep ACTIVE campaigns
-        const activeCampaigns = allCampaigns.filter((c) => c.status === 'ACTIVE')
-        const activeIds = activeCampaigns.map((c) => c.id)
+    const meta = new MetaService(token, adAccountId)
+    const allCampaigns = await meta.getCampaigns()
 
-        // Upsert active campaigns
-        for (const campaign of activeCampaigns) {
-          await supabase.from('campaigns').upsert({
-            client_id: id,
-            meta_campaign_id: campaign.id,
-            name: campaign.name,
-            status: campaign.status,
-            objective: campaign.objective,
-            budget: campaign.daily_budget ? parseInt(campaign.daily_budget) / 100 : 0,
-            synced_at: new Date().toISOString(),
-          }, { onConflict: 'client_id,meta_campaign_id' })
-        }
+    const activeCampaigns = allCampaigns.filter((c) => c.status === 'ACTIVE')
+    const activeIds = activeCampaigns.map((c) => c.id)
 
-        // Remove campaigns no longer active from DB
-        if (activeIds.length > 0) {
-          await supabase.from('campaigns').delete()
-            .eq('client_id', id)
-            .not('meta_campaign_id', 'in', `(${activeIds.map((i) => `"${i}"`).join(',')})`)
-        } else {
-          // No active campaigns — clear all for this client
-          await supabase.from('campaigns').delete().eq('client_id', id)
-        }
-      } catch (err) {
-        console.warn('Could not sync campaigns from Meta API:', err)
-      }
+    for (const campaign of activeCampaigns) {
+      await supabase.from('campaigns').upsert({
+        client_id: id,
+        meta_campaign_id: campaign.id,
+        name: campaign.name,
+        status: campaign.status,
+        objective: campaign.objective,
+        budget: campaign.daily_budget ? parseInt(campaign.daily_budget) / 100 : 0,
+        synced_at: new Date().toISOString(),
+      }, { onConflict: 'client_id,meta_campaign_id' })
     }
 
-    const { data } = await supabase.from('campaigns').select('*').eq('client_id', id).eq('status', 'ACTIVE')
+    // Remove campaigns no longer active from DB
+    if (activeIds.length > 0) {
+      await supabase.from('campaigns').delete()
+        .eq('client_id', id)
+        .not('meta_campaign_id', 'in', `(${activeIds.map((i) => `"${i}"`).join(',')})`)
+    } else {
+      await supabase.from('campaigns').delete().eq('client_id', id)
+    }
+
+    const { data } = await supabase.from('campaigns').select('*').eq('client_id', id).eq('status', 'ACTIVE').order('name', { ascending: true })
     return data || []
   })
 

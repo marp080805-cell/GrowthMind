@@ -82,7 +82,7 @@ export default function ClientDetailPage() {
   const syncCampaigns = async () => {
     setSyncingCampaigns(true)
     try {
-      const updated = await campaignsApi.list(id)
+      const updated = await campaignsApi.sync(id)
       setCampaigns(updated)
       success('Campanhas sincronizadas!')
     } catch {

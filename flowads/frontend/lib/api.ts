@@ -60,6 +60,7 @@ export const clientsApi = {
 // Campaigns
 export const campaignsApi = {
   list: (clientId: string) => api.get<Campaign[]>(`/clients/${clientId}/campaigns`),
+  sync: (clientId: string) => api.post<Campaign[]>(`/clients/${clientId}/campaigns/sync`),
   updateContext: (clientId: string, campaignId: string, context: string) =>
     api.put(`/clients/${clientId}/campaigns/${campaignId}/context`, { context }),
 }
