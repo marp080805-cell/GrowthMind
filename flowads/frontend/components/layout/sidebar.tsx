@@ -93,11 +93,6 @@ export function Sidebar({ user }: SidebarProps) {
                       <item.icon size={16} />
                       {item.label}
                     </div>
-                    {'badge' in item && item.badge && (
-                      <span className="text-[10px] font-syne font-bold bg-surface2 text-text3 px-1.5 py-0.5 rounded-md">
-                        {item.badge as string}
-                      </span>
-                    )}
                   </Link>
                 )
               })}
