@@ -694,10 +694,12 @@ async function executeMeta(
       const instagramAccountId = (config.instagram_account_id as string)
         || (inputRecord.instagram_account_id as string)
         || context.client?.instagram_account_id
+      const pageId = (config.page_id as string) || context.client?.facebook_page_id || undefined
       const clientId = context.client?.id
 
       if (!posts.length) return { ads_criados: 0, posts_pulados: 0, detalhes: [] }
       if (!instagramAccountId) throw new Error('ID da conta Instagram não encontrado. Configure no cadastro do cliente.')
+      if (!pageId) throw new Error('Página do Facebook não configurada. Configure no cadastro do cliente.')
       if (!clientId) throw new Error('Cliente não identificado no contexto da automação.')
 
       // 1. Posts já registrados na nossa tabela (criados pelo FlowAds)
@@ -737,6 +739,7 @@ async function executeMeta(
           const result = await meta.createAdFromInstagramPost({
             postId: post.id,
             instagramAccountId,
+            pageId,
             adsetId,
             adName,
             status,
