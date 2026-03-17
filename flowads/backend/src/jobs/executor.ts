@@ -674,28 +674,12 @@ async function executeMeta(
 
       if (!posts.length) return { posts: [], total: 0, posts_pulados: 0, instagram_account_id: instagramAccountId }
 
-      // 1. Posts já registrados na nossa tabela
-      const { data: alreadySponsored } = await supabase
-        .from('sponsored_posts')
-        .select('post_id')
-        .eq('client_id', clientId)
-      const sponsoredIds = new Set((alreadySponsored || []).map((r: { post_id: string }) => r.post_id))
-
-      // 2. Verificar via Meta API uma única vez (em vez de N chamadas no loop)
-      //    GET /ads?fields=creative{source_instagram_media_id}&filtering=[effective_status IN [...]]
+      // Verificar APENAS via Meta API quais posts já foram patrocinados.
+      // Não usamos a tabela interna sponsored_posts para evitar falsos positivos
+      // quando um anúncio foi deletado no Meta mas ainda está salvo localmente.
       const metaSponsoredIds = await meta.getSponsoredInstagramPostIds()
-      const toUpsert: Array<{ client_id: string; instagram_account_id: string; post_id: string }> = []
-      for (const post of posts) {
-        if (!sponsoredIds.has(post.id) && metaSponsoredIds.has(post.id)) {
-          sponsoredIds.add(post.id)
-          toUpsert.push({ client_id: clientId as string, instagram_account_id: instagramAccountId as string, post_id: post.id })
-        }
-      }
-      if (toUpsert.length) {
-        await supabase.from('sponsored_posts').upsert(toUpsert, { onConflict: 'client_id,post_id', ignoreDuplicates: true })
-      }
 
-      const filteredPosts = posts.filter((p) => !sponsoredIds.has(p.id))
+      const filteredPosts = posts.filter((p) => !metaSponsoredIds.has(p.id))
       return {
         posts: filteredPosts,
         total: filteredPosts.length,
