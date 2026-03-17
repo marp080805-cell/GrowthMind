@@ -42,6 +42,31 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.delete('/clients/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
+
+    // Delete in dependency order to avoid FK constraint errors
+    // 1. Get all automation IDs for this client
+    const { data: automations } = await supabase
+      .from('automations')
+      .select('id')
+      .eq('client_id', id)
+    const automationIds = (automations || []).map((a) => a.id)
+
+    if (automationIds.length > 0) {
+      // 2. Delete nodes and edges
+      await supabase.from('automation_nodes').delete().in('automation_id', automationIds)
+      await supabase.from('automation_edges').delete().in('automation_id', automationIds)
+      // 3. Delete execution logs
+      await supabase.from('execution_logs').delete().in('automation_id', automationIds)
+      // 4. Delete automations
+      await supabase.from('automations').delete().in('id', automationIds)
+    }
+
+    // 5. Delete campaigns, agents, sponsored_posts
+    await supabase.from('campaigns').delete().eq('client_id', id)
+    await supabase.from('agents').delete().eq('client_id', id)
+    await supabase.from('sponsored_posts').delete().eq('client_id', id)
+
+    // 6. Finally delete the client
     const { error } = await supabase.from('clients').delete().eq('id', id)
     if (error) throw error
     return reply.status(204).send()
