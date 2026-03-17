@@ -7,7 +7,7 @@ VALUES (
   'Sincronizar Posts Instagram',
   'Busca posts recentes do Instagram, filtra os não patrocinados e cria anúncios automaticamente para cada post novo.',
   '📸',
-  ARRAY['instagram', 'meta', 'anúncios', 'automático'],
+  '["instagram", "meta", "anúncios", "automático"]'::jsonb,
   '[
     {"id":"00bc97c9-2033-4bed-b48e-a5b783f2c505","type":"trigger.schedule","label":"Todo dia às 10h","config":{"time":"10:00","frequency":"daily"},"position":{"x":260,"y":0}},
     {"id":"88257e77-1f9f-442d-8be4-d26ed707a26a","type":"meta.fetch_instagram_posts","label":"Buscar posts recentes","config":{"limit":10,"period":"7d","date_to":"","date_from":"","media_type":"FEED"},"position":{"x":266,"y":182}},
