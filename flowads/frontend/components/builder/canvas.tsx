@@ -335,7 +335,23 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
         const updated = nds.map((n) =>
           n.id === selectedNodeId ? { ...n, data: { ...n.data, config } } : n
         )
-        notifyChange(updated, edges)
+        // For Switch nodes: remove edges whose sourceHandle no longer matches any case id or 'default'
+        const changedNode = nds.find((n) => n.id === selectedNodeId)
+        if (changedNode && (changedNode.data as { type?: string }).type === 'logic.switch') {
+          const validHandles = new Set([
+            ...((config.cases as Array<{ id: string }>) || []).map((c) => c.id),
+            'default',
+          ])
+          setEdges((eds) => {
+            const filtered = eds.filter(
+              (e) => e.source !== selectedNodeId || validHandles.has(e.sourceHandle ?? 'default')
+            )
+            notifyChange(updated, filtered)
+            return filtered
+          })
+        } else {
+          notifyChange(updated, edges)
+        }
         return updated
       })
     },
