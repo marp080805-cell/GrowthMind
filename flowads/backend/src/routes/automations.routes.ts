@@ -96,6 +96,7 @@ export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
       target: e.target_node_id,
       sourceHandle: e.source_handle || 'default',
       targetHandle: e.target_handle || 'default',
+      data: e.data || {},
     }))
 
     return { ...automation, nodes: mappedNodes, edges: mappedEdges }
@@ -142,6 +143,7 @@ export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
           target_node_id: e.target as string,
           source_handle: e.sourceHandle || 'default',
           target_handle: e.targetHandle || 'default',
+          data: (e.data as Record<string, unknown>) || {},
         }))
         await supabase.from('automation_edges').insert(dbEdges)
       }
