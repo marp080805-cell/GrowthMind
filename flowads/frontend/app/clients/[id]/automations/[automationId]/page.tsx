@@ -259,7 +259,13 @@ export default function BuilderPage() {
           <ExecutionPanel
             executions={executions}
             liveExecutionId={liveExecutionId}
-            onClose={() => setShowExecutions(false)}
+            onClose={() => { setShowExecutions(false); setExecutionState({}) }}
+            onSelectExecution={(exec) => {
+              if (!exec) { setExecutionState({}); return }
+              const state: Record<string, import('@/lib/api').NodeLog> = {}
+              for (const nodeLog of exec.log_data || []) state[nodeLog.node_id] = nodeLog
+              setExecutionState(state)
+            }}
           />
         )}
       </div>
