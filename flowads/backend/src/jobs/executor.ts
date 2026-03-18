@@ -1471,10 +1471,32 @@ export async function executeSingleNode(
       const output = await executeNode(currentNode, interpolatedConfig, lastOutput, context)
       const duration = Date.now() - startTime
       nodeOutputs[currentNode.id] = { output, duration_ms: duration, input: lastOutput }
-      lastOutput = output
+
+      // Mirror executeAutomation: spread IF output so downstream nodes get flat data + condition flag
+      if (currentNode.type === 'logic.if') {
+        const ifResult = output as { condition: boolean; input: unknown }
+        const ifBaseInput = (ifResult.input && typeof ifResult.input === 'object')
+          ? (ifResult.input as Record<string, unknown>) : {}
+        lastOutput = { ...ifBaseInput, condition: ifResult.condition }
+      } else {
+        lastOutput = output
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       const duration = Date.now() - startTime
+
+      // BRANCH_SKIPPED: stop node on inactive branch — treat as skipped, continue chain
+      if (message === 'BRANCH_SKIPPED') {
+        nodeOutputs[currentNode.id] = { output: null, duration_ms: duration, input: lastOutput }
+        continue
+      }
+
+      // FLOW_STOPPED: stop node triggered — halt chain here (success, not error)
+      if (message === 'FLOW_STOPPED') {
+        nodeOutputs[currentNode.id] = { output: null, duration_ms: duration, input: lastOutput }
+        break
+      }
+
       nodeOutputs[currentNode.id] = { output: null, error: message, duration_ms: duration, input: lastOutput }
       if (currentNode.id === nodeId) {
         return { output: null, error: message, duration_ms: duration, nodeOutputs }
