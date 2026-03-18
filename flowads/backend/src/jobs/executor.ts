@@ -395,18 +395,82 @@ export async function executeAutomation(
             const item = items[i]
             const iterVars: Record<string, unknown> = { ...templateVars, [itemVar]: item, loop_index: i }
             let iterLastOutput: unknown = item
+            const iterSkipped = new Set<string>()
 
             for (const bodyNode of bodyNodesOrdered) {
+              if (iterSkipped.has(bodyNode.id)) {
+                nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'skipped', input: iterLastOutput, output: null, duration_ms: 0 })
+                continue
+              }
+
               const iterStart = Date.now()
               const iterConfig = interpolateConfig(bodyNode.config, iterVars)
               const iterInputSnapshot = iterLastOutput
               try {
                 const iterOutput = await executeNode(bodyNode, iterConfig, iterLastOutput, context)
                 const iterDuration = Date.now() - iterStart
-                iterLastOutput = iterOutput
-                iterVars.input = iterOutput
-                if (iterOutput && typeof iterOutput === 'object') {
-                  Object.assign(iterVars, flattenOutput(iterOutput as Record<string, unknown>))
+
+                // Branch routing for IF/Switch inside loop body
+                const normalizeHandle = (h: string | undefined | null) =>
+                  h === 'true' ? 'yes' : h === 'false' ? 'no' : (h ?? 'default')
+
+                if (bodyNode.type === 'logic.if') {
+                  const ifResult = iterOutput as { condition: boolean; input: unknown }
+                  const activeHandle = ifResult.condition ? 'yes' : 'no'
+                  const inactiveHandle = ifResult.condition ? 'no' : 'yes'
+                  const matchesIF = (e: AutomationEdge, handle: string) =>
+                    (e.source === bodyNode.id || e.source_node_id === bodyNode.id) &&
+                    normalizeHandle(e.sourceHandle ?? e.source_handle) === handle
+                  const activeReachable = new Set<string>()
+                  const activeBfs = edges.filter(e => matchesIF(e, activeHandle)).map(e => e.target || e.target_node_id || '').filter(Boolean)
+                  while (activeBfs.length > 0) {
+                    const nid = activeBfs.shift()!
+                    if (activeReachable.has(nid)) continue
+                    activeReachable.add(nid)
+                    edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t) activeBfs.push(t) })
+                  }
+                  const inactiveTargets = edges.filter(e => matchesIF(e, inactiveHandle)).map(e => e.target || e.target_node_id || '').filter(Boolean)
+                  const inactiveBfs = [...inactiveTargets]
+                  while (inactiveBfs.length > 0) {
+                    const nid = inactiveBfs.shift()!
+                    if (iterSkipped.has(nid) || activeReachable.has(nid)) continue
+                    iterSkipped.add(nid)
+                    edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t && !activeReachable.has(t)) inactiveBfs.push(t) })
+                  }
+                  const ifBaseInput = (ifResult.input && typeof ifResult.input === 'object') ? (ifResult.input as Record<string, unknown>) : {}
+                  iterLastOutput = { ...ifBaseInput, condition: ifResult.condition }
+                } else if (bodyNode.type === 'logic.switch') {
+                  const switchResult = iterOutput as { matched_case: string; input: unknown }
+                  const matchedHandle = switchResult.matched_case
+                  const cases = (bodyNode.config?.cases || []) as Array<{ id: string }>
+                  const allHandles = [...cases.map(c => c.id), 'default']
+                  const inactiveHandles = allHandles.filter(h => h !== matchedHandle)
+                  const activeReachable = new Set<string>()
+                  const activeBfs = edges.filter(e => (e.source === bodyNode.id || e.source_node_id === bodyNode.id) && (e.sourceHandle === matchedHandle || e.source_handle === matchedHandle)).map(e => e.target || e.target_node_id || '').filter(Boolean)
+                  while (activeBfs.length > 0) {
+                    const nid = activeBfs.shift()!
+                    if (activeReachable.has(nid)) continue
+                    activeReachable.add(nid)
+                    edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t) activeBfs.push(t) })
+                  }
+                  for (const h of inactiveHandles) {
+                    const bfs = edges.filter(e => (e.source === bodyNode.id || e.source_node_id === bodyNode.id) && (e.sourceHandle === h || e.source_handle === h)).map(e => e.target || e.target_node_id || '').filter(Boolean)
+                    while (bfs.length > 0) {
+                      const nid = bfs.shift()!
+                      if (iterSkipped.has(nid) || activeReachable.has(nid)) continue
+                      iterSkipped.add(nid)
+                      edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t && !activeReachable.has(t)) bfs.push(t) })
+                    }
+                  }
+                  const switchBaseInput = (switchResult.input && typeof switchResult.input === 'object') ? (switchResult.input as Record<string, unknown>) : {}
+                  iterLastOutput = { ...switchBaseInput, matched_case: matchedHandle }
+                } else {
+                  iterLastOutput = iterOutput
+                }
+
+                iterVars.input = iterLastOutput
+                if (iterLastOutput && typeof iterLastOutput === 'object') {
+                  Object.assign(iterVars, flattenOutput(iterLastOutput as Record<string, unknown>))
                 }
                 nodeLogs.push({
                   node_id: bodyNode.id,
@@ -423,6 +487,10 @@ export async function executeAutomation(
                 if (iterMsg === 'BRANCH_SKIPPED') {
                   nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'skipped', input: iterInputSnapshot, output: null, duration_ms: iterDuration })
                   continue
+                }
+                if (iterMsg === 'FLOW_STOPPED') {
+                  nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'skipped', input: iterInputSnapshot, output: null, duration_ms: iterDuration })
+                  break
                 }
                 nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'error', input: iterInputSnapshot, output: null, error: iterMsg, duration_ms: iterDuration })
                 break // stop remaining body nodes for this item, continue with next item
