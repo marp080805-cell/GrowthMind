@@ -76,17 +76,18 @@ export async function scheduleAutomation(
   const cron = buildCron(triggerConfig)
   if (!cron) return
 
+  const tz = process.env.SCHEDULER_TIMEZONE || 'America/Sao_Paulo'
   await automationQueue.add(
     automationId,
     { automationId, payload: null },
     {
-      repeat: { pattern: cron },
+      repeat: { pattern: cron, tz },
       jobId: automationId,
       removeOnComplete: true,
       removeOnFail: 100,
     }
   )
-  console.log(`[Scheduler] Scheduled automation ${automationId} with cron: ${cron}`)
+  console.log(`[Scheduler] Scheduled automation ${automationId} with cron: ${cron} (tz: ${tz})`)
 }
 
 export async function unscheduleAutomation(automationId: string) {

@@ -151,6 +151,17 @@ export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
+    // Reschedule if automation is active and has a trigger.schedule node
+    if (nodes !== undefined) {
+      const { data: auto } = await supabase.from('automations').select('is_active').eq('id', id).single()
+      if (auto?.is_active) {
+        const triggerNode = nodes.find((n) => n.type === 'trigger.schedule')
+        if (triggerNode) {
+          await scheduleAutomation(id, triggerNode.config as Record<string, unknown>)
+        }
+      }
+    }
+
     return { ok: true }
   })
 
