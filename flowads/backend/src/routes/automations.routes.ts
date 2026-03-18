@@ -128,7 +128,8 @@ export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
           position_x: (n.position as { x: number })?.x || 0,
           position_y: (n.position as { y: number })?.y || 0,
         }))
-        await supabase.from('automation_nodes').insert(dbNodes)
+        const { error: nodesErr } = await supabase.from('automation_nodes').insert(dbNodes)
+        if (nodesErr) throw nodesErr
       }
     }
 
@@ -145,7 +146,8 @@ export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
           target_handle: e.targetHandle || 'default',
           data: (e.data as Record<string, unknown>) || {},
         }))
-        await supabase.from('automation_edges').insert(dbEdges)
+        const { error: edgesErr } = await supabase.from('automation_edges').insert(dbEdges)
+        if (edgesErr) throw edgesErr
       }
     }
 
