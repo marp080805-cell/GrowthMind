@@ -36,11 +36,14 @@ function FlowEdge({
   id, sourceX, sourceY, targetX, targetY,
   sourcePosition, targetPosition, data, selected, markerEnd, style,
 }: EdgeProps) {
+  const edgeData = data as Record<string, unknown>
   const [midOffset, setMidOffset] = useState<{ x: number; y: number }>(
-    (data as Record<string, unknown>)?.midOffset as { x: number; y: number } || { x: 0, y: 0 }
+    edgeData?.midOffset as { x: number; y: number } || { x: 0, y: 0 }
   )
   const [dragging, setDragging] = useState(false)
   const dragStart = useRef<{ mx: number; my: number; ox: number; oy: number } | null>(null)
+  const currentOffset = useRef(midOffset)
+  currentOffset.current = midOffset
 
   const defaultMidX = (sourceX + targetX) / 2 + midOffset.x
   const defaultMidY = (sourceY + targetY) / 2 + midOffset.y
@@ -61,16 +64,20 @@ function FlowEdge({
 
     const onMove = (ev: MouseEvent) => {
       if (!dragStart.current) return
-      setMidOffset({
+      const next = {
         x: dragStart.current.ox + (ev.clientX - dragStart.current.mx),
         y: dragStart.current.oy + (ev.clientY - dragStart.current.my),
-      })
+      }
+      setMidOffset(next)
     }
     const onUp = () => {
       setDragging(false)
       dragStart.current = null
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      // Persist final offset back to edge state via callback
+      const persist = (edgeData?.onOffsetChange) as ((id: string, offset: { x: number; y: number }) => void) | undefined
+      persist?.(id, currentOffset.current)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -138,7 +145,7 @@ function apiEdgesToFlow(apiEdges: AutomationEdge[]): Edge[] {
     targetHandle: e.targetHandle || 'default',
     animated: false,
     style: { stroke: 'var(--accent)', strokeWidth: 2 },
-    data: {},
+    data: { midOffset: e.data?.midOffset || { x: 0, y: 0 } },
   }))
 }
 
@@ -242,11 +249,23 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
         target: e.target,
         sourceHandle: e.sourceHandle ?? undefined,
         targetHandle: e.targetHandle ?? undefined,
+        data: { midOffset: (e.data as Record<string, unknown>)?.midOffset || { x: 0, y: 0 } },
       }))
       onChange(apiNodes, apiEdges)
     },
     [onChange]
   )
+
+  // Persist edge midOffset when user finishes dragging the line
+  const handleEdgeOffsetChange = useCallback((edgeId: string, offset: { x: number; y: number }) => {
+    setEdges((eds) => {
+      const updated = eds.map((e) =>
+        e.id === edgeId ? { ...e, data: { ...(e.data as Record<string, unknown>), midOffset: offset } } : e
+      )
+      notifyChange(nodes, updated)
+      return updated
+    })
+  }, [nodes, notifyChange])
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -431,7 +450,10 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
               _onToggleDisabled: () => handleToggleNodeDisabled(n.id),
             },
           }))}
-          edges={edges}
+          edges={edges.map((e) => ({
+            ...e,
+            data: { ...(e.data as Record<string, unknown>), onOffsetChange: handleEdgeOffsetChange },
+          }))}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}

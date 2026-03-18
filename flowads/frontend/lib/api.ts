@@ -233,6 +233,7 @@ export interface AutomationEdge {
   target: string
   sourceHandle?: string
   targetHandle?: string
+  data?: Record<string, unknown>
 }
 
 export interface AutomationWithNodes extends Automation {
