@@ -379,7 +379,7 @@ export async function executeAutomation(
           const bfsQueue = [...eachTargets]
           while (bfsQueue.length > 0) {
             const nid = bfsQueue.shift()!
-            if (bodyNodeIds.has(nid)) continue
+            if (bodyNodeIds.has(nid) || nid === node.id) continue // don't add the Loop node itself (prevents cycles)
             bodyNodeIds.add(nid)
             edges
               .filter(e => e.source === nid || e.source_node_id === nid)
@@ -429,7 +429,8 @@ export async function executeAutomation(
                     const nid = activeBfs.shift()!
                     if (activeReachable.has(nid)) continue
                     activeReachable.add(nid)
-                    edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t) activeBfs.push(t) })
+                    // Only follow edges within the loop body to prevent cycles from escaping the body
+                    edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t && bodyNodeIds.has(t)) activeBfs.push(t) })
                   }
                   const inactiveTargets = edges.filter(e => matchesIF(e, inactiveHandle)).map(e => e.target || e.target_node_id || '').filter(Boolean)
                   const inactiveBfs = [...inactiveTargets]
@@ -437,7 +438,7 @@ export async function executeAutomation(
                     const nid = inactiveBfs.shift()!
                     if (iterSkipped.has(nid) || activeReachable.has(nid)) continue
                     iterSkipped.add(nid)
-                    edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t && !activeReachable.has(t)) inactiveBfs.push(t) })
+                    edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t && !activeReachable.has(t) && bodyNodeIds.has(t)) inactiveBfs.push(t) })
                   }
                   const ifBaseInput = (ifResult.input && typeof ifResult.input === 'object') ? (ifResult.input as Record<string, unknown>) : {}
                   iterLastOutput = { ...ifBaseInput, condition: ifResult.condition }
@@ -447,21 +448,14 @@ export async function executeAutomation(
                   const switchOutEdges = edges.filter(e => e.source === bodyNode.id || e.source_node_id === bodyNode.id)
                   const switchEdgeHandles = [...new Set(switchOutEdges.map(e => e.sourceHandle || e.source_handle || 'default'))]
                   const inactiveHandles = switchEdgeHandles.filter(h => h !== matchedHandle)
-                  console.log('[Switch loop body]', {
-                    switchNodeId: bodyNode.id,
-                    matchedHandle,
-                    switchEdgeHandles,
-                    inactiveHandles,
-                    outEdges: switchOutEdges.map(e => ({ target: e.target || e.target_node_id, sourceHandle: e.sourceHandle, source_handle: e.source_handle })),
-                    bodyNodeIds: bodyNodesOrdered.map(n => ({ id: n.id, label: n.label, type: n.type })),
-                  })
                   const activeReachable = new Set<string>()
                   const activeBfs = switchOutEdges.filter(e => (e.sourceHandle === matchedHandle || e.source_handle === matchedHandle)).map(e => e.target || e.target_node_id || '').filter(Boolean)
                   while (activeBfs.length > 0) {
                     const nid = activeBfs.shift()!
                     if (activeReachable.has(nid)) continue
                     activeReachable.add(nid)
-                    edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t) activeBfs.push(t) })
+                    // Only follow edges within the loop body to prevent cycles from escaping the body
+                    edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t && bodyNodeIds.has(t)) activeBfs.push(t) })
                   }
                   for (const h of inactiveHandles) {
                     const bfs = switchOutEdges.filter(e => (e.sourceHandle === h || e.source_handle === h)).map(e => e.target || e.target_node_id || '').filter(Boolean)
@@ -469,10 +463,9 @@ export async function executeAutomation(
                       const nid = bfs.shift()!
                       if (iterSkipped.has(nid) || activeReachable.has(nid)) continue
                       iterSkipped.add(nid)
-                      edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t && !activeReachable.has(t)) bfs.push(t) })
+                      edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t && !activeReachable.has(t) && bodyNodeIds.has(t)) bfs.push(t) })
                     }
                   }
-                  console.log('[Switch loop body] iterSkipped after BFS:', [...iterSkipped])
                   const switchBaseInput = (switchResult.input && typeof switchResult.input === 'object') ? (switchResult.input as Record<string, unknown>) : {}
                   iterLastOutput = { ...switchBaseInput, matched_case: matchedHandle }
                 } else {
