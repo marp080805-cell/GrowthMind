@@ -55,6 +55,19 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
   const log = nodeData.executionLog as NodeLog | null | undefined
   const isDisabled = !!(nodeData.config as Record<string, unknown>)?._disabled
 
+  // Compute output handles once (used for both Handle elements and labels)
+  const outputs: { id: string; label?: string }[] = nodeData.type === 'logic.switch'
+    ? [
+        ...((nodeData.config?.cases as Array<{ id: string; label: string }>) || []).map(c => ({ id: c.id, label: c.label || c.id })),
+        { id: 'default', label: 'Padrão' },
+      ]
+    : block.handles.outputs.map(h => {
+        const label = block.handles.outputs.length > 1
+          ? h === 'yes' ? 'Sim' : h === 'no' ? 'Não' : h === 'each' ? 'Cada item' : h === 'done' ? 'Fim' : h
+          : undefined
+        return { id: h, label }
+      })
+
   const onDelete = nodeData._onDelete
   const onRunNode = nodeData._onRunNode
   const onToggleDisabled = nodeData._onToggleDisabled
@@ -217,45 +230,38 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
         />
       ))}
 
-      {/* Output handles — switch generates dynamic handles from config.cases */}
-      {(() => {
-        let outputs: { id: string; label?: string }[]
-        if (nodeData.type === 'logic.switch') {
-          const cases = (nodeData.config?.cases as Array<{ id: string; label: string }>) || []
-          outputs = [...cases.map(c => ({ id: c.id, label: c.label || c.id })), { id: 'default', label: 'Padrão' }]
-        } else {
-          outputs = block.handles.outputs.map(h => {
-            const label = block.handles.outputs.length > 1
-              ? h === 'yes' ? 'Sim' : h === 'no' ? 'Não' : h === 'each' ? 'Cada item' : h === 'done' ? 'Fim' : h
-              : undefined
-            return { id: h, label }
-          })
-        }
-        return outputs.map((out, i) => (
-          <Handle
-            key={`out-${out.id}`}
-            type="source"
-            position={Position.Bottom}
-            id={out.id}
-            style={{
-              background: color,
-              border: '2px solid var(--surface)',
-              width: 10,
-              height: 10,
-              left: outputs.length === 1 ? '50%' : `${((i + 1) / (outputs.length + 1)) * 100}%`,
-            }}
-          >
-            {out.label && (
-              <span
-                className="absolute text-[9px] font-syne font-bold whitespace-nowrap"
-                style={{ bottom: -18, left: '50%', transform: 'translateX(-50%)', color }}
-              >
-                {out.label}
-              </span>
-            )}
-          </Handle>
-        ))
-      })()}
+      {/* Output handles */}
+      {outputs.map((out, i) => (
+        <Handle
+          key={`out-${out.id}`}
+          type="source"
+          position={Position.Bottom}
+          id={out.id}
+          style={{
+            background: color,
+            border: '2px solid var(--surface)',
+            width: 10,
+            height: 10,
+            left: outputs.length === 1 ? '50%' : `${((i + 1) / (outputs.length + 1)) * 100}%`,
+          }}
+        />
+      ))}
+
+      {/* Output handle labels — rendered outside Handle to avoid pointer-event interference */}
+      {outputs.map((out, i) => out.label && (
+        <span
+          key={`label-${out.id}`}
+          className="absolute text-[9px] font-syne font-bold whitespace-nowrap pointer-events-none"
+          style={{
+            bottom: -18,
+            left: outputs.length === 1 ? '50%' : `${((i + 1) / (outputs.length + 1)) * 100}%`,
+            transform: 'translateX(-50%)',
+            color,
+          }}
+        >
+          {out.label}
+        </span>
+      ))}
     </div>
   )
 })

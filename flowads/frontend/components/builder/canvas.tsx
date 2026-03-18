@@ -169,7 +169,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
 
   const pushHistory = () => {
     const { nodes: n, edges: e } = snapshotRef.current
-    historyRef.current = [...historyRef.current.slice(-49), { nodes: n, edges: e }]
+    historyRef.current = [...historyRef.current.slice(-9), { nodes: n, edges: e }]
   }
 
   const handleUndo = useCallback(() => {
