@@ -86,7 +86,7 @@ export const automationsApi = {
   get: (id: string) => api.get<AutomationWithNodes>(`/automations/${id}`),
   create: (clientId: string, data: Partial<Automation>) =>
     api.post<Automation>(`/clients/${clientId}/automations`, data),
-  save: (id: string, data: { nodes: AutomationNode[]; edges: AutomationEdge[] }) =>
+  save: (id: string, data: { nodes: AutomationNode[]; edges: AutomationEdge[]; name?: string }) =>
     api.put(`/automations/${id}`, data),
   toggle: (id: string) => api.post<Automation>(`/automations/${id}/toggle`),
   run: (id: string) => api.post<{ executionId: string }>(`/automations/${id}/run`),

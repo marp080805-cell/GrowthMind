@@ -127,7 +127,7 @@ export default function BuilderPage() {
         error('Erro ao criar automação')
       }
     } else {
-      await save(nodes, edges)
+      await save(nodes, edges, false, automationName)
     }
   }
 

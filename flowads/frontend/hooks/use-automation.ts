@@ -22,11 +22,11 @@ export function useAutomation(id: string) {
   }, [id])
 
   const save = useCallback(
-    async (nodes: AutomationNode[], edges: AutomationEdge[], silent = false) => {
+    async (nodes: AutomationNode[], edges: AutomationEdge[], silent = false, name?: string) => {
       if (!automation) return
       setSaving(true)
       try {
-        await automationsApi.save(id, { nodes, edges })
+        await automationsApi.save(id, { nodes, edges, ...(name !== undefined && { name }) })
         if (!silent) success('Salvo com sucesso')
       } catch {
         error('Erro ao salvar automação')
