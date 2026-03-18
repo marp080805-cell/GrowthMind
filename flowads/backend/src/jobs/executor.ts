@@ -260,10 +260,18 @@ export async function executeAutomation(
           const activeHandle = ifResult.condition ? 'yes' : 'no'
           const inactiveHandle = ifResult.condition ? 'no' : 'yes'
 
+          // Normalize legacy 'true'/'false' handles to 'yes'/'no'
+          const normalizeHandle = (h: string | undefined | null) =>
+            h === 'true' ? 'yes' : h === 'false' ? 'no' : (h ?? 'default')
+
+          const matchesHandle = (e: AutomationEdge, handle: string) => {
+            const sh = normalizeHandle(e.sourceHandle ?? e.source_handle)
+            return (e.source === node.id || e.source_node_id === node.id) && sh === handle
+          }
+
           // Collect all nodes reachable from active handle (to protect them)
           const activeTargets = edges
-            .filter(e => (e.source === node.id || e.source_node_id === node.id) &&
-                         (e.sourceHandle === activeHandle || e.source_handle === activeHandle))
+            .filter(e => matchesHandle(e, activeHandle))
             .map(e => e.target || e.target_node_id || '').filter(Boolean)
           const activeReachable = new Set<string>()
           const activeBfs = [...activeTargets]
@@ -277,8 +285,7 @@ export async function executeAutomation(
 
           // Collect inactive branch nodes (not reachable from active handle)
           const inactiveTargets = edges
-            .filter(e => (e.source === node.id || e.source_node_id === node.id) &&
-                         (e.sourceHandle === inactiveHandle || e.source_handle === inactiveHandle))
+            .filter(e => matchesHandle(e, inactiveHandle))
             .map(e => e.target || e.target_node_id || '').filter(Boolean)
           const inactiveBfs = [...inactiveTargets]
           while (inactiveBfs.length > 0) {
