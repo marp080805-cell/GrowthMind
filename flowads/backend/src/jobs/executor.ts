@@ -317,9 +317,11 @@ export async function executeAutomation(
         if (node.type === 'logic.switch') {
           const switchResult = output as { matched_case: string; input: unknown }
           const matchedHandle = switchResult.matched_case
-          const cases = (node.config?.cases || []) as Array<{ id: string }>
-          const allHandles = [...cases.map(c => c.id), 'default']
-          const inactiveHandles = allHandles.filter(h => h !== matchedHandle)
+          const switchEdgeHandles = [...new Set(
+            edges.filter(e => e.source === node.id || e.source_node_id === node.id)
+              .map(e => e.sourceHandle || e.source_handle || 'default')
+          )]
+          const inactiveHandles = switchEdgeHandles.filter(h => h !== matchedHandle)
 
           // Protect nodes reachable from matched handle
           const activeTargets = edges
@@ -442,9 +444,11 @@ export async function executeAutomation(
                 } else if (bodyNode.type === 'logic.switch') {
                   const switchResult = iterOutput as { matched_case: string; input: unknown }
                   const matchedHandle = switchResult.matched_case
-                  const cases = (bodyNode.config?.cases || []) as Array<{ id: string }>
-                  const allHandles = [...cases.map(c => c.id), 'default']
-                  const inactiveHandles = allHandles.filter(h => h !== matchedHandle)
+                  const switchEdgeHandles = [...new Set(
+                    edges.filter(e => e.source === bodyNode.id || e.source_node_id === bodyNode.id)
+                      .map(e => e.sourceHandle || e.source_handle || 'default')
+                  )]
+                  const inactiveHandles = switchEdgeHandles.filter(h => h !== matchedHandle)
                   const activeReachable = new Set<string>()
                   const activeBfs = edges.filter(e => (e.source === bodyNode.id || e.source_node_id === bodyNode.id) && (e.sourceHandle === matchedHandle || e.source_handle === matchedHandle)).map(e => e.target || e.target_node_id || '').filter(Boolean)
                   while (activeBfs.length > 0) {
