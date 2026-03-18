@@ -27,9 +27,13 @@ export function useAutomation(id: string) {
       setSaving(true)
       try {
         await automationsApi.save(id, { nodes, edges, ...(name !== undefined && { name }) })
-        if (name !== undefined) {
-          setAutomation((prev) => prev ? { ...prev, name } : null)
-        }
+        // Update automation state with saved nodes/edges to prevent stale data from overwriting UI
+        setAutomation((prev) => prev ? {
+          ...prev,
+          nodes: nodes as unknown as typeof prev.nodes,
+          edges: edges as unknown as typeof prev.edges,
+          ...(name !== undefined && { name }),
+        } : null)
         if (!silent) success('Salvo com sucesso')
       } catch {
         error('Erro ao salvar automação')
