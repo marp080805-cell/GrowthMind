@@ -31,6 +31,12 @@ function interpolateConfig(config: Record<string, unknown>, vars: Record<string,
   for (const [k, v] of Object.entries(config)) {
     if (typeof v === 'string') {
       result[k] = interpolate(v, vars)
+    } else if (Array.isArray(v)) {
+      result[k] = v.map(item =>
+        typeof item === 'string' ? interpolate(item, vars)
+        : (item && typeof item === 'object') ? interpolateConfig(item as Record<string, unknown>, vars)
+        : item
+      )
     } else if (typeof v === 'object' && v !== null) {
       result[k] = interpolateConfig(v as Record<string, unknown>, vars)
     } else {
