@@ -496,11 +496,6 @@ export async function executeAutomation(
                   nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'skipped', input: iterInputSnapshot, output: null, duration_ms: iterDuration })
                   break
                 }
-                if (iterMsg.startsWith('SKIP_ITEM:')) {
-                  const reason = iterMsg.slice('SKIP_ITEM:'.length).trim()
-                  nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'skipped', input: iterInputSnapshot, output: { pulado: true, motivo: reason }, duration_ms: iterDuration })
-                  break // skip remaining body nodes for this item, continue with next item
-                }
                 nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'error', input: iterInputSnapshot, output: null, error: iterMsg, duration_ms: iterDuration })
                 break // stop remaining body nodes for this item, continue with next item
               }
@@ -779,10 +774,18 @@ async function executeMeta(
             adName: (config.name as string) || `Post ${config.source_instagram_media_id}`,
             status: (config.status as string) || 'PAUSED',
           })
-          return { anuncio_criado: result, ad_id: result.ad_id, creative_id: result.creative_id }
+          return { success: true, anuncio_criado: result, ad_id: result.ad_id, creative_id: result.creative_id }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          if (isSkippableMetaError(msg)) throw new Error(`SKIP_ITEM:${humanizeMetaSkipReason(msg)}`)
+          // Return failure as data so downstream IF nodes can handle it (e.g. send WhatsApp notification)
+          if (isSkippableMetaError(msg)) {
+            return {
+              success: false,
+              motivo: humanizeMetaSkipReason(msg),
+              erro_meta: msg,
+              post_id: config.source_instagram_media_id as string,
+            }
+          }
           throw err
         }
       }
@@ -919,11 +922,7 @@ async function executeMeta(
           detalhes.push({ post_id: post.id, ad_id: result.ad_id, status: 'criado' })
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : String(err)
-          if (isSkippableMetaError(errMsg)) {
-            detalhes.push({ post_id: post.id, status: 'pulado', error: humanizeMetaSkipReason(errMsg) })
-          } else {
-            detalhes.push({ post_id: post.id, status: 'erro', error: errMsg })
-          }
+          detalhes.push({ post_id: post.id, status: 'erro', error: errMsg })
         }
       }
 
