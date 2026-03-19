@@ -496,6 +496,11 @@ export async function executeAutomation(
                   nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'skipped', input: iterInputSnapshot, output: null, duration_ms: iterDuration })
                   break
                 }
+                if (iterMsg.startsWith('SKIP_ITEM:')) {
+                  const reason = iterMsg.slice('SKIP_ITEM:'.length).trim()
+                  nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'skipped', input: iterInputSnapshot, output: { pulado: true, motivo: reason }, duration_ms: iterDuration })
+                  break // skip remaining body nodes for this item, continue with next item
+                }
                 nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'error', input: iterInputSnapshot, output: null, error: iterMsg, duration_ms: iterDuration })
                 break // stop remaining body nodes for this item, continue with next item
               }
@@ -591,6 +596,27 @@ function getWeekRange(): string {
   const sunday = new Date(monday)
   sunday.setDate(monday.getDate() + 6)
   return `${monday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} a ${sunday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`
+}
+
+// Meta API errors that should skip the item (not count as failure)
+const SKIPPABLE_META_CODES = [
+  '2875030', // Reel with copyrighted music cannot be used as ad
+  '1487470', // Content not eligible for promotion
+  '1487760', // Post cannot be boosted — copyright/policy violation
+]
+
+function isSkippableMetaError(msg: string): boolean {
+  return SKIPPABLE_META_CODES.some((code) => msg.includes(code))
+}
+
+function humanizeMetaSkipReason(msg: string): string {
+  if (msg.includes('2875030') || msg.toLowerCase().includes('músicas com direitos') || msg.toLowerCase().includes('copyright')) {
+    return 'Reel com música protegida por direitos autorais — não pode ser anunciado'
+  }
+  if (msg.includes('1487470') || msg.includes('1487760')) {
+    return 'Post não elegível para promoção — item pulado'
+  }
+  return 'Post bloqueado pela política do Meta — item pulado'
 }
 
 async function executeNode(
@@ -744,15 +770,21 @@ async function executeMeta(
       if (config.source_instagram_media_id) {
         const instagramAccountId = (config.instagram_actor_id as string) || context.client?.instagram_account_id || undefined
         const pageId = (config.page_id as string) || context.client?.facebook_page_id || undefined
-        const result = await meta.createAdFromInstagramPost({
-          postId: config.source_instagram_media_id as string,
-          instagramAccountId,
-          pageId,
-          adsetId,
-          adName: (config.name as string) || `Post ${config.source_instagram_media_id}`,
-          status: (config.status as string) || 'PAUSED',
-        })
-        return { anuncio_criado: result, ad_id: result.ad_id, creative_id: result.creative_id }
+        try {
+          const result = await meta.createAdFromInstagramPost({
+            postId: config.source_instagram_media_id as string,
+            instagramAccountId,
+            pageId,
+            adsetId,
+            adName: (config.name as string) || `Post ${config.source_instagram_media_id}`,
+            status: (config.status as string) || 'PAUSED',
+          })
+          return { anuncio_criado: result, ad_id: result.ad_id, creative_id: result.creative_id }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          if (isSkippableMetaError(msg)) throw new Error(`SKIP_ITEM:${humanizeMetaSkipReason(msg)}`)
+          throw err
+        }
       }
 
       const result = await meta.createAd({
@@ -886,7 +918,12 @@ async function executeMeta(
           })
           detalhes.push({ post_id: post.id, ad_id: result.ad_id, status: 'criado' })
         } catch (err) {
-          detalhes.push({ post_id: post.id, status: 'erro', error: String(err) })
+          const errMsg = err instanceof Error ? err.message : String(err)
+          if (isSkippableMetaError(errMsg)) {
+            detalhes.push({ post_id: post.id, status: 'pulado', error: humanizeMetaSkipReason(errMsg) })
+          } else {
+            detalhes.push({ post_id: post.id, status: 'erro', error: errMsg })
+          }
         }
       }
 
