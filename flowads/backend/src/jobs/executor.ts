@@ -424,15 +424,16 @@ export async function executeAutomation(
                     (e.source === bodyNode.id || e.source_node_id === bodyNode.id) &&
                     normalizeHandle(e.sourceHandle ?? e.source_handle) === handle
                   const activeReachable = new Set<string>()
-                  const activeBfs = edges.filter(e => matchesIF(e, activeHandle)).map(e => e.target || e.target_node_id || '').filter(Boolean)
+                  // Filter seeds to bodyNodeIds — prevents back-edges to Loop from polluting activeReachable
+                  const activeBfs = edges.filter(e => matchesIF(e, activeHandle)).map(e => e.target || e.target_node_id || '').filter(t => t && bodyNodeIds.has(t))
                   while (activeBfs.length > 0) {
                     const nid = activeBfs.shift()!
                     if (activeReachable.has(nid)) continue
                     activeReachable.add(nid)
-                    // Only follow edges within the loop body to prevent cycles from escaping the body
                     edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t && bodyNodeIds.has(t)) activeBfs.push(t) })
                   }
-                  const inactiveTargets = edges.filter(e => matchesIF(e, inactiveHandle)).map(e => e.target || e.target_node_id || '').filter(Boolean)
+                  // Filter seeds to bodyNodeIds — prevents back-edges to Loop from marking upstream nodes as inactive
+                  const inactiveTargets = edges.filter(e => matchesIF(e, inactiveHandle)).map(e => e.target || e.target_node_id || '').filter(t => t && bodyNodeIds.has(t))
                   const inactiveBfs = [...inactiveTargets]
                   while (inactiveBfs.length > 0) {
                     const nid = inactiveBfs.shift()!
@@ -449,16 +450,17 @@ export async function executeAutomation(
                   const switchEdgeHandles = [...new Set(switchOutEdges.map(e => e.sourceHandle || e.source_handle || 'default'))]
                   const inactiveHandles = switchEdgeHandles.filter(h => h !== matchedHandle)
                   const activeReachable = new Set<string>()
-                  const activeBfs = switchOutEdges.filter(e => (e.sourceHandle === matchedHandle || e.source_handle === matchedHandle)).map(e => e.target || e.target_node_id || '').filter(Boolean)
+                  // Filter seeds to bodyNodeIds — prevents back-edges to Loop from polluting activeReachable
+                  const activeBfs = switchOutEdges.filter(e => (e.sourceHandle === matchedHandle || e.source_handle === matchedHandle)).map(e => e.target || e.target_node_id || '').filter(t => t && bodyNodeIds.has(t))
                   while (activeBfs.length > 0) {
                     const nid = activeBfs.shift()!
                     if (activeReachable.has(nid)) continue
                     activeReachable.add(nid)
-                    // Only follow edges within the loop body to prevent cycles from escaping the body
                     edges.filter(e => e.source === nid || e.source_node_id === nid).forEach(e => { const t = e.target || e.target_node_id || ''; if (t && bodyNodeIds.has(t)) activeBfs.push(t) })
                   }
                   for (const h of inactiveHandles) {
-                    const bfs = switchOutEdges.filter(e => (e.sourceHandle === h || e.source_handle === h)).map(e => e.target || e.target_node_id || '').filter(Boolean)
+                    // Filter seeds to bodyNodeIds — prevents back-edges to Loop from marking upstream nodes as inactive
+                    const bfs = switchOutEdges.filter(e => (e.sourceHandle === h || e.source_handle === h)).map(e => e.target || e.target_node_id || '').filter(t => t && bodyNodeIds.has(t))
                     while (bfs.length > 0) {
                       const nid = bfs.shift()!
                       if (iterSkipped.has(nid) || activeReachable.has(nid)) continue
