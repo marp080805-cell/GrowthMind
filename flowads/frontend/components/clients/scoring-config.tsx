@@ -382,7 +382,7 @@ export function ScoringConfig({ client, onSaved, compact }: ScoringConfigProps) 
                 </button>
               </div>
               {/* Line 2: operator + target + weight */}
-              <div className="flex items-center gap-1.5 pl-6">
+              <div className="flex items-center gap-1.5 pl-4">
                 <select
                   value={rule.operator}
                   onChange={e => updateRule(rule._id, { operator: e.target.value as '>=' | '<=' })}
@@ -399,15 +399,14 @@ export function ScoringConfig({ client, onSaved, compact }: ScoringConfigProps) 
                   disabled={!rule.enabled}
                   className="flex-1 h-7 rounded-[6px] bg-bg2 border border-[var(--border)] text-text px-2 text-xs text-right focus:outline-none focus:border-accent disabled:opacity-40"
                 />
-                <span className="text-[10px] text-text3 flex-shrink-0">peso</span>
                 <input
                   type="number" min={0} max={100} step={5}
                   value={rule.weight}
                   onChange={e => updateRule(rule._id, { weight: Number(e.target.value) })}
                   disabled={!rule.enabled}
-                  className="w-14 h-7 rounded-[6px] bg-bg2 border border-[var(--border)] text-text px-2 text-xs text-right focus:outline-none focus:border-accent disabled:opacity-40"
+                  placeholder="peso %"
+                  className="w-16 h-7 rounded-[6px] bg-bg2 border border-[var(--border)] text-text px-2 text-xs text-right focus:outline-none focus:border-accent disabled:opacity-40"
                 />
-                <span className="text-[10px] text-text3 flex-shrink-0">%</span>
               </div>
             </div>
           ))
