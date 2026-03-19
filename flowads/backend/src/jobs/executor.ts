@@ -853,13 +853,16 @@ async function executeMeta(
           motivo = `Score ${score}/${threshold} — aprovado`
         }
 
-        // acao: pausar → pause ad | alertar → creative fatigue, needs new creatives | manter → keep running
+        // alertar também quando anúncio atingiu tempo máximo (tooOld) → precisa de criativos novos
+        const needsNewCreatives = isSaturating || tooOld
+
+        // acao: pausar → bad score | alertar → saturação ou tempo máximo (precisa criativos novos) | manter → ok
         let acao: string
         if (skipEvaluation) {
           acao = 'manter'
-        } else if (isSaturating) {
+        } else if (needsNewCreatives) {
           acao = 'alertar'
-          motivo += ` — Frequência ${currentFreq.toFixed(1)} indica saturação de criativos`
+          if (isSaturating) motivo += ` — Frequência ${currentFreq.toFixed(1)} indica saturação de criativos`
         } else if (pausar) {
           acao = 'pausar'
         } else {
