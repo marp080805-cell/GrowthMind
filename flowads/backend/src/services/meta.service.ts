@@ -438,7 +438,6 @@ export class MetaService {
       'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend',
       'purchase_roas', 'frequency', 'inline_link_clicks',
       'actions', 'cost_per_action_type', 'action_values',
-      'video_thruplay_watched_actions',
     ]
     const requestedFields = fields.length > 0 ? fields : defaultFields
 
@@ -463,7 +462,6 @@ export class MetaService {
     const cpa = row.cost_per_action_type as ActionEntry[] | undefined
     const purchaseRoas = row.purchase_roas as ActionEntry[] | undefined
     const actionValues = row.action_values as ActionEntry[] | undefined
-    const thruplays = row.video_thruplay_watched_actions as ActionEntry[] | undefined
 
     const impressoes = parseInt(row.impressions as string || '0')
     const gasto = parseFloat(row.spend as string || '0')
@@ -476,9 +474,7 @@ export class MetaService {
       || findAction(actions, 'messaging_conversation_started_7d')
     const adicoes = findAction(actions, 'offsite_conversion.fb_pixel_add_to_cart') || findAction(actions, 'add_to_cart')
     const videoViews = findAction(actions, 'video_view')
-    const thruplayCount = (thruplays && thruplays.length > 0)
-      ? parseFloat(thruplays[0]?.value || '0')
-      : findAction(actions, 'video_thruplay_watched')
+    const thruplayCount = findAction(actions, 'video_thruplay_watched')
 
     return {
       impressoes,

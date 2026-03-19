@@ -724,7 +724,7 @@ async function executeMeta(
         const metricas = await meta.getMetrics(
           ad.id,
           periodMap[period] || period,
-          ['impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend', 'purchase_roas', 'frequency', 'inline_link_clicks', 'actions', 'cost_per_action_type', 'action_values', 'video_thruplay_watched_actions']
+          ['impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend', 'purchase_roas', 'frequency', 'inline_link_clicks', 'actions', 'cost_per_action_type', 'action_values']
         )
         const ageDays = ad.created_time
           ? Math.floor((Date.now() - new Date(ad.created_time).getTime()) / 86_400_000)
