@@ -793,24 +793,22 @@ async function executeMeta(
           return { success: true, anuncio_criado: result, ad_id: result.ad_id, creative_id: result.creative_id }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          // Return failure as data so downstream IF nodes can handle it (e.g. send WhatsApp notification)
-          if (isSkippableMetaError(msg)) {
-            const postData = (input && typeof input === 'object' && !Array.isArray(input))
-              ? input as Record<string, unknown>
-              : {}
-            return {
-              success: false,
-              motivo: humanizeMetaSkipReason(msg),
-              erro_meta: msg,
-              post_id: config.source_instagram_media_id as string,
-              post_permalink: (postData.permalink as string) || '',
-              post_caption: (postData.caption as string) || '',
-              post_media_type: (postData.media_type as string) || '',
-              post_media_url: (postData.media_url as string) || '',
-              post_timestamp: (postData.timestamp as string) || '',
-            }
+          // Always return failure as data — downstream IF node routes to WhatsApp for any error
+          const postData = (input && typeof input === 'object' && !Array.isArray(input))
+            ? input as Record<string, unknown>
+            : {}
+          const motivo = isSkippableMetaError(msg) ? humanizeMetaSkipReason(msg) : msg
+          return {
+            success: false,
+            motivo,
+            erro_meta: msg,
+            post_id: config.source_instagram_media_id as string,
+            post_permalink: (postData.permalink as string) || '',
+            post_caption: (postData.caption as string) || '',
+            post_media_type: (postData.media_type as string) || '',
+            post_media_url: (postData.media_url as string) || '',
+            post_timestamp: (postData.timestamp as string) || '',
           }
-          throw err
         }
       }
 
