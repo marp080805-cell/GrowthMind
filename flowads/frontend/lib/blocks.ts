@@ -76,6 +76,9 @@ export const BLOCKS: BlockDefinition[] = [
   { type: 'meta.edit_ad', label: 'Editar anúncio', description: 'Atualiza texto, link ou criativo', icon: '✏️', category: 'meta', color: CATEGORY_COLORS.meta, handles: { inputs: ['default'], outputs: ['default'] } },
   { type: 'meta.adjust_budget', label: 'Ajustar orçamento', description: 'Altera budget diário ou total de campanha/adset', icon: '💰', category: 'meta', color: CATEGORY_COLORS.meta, handles: { inputs: ['default'], outputs: ['default'] } },
 
+  // META ADS — Performance
+  { type: 'meta.evaluate_campaign_performance', label: 'Avaliar campanha', description: 'Pontua criativos com scoring inteligente — respeita mínimo de ativos, maturação e tempo máximo', icon: '🎯', category: 'meta', color: CATEGORY_COLORS.meta, handles: { inputs: ['default'], outputs: ['default'] }, defaultConfig: {} },
+
   // META ADS — Status
   { type: 'meta.pause_ad', label: 'Pausar', description: 'Pausa campanha, adset ou anúncio', icon: '⏸️', category: 'meta', color: CATEGORY_COLORS.meta, handles: { inputs: ['default'], outputs: ['default'] } },
   { type: 'meta.activate_ad', label: 'Ativar', description: 'Reativa campanha, adset ou anúncio', icon: '▶️', category: 'meta', color: CATEGORY_COLORS.meta, handles: { inputs: ['default'], outputs: ['default'] } },

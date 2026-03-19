@@ -39,6 +39,7 @@ export interface MetaAd {
   adset_id: string
   campaign_id: string
   creative?: { id: string }
+  created_time?: string
 }
 
 export interface MetaMetrics {
@@ -50,6 +51,7 @@ export interface MetaMetrics {
   cpm: number
   gasto: number
   roas?: number
+  frequencia?: number
   periodo: string
 }
 
@@ -284,7 +286,7 @@ export class MetaService {
       ? `${this.accountUrl}/ads`
       : `${META_API}/${parentId}/ads`
     const params = new URLSearchParams({
-      fields: 'id,name,status,adset_id,campaign_id,creative{id}',
+      fields: 'id,name,status,adset_id,campaign_id,creative{id},created_time',
       access_token: this.token,
     })
     const data = await metaGet<{ data?: MetaAd[] }>(`${url}?${params}`)
@@ -405,7 +407,7 @@ export class MetaService {
       ? `${META_API}/${objectId}/insights`
       : `${this.accountUrl}/insights`
 
-    const defaultFields = ['impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend', 'purchase_roas']
+    const defaultFields = ['impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend', 'purchase_roas', 'frequency']
     const requestedFields = fields.length > 0 ? fields : defaultFields
 
     const params = new URLSearchParams({
@@ -428,6 +430,7 @@ export class MetaService {
       cpm: parseFloat(row.cpm || '0'),
       gasto: parseFloat(row.spend || '0'),
       roas: parseFloat(row.purchase_roas?.[0] || '0'),
+      frequencia: parseFloat(row.frequency || '0'),
       periodo: datePreset,
     }
   }

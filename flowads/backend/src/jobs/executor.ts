@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import type {
   AutomationNode, AutomationEdge, ExecutionContext,
-  NodeLog, ExecutionLog, Client, Campaign, Settings
+  NodeLog, ExecutionLog, Client, Campaign, Settings, ScoringRule, ScoringConfig
 } from '../lib/types'
 import { MetaService } from '../services/meta.service'
 import { OpenAIService } from '../services/openai.service'
@@ -714,6 +714,151 @@ async function executeMeta(
     case 'fetch_creative_insights': {
       const insights = await meta.getCreativeInsights(config.ad_id as string | undefined)
       return { insights, total: insights.length }
+    }
+
+    case 'evaluate_campaign_performance': {
+      const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
+      const ads = (inputRecord.anuncios as import('../services/meta.service').MetaAd[]) || []
+
+      // Load client scoring config from DB
+      if (!context.client?.id) throw new Error('Cliente não identificado no contexto')
+      const clientRow = await getClient(context.client.id)
+      const cfg = (clientRow.scoring_config || { rules: [] }) as ScoringConfig
+
+      // Node-level overrides
+      const threshold = (config.threshold as number) ?? cfg.threshold ?? 60
+      const period = (config.period as string) ?? cfg.period ?? '7d'
+      const minDays = cfg.min_days_running ?? 7
+      const maxDays = cfg.max_days_running ?? null
+      const minActivesMode = cfg.min_actives_mode ?? 'fixed'
+      const minActivesFixed = cfg.min_actives_fixed ?? 2
+      const budgetPerCreative = cfg.budget_per_creative ?? 25
+      const rules = (cfg.rules || []).filter(r => r.enabled !== false)
+
+      // Only evaluate ACTIVE ads
+      const activeAds = ads.filter(a => a.status === 'ACTIVE')
+
+      // Fetch metrics + evaluate each ad in parallel
+      const evaluated = await Promise.all(activeAds.map(async (ad) => {
+        const metricas = await meta.getMetrics(
+          ad.id,
+          periodMap[period] || period,
+          ['impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend', 'purchase_roas', 'frequency']
+        )
+
+        // Age in days
+        const ageDays = ad.created_time
+          ? Math.floor((Date.now() - new Date(ad.created_time).getTime()) / 86_400_000)
+          : null
+
+        const tooYoung = ageDays !== null && ageDays < minDays
+        const tooOld = maxDays !== null && ageDays !== null && ageDays > maxDays
+
+        // Score calculation
+        const metricsMap: Record<string, number> = {
+          ctr: metricas.ctr,
+          cpc: metricas.cpc,
+          cpm: metricas.cpm,
+          gasto: metricas.gasto,
+          roas: metricas.roas ?? 0,
+          frequencia: metricas.frequencia ?? 0,
+        }
+        const enabledRules = rules as ScoringRule[]
+        const totalWeight = enabledRules.reduce((s, r) => s + r.weight, 0)
+        let weightedPassed = 0
+        for (const rule of enabledRules) {
+          const val = metricsMap[rule.metric]
+          if (val !== undefined) {
+            const passes = rule.operator === '>=' ? val >= rule.target : val <= rule.target
+            if (passes) weightedPassed += rule.weight
+          }
+        }
+        const score = totalWeight > 0 ? Math.round((weightedPassed / totalWeight) * 100) : 0
+        // Collapse early: critically bad before minimum age
+        const collapso = score < 10 && ageDays !== null && ageDays > 3
+
+        return {
+          id: ad.id,
+          nome: ad.name,
+          adset_id: ad.adset_id,
+          score,
+          metricas,
+          age_days: ageDays,
+          skip_evaluation: tooYoung && !collapso,
+          force_pause: tooOld,
+          abaixo_threshold: score < threshold,
+        }
+      }))
+
+      // Group by adset, apply minimum actives protection per adset
+      const adsetGroups = new Map<string, typeof evaluated>()
+      for (const e of evaluated) {
+        const g = adsetGroups.get(e.adset_id) || []
+        g.push(e)
+        adsetGroups.set(e.adset_id, g)
+      }
+
+      const pausar: Array<typeof evaluated[0] & { motivo: string; protegido?: undefined }> = []
+      const manter: Array<typeof evaluated[0] & { motivo?: string; protegido: boolean }> = []
+      let alertar = false
+
+      for (const [, group] of adsetGroups) {
+        let minActives = minActivesFixed
+        if (minActivesMode === 'budget_based') {
+          // For budget_based: find adset budget from getAdSets if possible, else fallback
+          try {
+            const adsets = await meta.getAdSets(undefined)
+            const adset = adsets.find(a => a.id === group[0]?.adset_id)
+            if (adset?.daily_budget) {
+              const budget = parseFloat(adset.daily_budget) / 100 // Meta returns in cents
+              minActives = Math.max(1, Math.ceil(budget / budgetPerCreative))
+            }
+          } catch {
+            minActives = minActivesFixed
+          }
+        }
+
+        // Sort by score desc — best performers protected first
+        const sorted = [...group].sort((a, b) => b.score - a.score)
+        const protectedSet = new Set(sorted.slice(0, minActives).map(a => a.id))
+
+        for (const ad of group) {
+          if (ad.skip_evaluation) {
+            manter.push({ ...ad, protegido: false, motivo: `Aguardando maturação (${ad.age_days}d < ${minDays}d mínimo)` })
+            continue
+          }
+          if (ad.force_pause) {
+            pausar.push({ ...ad, motivo: `Tempo máximo atingido (${ad.age_days}d > ${maxDays}d)` })
+            continue
+          }
+          if (!ad.abaixo_threshold) {
+            manter.push({ ...ad, protegido: false })
+            continue
+          }
+          if (protectedSet.has(ad.id)) {
+            manter.push({ ...ad, protegido: true, motivo: `Score ${ad.score}/${threshold} — mantido por mínimo de ativos` })
+            alertar = true
+          } else {
+            pausar.push({ ...ad, motivo: `Score ${ad.score}/${threshold} — abaixo do threshold` })
+          }
+        }
+      }
+
+      const protegidosAbaixo = manter.filter(a => a.protegido).length
+      const motivo_alerta = alertar
+        ? `${protegidosAbaixo} criativo(s) abaixo da meta estão sendo mantidos pois atingiu o mínimo de ativos — cliente precisa enviar novos criativos`
+        : ''
+
+      return {
+        pausar,
+        manter,
+        alertar,
+        motivo_alerta,
+        resumo: `${evaluated.length} ativo(s) → pausar ${pausar.length}, manter ${manter.length}`,
+        total_ativos: evaluated.length,
+        total_pausar: pausar.length,
+        total_manter: manter.length,
+      }
     }
 
     case 'fetch_instagram_posts': {

@@ -17,6 +17,7 @@ import {
   clientsApi, campaignsApi, automationsApi, agentsApi,
   type Client, type Campaign, type Automation, type Agent, type ExecutionLog
 } from '@/lib/api'
+import { ScoringConfig } from '@/components/clients/scoring-config'
 import { useRouter } from 'next/navigation'
 import {
   getInitials, getAvatarColor, formatDateTime, formatDuration
@@ -28,7 +29,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 
-type Tab = 'overview' | 'campaigns' | 'automations' | 'agents' | 'logs'
+type Tab = 'overview' | 'campaigns' | 'automations' | 'agents' | 'logs' | 'performance'
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -135,6 +136,7 @@ export default function ClientDetailPage() {
     { key: 'automations', label: 'Automações' },
     { key: 'agents', label: 'Agentes' },
     { key: 'logs', label: 'Logs' },
+    { key: 'performance', label: 'Performance' },
   ]
 
   if (loading) {
@@ -402,6 +404,22 @@ export default function ClientDetailPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {tab === 'performance' && (
+          <div>
+            <div className="mb-5">
+              <h3 className="font-syne font-semibold text-text text-lg mb-1">Metas de Performance</h3>
+              <p className="text-sm text-text3">
+                Configure as regras que o bloco <strong className="text-text">Avaliar campanha</strong> usará para pontuar os criativos.
+                Criativos abaixo do threshold são pausados automaticamente, sempre respeitando o mínimo de ativos configurado.
+              </p>
+            </div>
+            <ScoringConfig
+              client={client}
+              onSaved={(updated) => setClient(updated)}
+            />
           </div>
         )}
       </div>

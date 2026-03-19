@@ -7,6 +7,26 @@ export interface User {
   created_at: string
 }
 
+export interface ScoringRule {
+  metric: 'ctr' | 'cpc' | 'cpm' | 'gasto' | 'roas' | 'frequencia'
+  operator: '>=' | '<='
+  target: number
+  weight: number
+  enabled: boolean
+}
+
+export interface ScoringConfig {
+  campaign_type?: 'engagement' | 'whatsapp_conversion' | 'lead_gen'
+  threshold?: number
+  period?: string
+  min_days_running?: number
+  max_days_running?: number | null
+  min_actives_mode?: 'fixed' | 'budget_based'
+  min_actives_fixed?: number
+  budget_per_creative?: number
+  rules: ScoringRule[]
+}
+
 export interface Client {
   id: string
   user_id: string
@@ -20,6 +40,7 @@ export interface Client {
   facebook_page_id?: string
   status: 'active' | 'paused'
   created_at: string
+  scoring_config?: ScoringConfig
 }
 
 export interface Campaign {
