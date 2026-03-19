@@ -39,7 +39,9 @@ export function MetricsInspector({ config, onChange }: InspectorFieldProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [adsets, setAdsets] = useState<AdSet[]>([])
   const [loadingAdsets, setLoadingAdsets] = useState(false)
-  const [campaignForAdsets, setCampaignForAdsets] = useState('')
+  // fully controlled — no local state so value survives close/reopen
+  const campaignForAdsets = (config.campaign_id as string) || ''
+  const setCampaignForAdsets = (val: string) => onChange({ ...config, campaign_id: val, object_id: '' })
 
   const level = (config.level as string) || 'account'
   const selectedMetrics = (config.metrics as string[]) || DEFAULT_SELECTED
@@ -219,8 +221,11 @@ export function MetricsInspector({ config, onChange }: InspectorFieldProps) {
         >
           <option value="none">Nenhum</option>
           <option value="day">Por dia</option>
-          <option value="adset">Por adset</option>
-          <option value="creative">Por criativo</option>
+          <option value="age">Por faixa etária</option>
+          <option value="gender">Por gênero</option>
+          <option value="country">Por país</option>
+          <option value="publisher_platform">Por plataforma</option>
+          <option value="device_platform">Por dispositivo</option>
         </select>
       </div>
     </>

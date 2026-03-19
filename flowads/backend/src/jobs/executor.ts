@@ -708,7 +708,7 @@ async function executeMeta(
 
       // Decide where ads come from
       let baseAds: import('../services/meta.service').MetaAd[]
-      if (source === 'input' || inputRecord.anuncios) {
+      if (source === 'input') {
         // Use ads from previous node output
         baseAds = (inputRecord.anuncios as import('../services/meta.service').MetaAd[]) || []
       } else {

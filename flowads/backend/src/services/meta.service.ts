@@ -447,7 +447,13 @@ export class MetaService {
       access_token: this.token,
     })
 
-    if (breakdown && breakdown !== 'none') params.set('breakdowns', breakdown)
+    if (breakdown && breakdown !== 'none') {
+      if (breakdown === 'day') {
+        params.set('time_increment', '1')
+      } else {
+        params.set('breakdowns', breakdown)
+      }
+    }
 
     type ActionEntry = { action_type: string; value: string }
     type InsightRow = Record<string, string | ActionEntry[] | undefined>
