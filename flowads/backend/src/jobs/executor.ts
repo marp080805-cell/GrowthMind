@@ -509,6 +509,13 @@ export async function executeAutomation(
           lastOutput = { total: items.length, completed: items.length }
           templateVars.input = lastOutput
           templateVars.loop_total = items.length
+
+          // Update Loop node log entry to show iteration count (like n8n)
+          const loopLogIdx = nodeLogs.findLastIndex((l) => l.node_id === node.id)
+          if (loopLogIdx >= 0) {
+            nodeLogs[loopLogIdx].node_label = `${node.label || 'Loop'} — ${items.length} item${items.length !== 1 ? 'ns' : ''}`
+            nodeLogs[loopLogIdx].output = lastOutput
+          }
         }
         // ─────────────────────────────────────────────────────────────────────
 

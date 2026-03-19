@@ -156,7 +156,9 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
         <div className="absolute -top-2.5 -right-2 z-10 flex items-center gap-0.5">
           {log.status === 'success' && (
             <span className="bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full font-mono">
-              ✓ {log.duration_ms}ms
+              {nodeData.type === 'logic.loop' && (log.output as Record<string, unknown>)?.total != null
+                ? `↺ ${(log.output as Record<string, unknown>).total}x`
+                : `✓ ${log.duration_ms}ms`}
             </span>
           )}
           {log.status === 'error' && (
