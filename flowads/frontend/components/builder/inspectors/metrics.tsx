@@ -7,26 +7,39 @@ import type { InspectorFieldProps } from '../inspector'
 
 const ALL_METRICS = [
   // Resultado
-  { key: 'engajamentos',   label: 'Engajamentos',   group: 'Resultado' },
-  { key: 'leads',          label: 'Leads',           group: 'Resultado' },
+  { key: 'engajamentos',        label: 'Engajamentos',        group: 'Resultado' },
+  { key: 'leads',               label: 'Leads',               group: 'Resultado' },
+  { key: 'compras',             label: 'Compras',             group: 'Resultado' },
+  { key: 'adicoes_carrinho',    label: 'Adições ao carrinho', group: 'Resultado' },
+  { key: 'seguidores',          label: 'Seguidores',          group: 'Resultado' },
+  { key: 'conversas_iniciadas', label: 'Conversas iniciadas', group: 'Resultado' },
+  { key: 'visualizacoes_video', label: 'Visualizações vídeo', group: 'Resultado' },
+  { key: 'thruplay',            label: 'ThruPlay',            group: 'Resultado' },
   // Custo por resultado
   { key: 'cpe',            label: 'Custo/Engajamento', group: 'Custo p/ resultado' },
-  { key: 'cpl',            label: 'Custo/Lead',      group: 'Custo p/ resultado' },
-  { key: 'custo_mensagem', label: 'Custo/Mensagem',  group: 'Custo p/ resultado' },
+  { key: 'cpl',            label: 'Custo/Lead',        group: 'Custo p/ resultado' },
+  { key: 'custo_mensagem', label: 'Custo/Mensagem',    group: 'Custo p/ resultado' },
+  { key: 'custo_compra',   label: 'Custo/Compra',      group: 'Custo p/ resultado' },
+  { key: 'custo_seguidor', label: 'Custo/Seguidor',    group: 'Custo p/ resultado' },
+  { key: 'custo_conversa', label: 'Custo/Conversa',    group: 'Custo p/ resultado' },
+  { key: 'custo_adicao',   label: 'Custo/Adição',      group: 'Custo p/ resultado' },
+  { key: 'custo_thruplay', label: 'Custo/ThruPlay',    group: 'Custo p/ resultado' },
   // Qualidade
-  { key: 'ctr',            label: 'CTR',             group: 'Qualidade' },
-  { key: 'cliques_link',   label: 'Cliques no link', group: 'Qualidade' },
-  { key: 'cliques',        label: 'Cliques totais',  group: 'Qualidade' },
+  { key: 'ctr',          label: 'CTR',             group: 'Qualidade' },
+  { key: 'cliques_link', label: 'Cliques no link', group: 'Qualidade' },
+  { key: 'cliques',      label: 'Cliques totais',  group: 'Qualidade' },
+  { key: 'hook_rate',    label: 'Hook Rate',       group: 'Qualidade' },
   // Saturação
-  { key: 'frequencia',     label: 'Frequência',      group: 'Saturação' },
+  { key: 'frequencia', label: 'Frequência', group: 'Saturação' },
   // Distribuição
-  { key: 'cpm',            label: 'CPM',             group: 'Distribuição' },
-  { key: 'cpc',            label: 'CPC',             group: 'Distribuição' },
-  { key: 'impressoes',     label: 'Impressões',      group: 'Distribuição' },
-  { key: 'alcance',        label: 'Alcance',         group: 'Distribuição' },
+  { key: 'cpm',      label: 'CPM',        group: 'Distribuição' },
+  { key: 'cpc',      label: 'CPC',        group: 'Distribuição' },
+  { key: 'impressoes', label: 'Impressões', group: 'Distribuição' },
+  { key: 'alcance',  label: 'Alcance',    group: 'Distribuição' },
   // Financeiro
-  { key: 'gasto',          label: 'Gasto',           group: 'Financeiro' },
-  { key: 'roas',           label: 'ROAS',            group: 'Financeiro' },
+  { key: 'gasto',   label: 'Gasto',   group: 'Financeiro' },
+  { key: 'roas',    label: 'ROAS',    group: 'Financeiro' },
+  { key: 'receita', label: 'Receita', group: 'Financeiro' },
 ]
 
 const DEFAULT_SELECTED = ALL_METRICS.map(m => m.key)
@@ -221,6 +234,7 @@ export function MetricsInspector({ config, onChange }: InspectorFieldProps) {
         >
           <option value="none">Nenhum</option>
           <option value="day">Por dia</option>
+          {level === 'adset' && <option value="ad">Por anúncio</option>}
           <option value="age">Por faixa etária</option>
           <option value="gender">Por gênero</option>
           <option value="country">Por país</option>

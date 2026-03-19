@@ -517,6 +517,84 @@ export class MetaService {
     }
   }
 
+  async getMetricsByAd(
+    adsetId: string,
+    datePreset: string,
+    fields: string[]
+  ): Promise<Array<MetaMetrics & { ad_id: string; ad_name: string }>> {
+    const defaultFields = [
+      'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend',
+      'purchase_roas', 'frequency', 'inline_link_clicks',
+      'actions', 'cost_per_action_type', 'action_values',
+    ]
+    const requestedFields = fields.length > 0 ? fields : defaultFields
+
+    const params = new URLSearchParams({
+      fields: ['ad_id', 'ad_name', ...requestedFields].join(','),
+      date_preset: datePreset || 'last_7d',
+      level: 'ad',
+      access_token: this.token,
+    })
+
+    type ActionEntry = { action_type: string; value: string }
+    type InsightRow = Record<string, string | ActionEntry[] | undefined>
+
+    const data = await metaGet<{ data?: InsightRow[] }>(`${META_API}/${adsetId}/insights?${params}`)
+    const rows = data.data || []
+
+    const findAction = (field: ActionEntry[] | undefined, type: string): number =>
+      parseFloat(field?.find(a => a.action_type === type)?.value || '0')
+
+    return rows.map(row => {
+      const actions = row.actions as ActionEntry[] | undefined
+      const cpa = row.cost_per_action_type as ActionEntry[] | undefined
+      const purchaseRoas = row.purchase_roas as ActionEntry[] | undefined
+      const actionValues = row.action_values as ActionEntry[] | undefined
+
+      const impressoes = parseInt(row.impressions as string || '0')
+      const gasto = parseFloat(row.spend as string || '0')
+      const seguidores = findAction(actions, 'like') || findAction(actions, 'follow')
+      const videoViews = findAction(actions, 'video_view')
+      const thruplayCount = findAction(actions, 'video_thruplay_watched')
+      const conversas = findAction(actions, 'onsite_conversion.messaging_conversation_started_7d')
+        || findAction(actions, 'messaging_conversation_started_7d')
+
+      return {
+        ad_id: row.ad_id as string || '',
+        ad_name: row.ad_name as string || '',
+        impressoes,
+        alcance: parseInt(row.reach as string || '0'),
+        cliques: parseInt(row.clicks as string || '0'),
+        ctr: parseFloat(row.ctr as string || '0'),
+        cpc: parseFloat(row.cpc as string || '0'),
+        cpm: parseFloat(row.cpm as string || '0'),
+        gasto,
+        roas: findAction(purchaseRoas, 'omni_purchase') || findAction(purchaseRoas, 'purchase'),
+        frequencia: parseFloat(row.frequency as string || '0'),
+        engajamentos: findAction(actions, 'post_engagement'),
+        leads: findAction(actions, 'lead'),
+        compras: findAction(actions, 'omni_purchase') || findAction(actions, 'purchase'),
+        seguidores,
+        conversas_iniciadas: conversas,
+        adicoes_carrinho: findAction(actions, 'offsite_conversion.fb_pixel_add_to_cart') || findAction(actions, 'add_to_cart'),
+        visualizacoes_video: videoViews,
+        thruplay: thruplayCount,
+        cpe: findAction(cpa, 'post_engagement'),
+        cpl: findAction(cpa, 'lead'),
+        custo_mensagem: findAction(cpa, 'onsite_conversion.messaging_conversation_started_7d') || findAction(cpa, 'messaging_conversation_started_7d'),
+        custo_compra: findAction(cpa, 'omni_purchase') || findAction(cpa, 'purchase'),
+        custo_seguidor: seguidores > 0 ? gasto / seguidores : 0,
+        custo_conversa: findAction(cpa, 'onsite_conversion.messaging_conversation_started_7d') || findAction(cpa, 'messaging_conversation_started_7d'),
+        custo_adicao: findAction(cpa, 'offsite_conversion.fb_pixel_add_to_cart') || findAction(cpa, 'add_to_cart'),
+        custo_thruplay: thruplayCount > 0 ? gasto / thruplayCount : 0,
+        cliques_link: parseInt(row.inline_link_clicks as string || '0'),
+        hook_rate: impressoes > 0 ? (videoViews / impressoes) * 100 : 0,
+        receita: findAction(actionValues, 'omni_purchase') || findAction(actionValues, 'purchase'),
+        periodo: datePreset,
+      }
+    })
+  }
+
   async getCreativeInsights(adId?: string): Promise<Record<string, unknown>[]> {
     const target = adId
       ? `${META_API}/${adId}/insights`
