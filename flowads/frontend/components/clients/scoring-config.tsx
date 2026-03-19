@@ -359,7 +359,7 @@ export function ScoringConfig({ client, onSaved, compact }: ScoringConfigProps) 
                 className="flex-1 h-8 rounded-[8px] bg-bg2 border border-[var(--border)] text-text px-2 text-xs focus:outline-none focus:border-accent disabled:opacity-40"
               >
                 {(() => {
-                  const groups = [...new Set(METRICS.map(m => m.group))]
+                  const groups = Array.from(new Set(METRICS.map(m => m.group)))
                   return groups.map(group => (
                     <optgroup key={group} label={group}>
                       {METRICS.filter(m => m.group === group).map(m => (
