@@ -796,7 +796,7 @@ async function executeMeta(
       // ── SINGLE-AD MODE: input is one ad (from Loop {{item}}) ──────────────
       const isSingleAd = inputRecord.id && !inputRecord.anuncios
       if (isSingleAd) {
-        const ad = inputRecord as EnrichedAd
+        const ad = inputRecord as unknown as EnrichedAd
         const metricas = ad.metricas || {} as import('../services/meta.service').MetaMetrics
         const ageDays = ad.age_days !== undefined
           ? ad.age_days
