@@ -14,7 +14,8 @@ export function GetAdMetricsInspector({ config, onChange }: InspectorFieldProps)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [adsets, setAdsets] = useState<AdSet[]>([])
   const [loadingAdsets, setLoadingAdsets] = useState(false)
-  const [campaignForAdsets, setCampaignForAdsets] = useState('')
+  // campaign_id is persisted in config so it survives close/reopen
+  const [campaignForAdsets, setCampaignForAdsets] = useState((config.campaign_id as string) || '')
 
   const source = (config.source as string) || 'fetch'
   const level = (config.level as string) || 'account'
@@ -128,7 +129,10 @@ export function GetAdMetricsInspector({ config, onChange }: InspectorFieldProps)
                   <label className="text-[10px] font-syne font-semibold text-text3">CAMPANHA (para carregar conjuntos)</label>
                   <select
                     value={campaignForAdsets}
-                    onChange={(e) => setCampaignForAdsets(e.target.value)}
+                    onChange={(e) => {
+                      setCampaignForAdsets(e.target.value)
+                      onChange({ ...config, campaign_id: e.target.value, parent_id: '' })
+                    }}
                     className={sel}
                   >
                     <option value="">Selecione para listar conjuntos...</option>
