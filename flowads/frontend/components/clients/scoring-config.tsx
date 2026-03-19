@@ -69,9 +69,10 @@ interface RuleRow extends ScoringRule {
 interface ScoringConfigProps {
   client: Client
   onSaved: (updated: Client) => void
+  compact?: boolean
 }
 
-export function ScoringConfig({ client, onSaved }: ScoringConfigProps) {
+export function ScoringConfig({ client, onSaved, compact }: ScoringConfigProps) {
   const initial = client.scoring_config ?? { rules: [] }
 
   const [campaignType, setCampaignType] = useState<string>(initial.campaign_type ?? '')
@@ -159,27 +160,29 @@ export function ScoringConfig({ client, onSaved }: ScoringConfigProps) {
       {/* Preset por tipo de campanha */}
       <div className="bg-surface border border-[var(--border)] rounded-lg p-4 space-y-3">
         <div>
-          <p className="text-sm font-syne font-semibold text-text mb-0.5">Tipo de campanha</p>
-          <p className="text-xs text-text3">Selecione para carregar valores padrão recomendados</p>
+          <p className={`${compact ? 'text-xs' : 'text-sm'} font-syne font-semibold text-text mb-0.5`}>Tipo de campanha</p>
+          <p className="text-[10px] text-text3">Selecione para carregar valores padrão recomendados</p>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className={`grid gap-2 ${compact ? 'grid-cols-1' : 'grid-cols-3'}`}>
           {[
             { key: 'engagement', label: 'Engajamento', desc: 'Posts Instagram', icon: '📱' },
             { key: 'whatsapp_conversion', label: 'Conv. WhatsApp', desc: 'Mensagens diretas', icon: '💬' },
-            { key: 'lead_gen', label: 'Geração de Leads', desc: 'Formulários/Site', icon: '🎯' },
+            { key: 'lead_gen', label: 'Leads', desc: 'Formulários/Site', icon: '🎯' },
           ].map(t => (
             <button
               key={t.key}
               onClick={() => applyPreset(t.key)}
-              className={`p-3 rounded-lg border text-left transition-all ${
+              className={`rounded-lg border text-left transition-all ${compact ? 'px-3 py-2 flex items-center gap-2' : 'p-3'} ${
                 campaignType === t.key
                   ? 'border-accent bg-accent/10'
                   : 'border-[var(--border)] bg-bg2 hover:border-accent/50'
               }`}
             >
-              <div className="text-lg mb-1">{t.icon}</div>
-              <div className="text-xs font-syne font-semibold text-text">{t.label}</div>
-              <div className="text-[10px] text-text3">{t.desc}</div>
+              <div className={compact ? 'text-base' : 'text-lg mb-1'}>{t.icon}</div>
+              <div>
+                <div className="text-xs font-syne font-semibold text-text">{t.label}</div>
+                <div className="text-[10px] text-text3">{t.desc}</div>
+              </div>
             </button>
           ))}
         </div>
@@ -187,9 +190,9 @@ export function ScoringConfig({ client, onSaved }: ScoringConfigProps) {
 
       {/* Configurações gerais */}
       <div className="bg-surface border border-[var(--border)] rounded-lg p-4 space-y-4">
-        <p className="text-sm font-syne font-semibold text-text">Parâmetros gerais</p>
+        <p className={`${compact ? 'text-xs' : 'text-sm'} font-syne font-semibold text-text`}>Parâmetros gerais</p>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className={`grid gap-4 ${compact ? 'grid-cols-1' : 'grid-cols-2'}`}>
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-syne font-semibold text-text3">THRESHOLD DE APROVAÇÃO</label>
             <div className="flex items-center gap-2">
@@ -218,7 +221,7 @@ export function ScoringConfig({ client, onSaved }: ScoringConfigProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className={`grid gap-4 ${compact ? 'grid-cols-1' : 'grid-cols-2'}`}>
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-syne font-semibold text-text3">MÍNIMO DE DIAS RODANDO</label>
             <input
