@@ -329,21 +329,90 @@ export function ScoringConfig({ client, onSaved, compact }: ScoringConfigProps) 
           </span>
         </div>
 
-        {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-2 bg-bg3 border-b border-[var(--border)] text-[10px] font-syne font-semibold text-text3">
-          <span className="w-5" />
-          <span className="flex-1">Métrica</span>
-          <span className="w-16 text-center">Operador</span>
-          <span className="w-20 text-right">Meta</span>
-          <span className="w-32">Peso</span>
-          <span className="w-5" />
-        </div>
+        {/* Header — only in full mode */}
+        {!compact && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-bg3 border-b border-[var(--border)] text-[10px] font-syne font-semibold text-text3">
+            <span className="w-5" />
+            <span className="flex-1">Métrica</span>
+            <span className="w-16 text-center">Operador</span>
+            <span className="w-20 text-right">Meta</span>
+            <span className="w-32">Peso</span>
+            <span className="w-5" />
+          </div>
+        )}
 
         {rules.length === 0 ? (
           <div className="py-6 text-center text-sm text-text3">
             Nenhuma regra. Selecione um preset acima ou adicione manualmente.
           </div>
+        ) : compact ? (
+          /* Compact: 2-line layout */
+          rules.map((rule) => (
+            <div key={rule._id} className={`px-3 py-2 border-b border-[var(--border)] last:border-0 transition-colors space-y-1.5 ${rule.enabled ? '' : 'opacity-50'}`}>
+              {/* Line 1: checkbox + metric + delete */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={rule.enabled}
+                  onChange={e => updateRule(rule._id, { enabled: e.target.checked })}
+                  className="w-4 h-4 accent-accent cursor-pointer flex-shrink-0"
+                />
+                <select
+                  value={rule.metric}
+                  onChange={e => updateRule(rule._id, { metric: e.target.value as ScoringRule['metric'] })}
+                  disabled={!rule.enabled}
+                  className="flex-1 min-w-0 h-7 rounded-[6px] bg-bg2 border border-[var(--border)] text-text px-2 text-xs focus:outline-none focus:border-accent disabled:opacity-40"
+                >
+                  {(() => {
+                    const groups = Array.from(new Set(METRICS.map(m => m.group)))
+                    return groups.map(group => (
+                      <optgroup key={group} label={group}>
+                        {METRICS.filter(m => m.group === group).map(m => (
+                          <option key={m.key} value={m.key}>{m.label}</option>
+                        ))}
+                      </optgroup>
+                    ))
+                  })()}
+                </select>
+                <button
+                  onClick={() => removeRule(rule._id)}
+                  className="flex-shrink-0 w-5 text-text3 hover:text-red-400 transition-colors text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+              {/* Line 2: operator + target + weight */}
+              <div className="flex items-center gap-1.5 pl-6">
+                <select
+                  value={rule.operator}
+                  onChange={e => updateRule(rule._id, { operator: e.target.value as '>=' | '<=' })}
+                  disabled={!rule.enabled}
+                  className="w-12 h-7 rounded-[6px] bg-bg2 border border-[var(--border)] text-text px-1 text-xs text-center focus:outline-none focus:border-accent disabled:opacity-40"
+                >
+                  <option value=">=">&ge;</option>
+                  <option value="<=">&le;</option>
+                </select>
+                <input
+                  type="number" step="0.01"
+                  value={rule.target}
+                  onChange={e => updateRule(rule._id, { target: parseFloat(e.target.value) || 0 })}
+                  disabled={!rule.enabled}
+                  className="flex-1 h-7 rounded-[6px] bg-bg2 border border-[var(--border)] text-text px-2 text-xs text-right focus:outline-none focus:border-accent disabled:opacity-40"
+                />
+                <span className="text-[10px] text-text3 flex-shrink-0">peso</span>
+                <input
+                  type="number" min={0} max={100} step={5}
+                  value={rule.weight}
+                  onChange={e => updateRule(rule._id, { weight: Number(e.target.value) })}
+                  disabled={!rule.enabled}
+                  className="w-14 h-7 rounded-[6px] bg-bg2 border border-[var(--border)] text-text px-2 text-xs text-right focus:outline-none focus:border-accent disabled:opacity-40"
+                />
+                <span className="text-[10px] text-text3 flex-shrink-0">%</span>
+              </div>
+            </div>
+          ))
         ) : (
+          /* Full: single-line layout */
           rules.map((rule) => (
             <div key={rule._id} className={`flex items-center gap-2 px-4 py-2.5 border-b border-[var(--border)] last:border-0 transition-colors ${rule.enabled ? 'hover:bg-bg3/40' : 'opacity-50'}`}>
               <input
