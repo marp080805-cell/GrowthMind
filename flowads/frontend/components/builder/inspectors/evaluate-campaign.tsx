@@ -80,12 +80,12 @@ export function EvaluateCampaignInspector({ config, onChange }: InspectorFieldPr
         </div>
         <div className="border-t border-accent/10 pt-2">
           <p className="font-syne font-bold text-accent mb-1">Modo anúncio a anúncio — recebe {'{{item}}'} dentro de Loop</p>
-          <p><code className="text-accent">{'{{acao}}'}</code> — <strong>pausar</strong> | manter | aguardar</p>
+          <p><code className="text-accent">{'{{acao}}'}</code> — <strong>pausar</strong> | <strong>alertar</strong> | manter</p>
+          <p className="text-text3/70 ml-2">pausar = score baixo · alertar = frequência saturando · manter = ok</p>
           <p><code className="text-accent">{'{{score}}'}</code> — pontuação 0-100</p>
           <p><code className="text-accent">{'{{motivo}}'}</code> — explicação da decisão</p>
           <p><code className="text-accent">{'{{pausar}}'}</code> — true/false</p>
-          <p><code className="text-accent">{'{{skip_evaluation}}'}</code> — true se ainda em maturação</p>
-          <p className="mt-1 text-text3/70">Switch: verificar {'{{acao}}'} — contém "pausar" / "manter"</p>
+          <p className="mt-1 text-text3/70">Switch: verificar {'{{acao}}'} — contém "pausar" / "alertar"</p>
         </div>
       </div>
     </>

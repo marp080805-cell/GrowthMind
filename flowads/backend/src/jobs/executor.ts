@@ -812,6 +812,15 @@ async function executeMeta(
         const collapso = score < 10 && ageDays !== null && ageDays > 3
         const skipEvaluation = tooYoung && !collapso
 
+        // Saturation detection: frequencia rule failing = creative fatigue
+        const frequenciaRule = (rules as ScoringRule[]).find(r => r.enabled && r.metric === 'frequencia')
+        const currentFreq = metricas.frequencia ?? 0
+        const isSaturating = !skipEvaluation && (
+          frequenciaRule
+            ? (frequenciaRule.operator === '<=' && currentFreq > frequenciaRule.target)
+            : currentFreq > 3
+        )
+
         let pausar = false
         let motivo = ''
         if (skipEvaluation) {
@@ -826,7 +835,18 @@ async function executeMeta(
           motivo = `Score ${score}/${threshold} — aprovado`
         }
 
-        const acao = skipEvaluation ? 'aguardar' : pausar ? 'pausar' : 'manter'
+        // acao: pausar → pause ad | alertar → creative fatigue, needs new creatives | manter → keep running
+        let acao: string
+        if (skipEvaluation) {
+          acao = 'manter'
+        } else if (isSaturating) {
+          acao = 'alertar'
+          motivo += ` — Frequência ${currentFreq.toFixed(1)} indica saturação de criativos`
+        } else if (pausar) {
+          acao = 'pausar'
+        } else {
+          acao = 'manter'
+        }
 
         return {
           acao,
