@@ -157,7 +157,13 @@ export const FlowNode = memo(function FlowNode({ data, selected }: NodeProps) {
           {log.status === 'success' && (
             <span className="bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full font-mono">
               {nodeData.type === 'logic.loop' && (log.output as Record<string, unknown>)?.total != null
-                ? `↺ ${(log.output as Record<string, unknown>).total}x`
+                ? (() => {
+                    const o = log.output as Record<string, unknown>
+                    const bs = (o.batch_size as number) || 1
+                    return bs > 1
+                      ? `↺ ${o.batches}x (${bs}/vez)`
+                      : `↺ ${o.total}x`
+                  })()
                 : `✓ ${log.duration_ms}ms`}
             </span>
           )}

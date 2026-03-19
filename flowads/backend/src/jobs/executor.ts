@@ -368,6 +368,8 @@ export async function executeAutomation(
           const loopResult = output as { items: unknown[]; total: number; item_var: string }
           const items = loopResult.items || []
           const itemVar = loopResult.item_var || 'item'
+          const batchSize = Math.max(1, (interpolatedConfig.batch_size as number) || 1)
+          const totalBatches = Math.ceil(items.length / batchSize)
 
           // Collect nodes reachable via "each" edges (BFS)
           const eachTargets = edges
@@ -392,16 +394,20 @@ export async function executeAutomation(
           // Body nodes in original topological order
           const bodyNodesOrdered = ordered.filter(n => bodyNodeIds.has(n.id))
 
-          // Execute each item through the body
-          for (let i = 0; i < items.length; i++) {
-            const item = items[i]
-            const iterVars: Record<string, unknown> = { ...templateVars, [itemVar]: item, loop_index: i }
+          // Execute each batch through the body
+          let batchIndex = 0
+          for (let i = 0; i < items.length; i += batchSize) {
+            batchIndex++
+            const batch = items.slice(i, i + batchSize)
+            const item = batchSize === 1 ? batch[0] : batch
+            const iterLabel = `[${batchIndex}/${totalBatches}]`
+            const iterVars: Record<string, unknown> = { ...templateVars, [itemVar]: item, loop_index: batchIndex - 1, loop_batch_size: batchSize }
             let iterLastOutput: unknown = item
             const iterSkipped = new Set<string>()
 
             for (const bodyNode of bodyNodesOrdered) {
               if (iterSkipped.has(bodyNode.id)) {
-                nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'skipped', input: iterLastOutput, output: null, duration_ms: 0 })
+                nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} ${iterLabel}`, status: 'skipped', input: iterLastOutput, output: null, duration_ms: 0 })
                 continue
               }
 
@@ -481,7 +487,7 @@ export async function executeAutomation(
                 nodeLogs.push({
                   node_id: bodyNode.id,
                   node_type: bodyNode.type,
-                  node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`,
+                  node_label: `${bodyNode.label || bodyNode.type} ${iterLabel}`,
                   status: 'success',
                   input: iterInputSnapshot,
                   output: iterOutput,
@@ -491,14 +497,14 @@ export async function executeAutomation(
                 const iterDuration = Date.now() - iterStart
                 const iterMsg = iterErr instanceof Error ? iterErr.message : String(iterErr)
                 if (iterMsg === 'BRANCH_SKIPPED') {
-                  nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'skipped', input: iterInputSnapshot, output: null, duration_ms: iterDuration })
+                  nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} ${iterLabel}`, status: 'skipped', input: iterInputSnapshot, output: null, duration_ms: iterDuration })
                   continue
                 }
                 if (iterMsg === 'FLOW_STOPPED') {
-                  nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'skipped', input: iterInputSnapshot, output: null, duration_ms: iterDuration })
+                  nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} ${iterLabel}`, status: 'skipped', input: iterInputSnapshot, output: null, duration_ms: iterDuration })
                   break
                 }
-                nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} [${i + 1}/${items.length}]`, status: 'error', input: iterInputSnapshot, output: null, error: iterMsg, duration_ms: iterDuration })
+                nodeLogs.push({ node_id: bodyNode.id, node_type: bodyNode.type, node_label: `${bodyNode.label || bodyNode.type} ${iterLabel}`, status: 'error', input: iterInputSnapshot, output: null, error: iterMsg, duration_ms: iterDuration })
                 break // stop remaining body nodes for this item, continue with next item
               }
             }
@@ -506,7 +512,7 @@ export async function executeAutomation(
           }
 
           // After loop, expose summary to "done" branch
-          lastOutput = { total: items.length, completed: items.length }
+          lastOutput = { total: items.length, batches: totalBatches, batch_size: batchSize, completed: items.length }
           templateVars.input = lastOutput
           templateVars.loop_total = items.length
 

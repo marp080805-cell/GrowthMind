@@ -27,6 +27,17 @@ export function LoopInspector({ config, onChange }: InspectorFieldProps) {
         <p className="text-[10px] text-text3">O item ficará disponível como {'{{' + (config.item_var as string || 'item') + '}}'}</p>
       </div>
       <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">ITENS POR VEZ (BATCH SIZE)</label>
+        <input
+          type="number"
+          min={1}
+          value={(config.batch_size as number) || 1}
+          onChange={(e) => set('batch_size', Math.max(1, parseInt(e.target.value) || 1))}
+          className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+        />
+        <p className="text-[10px] text-text3">1 = um item por vez (padrão). &gt;1 = array de itens por iteração</p>
+      </div>
+      <div className="flex flex-col gap-1.5">
         <label className="text-[10px] font-syne font-semibold text-text3">LIMITE MÁX. DE ITERAÇÕES</label>
         <input
           type="number"
