@@ -4,16 +4,29 @@ import { useState } from 'react'
 import { clientsApi, type Client, type ScoringRule, type ScoringConfig } from '@/lib/api'
 
 const METRICS = [
-  { key: 'ctr', label: 'CTR (%)', hint: 'Taxa de cliques — maior é melhor (>=)' },
-  { key: 'cpc', label: 'CPC (R$)', hint: 'Custo por clique — menor é melhor (<=)' },
-  { key: 'cpm', label: 'CPM (R$)', hint: 'Custo por mil impressões — menor é melhor (<=)' },
-  { key: 'gasto', label: 'Gasto (R$)', hint: 'Total gasto no período — menor é melhor (<=)' },
-  { key: 'roas', label: 'ROAS', hint: 'Retorno sobre investimento — maior é melhor (>=)' },
-  { key: 'frequencia', label: 'Frequência', hint: 'Saturação do criativo — menor é melhor (<=)' },
+  // ── Resultado principal ──────────────────────────────────────────────────
+  { key: 'engajamentos', label: 'Engajamentos', hint: 'Total de engajamentos — maior é melhor (>=)', group: 'Resultado' },
+  { key: 'leads',        label: 'Leads',        hint: 'Total de leads gerados — maior é melhor (>=)', group: 'Resultado' },
+  // ── Custo por resultado ──────────────────────────────────────────────────
+  { key: 'cpe',           label: 'Custo/Engajamento (R$)', hint: 'CPE — menor é melhor (<=)', group: 'Custo p/ resultado' },
+  { key: 'cpl',           label: 'Custo/Lead (R$)',        hint: 'CPL — menor é melhor (<=)', group: 'Custo p/ resultado' },
+  { key: 'custo_mensagem', label: 'Custo/Mensagem (R$)',  hint: 'Custo por conversa iniciada no WhatsApp — menor é melhor (<=)', group: 'Custo p/ resultado' },
+  // ── Qualidade do criativo ────────────────────────────────────────────────
+  { key: 'ctr',         label: 'CTR (%)',        hint: 'Taxa de cliques — maior é melhor (>=)', group: 'Qualidade' },
+  { key: 'cliques_link', label: 'Cliques no link', hint: 'Total de cliques no link — maior é melhor (>=)', group: 'Qualidade' },
+  // ── Saturação ───────────────────────────────────────────────────────────
+  { key: 'frequencia',  label: 'Frequência',     hint: 'Vezes que o mesmo usuário viu o anúncio — menor é melhor (<=)', group: 'Saturação' },
+  // ── Distribuição / custo ────────────────────────────────────────────────
+  { key: 'cpm',         label: 'CPM (R$)',        hint: 'Custo por mil impressões — menor é melhor (<=)', group: 'Distribuição' },
+  { key: 'cpc',         label: 'CPC (R$)',        hint: 'Custo por clique — menor é melhor (<=)', group: 'Distribuição' },
+  { key: 'gasto',       label: 'Gasto (R$)',      hint: 'Total gasto no período — menor é melhor (<=)', group: 'Controle' },
+  // ── Retorno ─────────────────────────────────────────────────────────────
+  { key: 'roas',        label: 'ROAS',            hint: 'Retorno sobre investimento em compras — maior é melhor (>=)', group: 'Retorno' },
 ]
 
 const DEFAULT_OPERATORS: Record<string, '>=' | '<='> = {
-  ctr: '>=', roas: '>=', cpc: '<=', cpm: '<=', gasto: '<=', frequencia: '<=',
+  ctr: '>=', roas: '>=', cliques_link: '>=', engajamentos: '>=', leads: '>=',
+  cpc: '<=', cpm: '<=', gasto: '<=', frequencia: '<=', cpe: '<=', cpl: '<=', custo_mensagem: '<=',
 }
 
 const PRESETS: Record<string, Partial<ScoringConfig>> = {
@@ -26,9 +39,14 @@ const PRESETS: Record<string, Partial<ScoringConfig>> = {
     min_actives_mode: 'fixed',
     min_actives_fixed: 3,
     rules: [
-      { metric: 'ctr', operator: '>=', target: 2.0, weight: 35, enabled: true },
-      { metric: 'frequencia', operator: '<=', target: 3.0, weight: 35, enabled: true },
-      { metric: 'cpm', operator: '<=', target: 20, weight: 30, enabled: true },
+      // 1º meta de resultado
+      { metric: 'cpe',       operator: '<=', target: 0.30, weight: 40, enabled: true },
+      // 2º qualidade do criativo
+      { metric: 'ctr',       operator: '>=', target: 2.0,  weight: 25, enabled: true },
+      // 3º saturação
+      { metric: 'frequencia', operator: '<=', target: 3.0, weight: 25, enabled: true },
+      // 4º custo de distribuição
+      { metric: 'cpm',       operator: '<=', target: 20,   weight: 10, enabled: true },
     ],
   },
   whatsapp_conversion: {
@@ -40,10 +58,14 @@ const PRESETS: Record<string, Partial<ScoringConfig>> = {
     min_actives_mode: 'fixed',
     min_actives_fixed: 3,
     rules: [
-      { metric: 'ctr', operator: '>=', target: 1.5, weight: 25, enabled: true },
-      { metric: 'cpc', operator: '<=', target: 2.0, weight: 35, enabled: true },
+      // 1º meta de resultado
+      { metric: 'custo_mensagem', operator: '<=', target: 3.0, weight: 40, enabled: true },
+      // 2º qualidade do criativo
+      { metric: 'ctr',       operator: '>=', target: 1.5,  weight: 25, enabled: true },
+      // 3º saturação
       { metric: 'frequencia', operator: '<=', target: 4.0, weight: 20, enabled: true },
-      { metric: 'cpm', operator: '<=', target: 25, weight: 20, enabled: true },
+      // 4º custo de distribuição
+      { metric: 'cpm',       operator: '<=', target: 25,   weight: 15, enabled: true },
     ],
   },
   lead_gen: {
@@ -55,9 +77,14 @@ const PRESETS: Record<string, Partial<ScoringConfig>> = {
     min_actives_mode: 'fixed',
     min_actives_fixed: 3,
     rules: [
-      { metric: 'ctr', operator: '>=', target: 1.5, weight: 30, enabled: true },
-      { metric: 'cpc', operator: '<=', target: 3.0, weight: 40, enabled: true },
-      { metric: 'cpm', operator: '<=', target: 30, weight: 30, enabled: true },
+      // 1º meta de resultado
+      { metric: 'cpl',       operator: '<=', target: 15.0, weight: 40, enabled: true },
+      // 2º qualidade do criativo
+      { metric: 'ctr',       operator: '>=', target: 1.5,  weight: 25, enabled: true },
+      // 3º saturação
+      { metric: 'frequencia', operator: '<=', target: 4.0, weight: 20, enabled: true },
+      // 4º custo de distribuição
+      { metric: 'cpm',       operator: '<=', target: 30,   weight: 15, enabled: true },
     ],
   },
 }
@@ -331,9 +358,16 @@ export function ScoringConfig({ client, onSaved, compact }: ScoringConfigProps) 
                 disabled={!rule.enabled}
                 className="flex-1 h-8 rounded-[8px] bg-bg2 border border-[var(--border)] text-text px-2 text-xs focus:outline-none focus:border-accent disabled:opacity-40"
               >
-                {METRICS.map(m => (
-                  <option key={m.key} value={m.key}>{m.label}</option>
-                ))}
+                {(() => {
+                  const groups = [...new Set(METRICS.map(m => m.group))]
+                  return groups.map(group => (
+                    <optgroup key={group} label={group}>
+                      {METRICS.filter(m => m.group === group).map(m => (
+                        <option key={m.key} value={m.key}>{m.label}</option>
+                      ))}
+                    </optgroup>
+                  ))
+                })()}
               </select>
               <select
                 value={rule.operator}

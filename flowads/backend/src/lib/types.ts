@@ -8,7 +8,7 @@ export interface User {
 }
 
 export interface ScoringRule {
-  metric: 'ctr' | 'cpc' | 'cpm' | 'gasto' | 'roas' | 'frequencia'
+  metric: 'ctr' | 'cpc' | 'cpm' | 'gasto' | 'roas' | 'frequencia' | 'cpe' | 'cpl' | 'custo_mensagem' | 'engajamentos' | 'leads' | 'cliques_link'
   operator: '>=' | '<='
   target: number
   weight: number

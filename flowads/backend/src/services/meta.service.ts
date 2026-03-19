@@ -52,6 +52,15 @@ export interface MetaMetrics {
   gasto: number
   roas?: number
   frequencia?: number
+  // Resultado principal
+  engajamentos?: number      // total de engajamentos (post_engagement)
+  leads?: number             // total de leads gerados
+  // Custo por resultado
+  cpe?: number               // custo por engajamento
+  cpl?: number               // custo por lead
+  custo_mensagem?: number    // custo por conversa WhatsApp iniciada
+  // Qualidade de clique
+  cliques_link?: number      // inline_link_clicks
   periodo: string
 }
 
@@ -411,7 +420,11 @@ export class MetaService {
       ? `${META_API}/${objectId}/insights`
       : `${this.accountUrl}/insights`
 
-    const defaultFields = ['impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend', 'purchase_roas', 'frequency']
+    const defaultFields = [
+      'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend',
+      'purchase_roas', 'frequency', 'inline_link_clicks',
+      'actions', 'cost_per_action_type',
+    ]
     const requestedFields = fields.length > 0 ? fields : defaultFields
 
     const params = new URLSearchParams({
@@ -422,19 +435,36 @@ export class MetaService {
 
     if (breakdown && breakdown !== 'none') params.set('breakdowns', breakdown)
 
-    const data = await metaGet<{ data?: Record<string, string>[] }>(`${target}?${params}`)
-    const row = data.data?.[0] || {}
+    type ActionEntry = { action_type: string; value: string }
+    type InsightRow = Record<string, string | ActionEntry[] | undefined>
+
+    const data = await metaGet<{ data?: InsightRow[] }>(`${target}?${params}`)
+    const row: InsightRow = data.data?.[0] || {}
+
+    const findAction = (field: ActionEntry[] | undefined, type: string): number =>
+      parseFloat(field?.find(a => a.action_type === type)?.value || '0')
+
+    const actions = row.actions as ActionEntry[] | undefined
+    const cpa = row.cost_per_action_type as ActionEntry[] | undefined
+    const purchaseRoas = row.purchase_roas as ActionEntry[] | undefined
 
     return {
-      impressoes: parseInt(row.impressions || '0'),
-      alcance: parseInt(row.reach || '0'),
-      cliques: parseInt(row.clicks || '0'),
-      ctr: parseFloat(row.ctr || '0'),
-      cpc: parseFloat(row.cpc || '0'),
-      cpm: parseFloat(row.cpm || '0'),
-      gasto: parseFloat(row.spend || '0'),
-      roas: parseFloat(row.purchase_roas?.[0] || '0'),
-      frequencia: parseFloat(row.frequency || '0'),
+      impressoes: parseInt(row.impressions as string || '0'),
+      alcance: parseInt(row.reach as string || '0'),
+      cliques: parseInt(row.clicks as string || '0'),
+      ctr: parseFloat(row.ctr as string || '0'),
+      cpc: parseFloat(row.cpc as string || '0'),
+      cpm: parseFloat(row.cpm as string || '0'),
+      gasto: parseFloat(row.spend as string || '0'),
+      roas: findAction(purchaseRoas, 'omni_purchase') || findAction(purchaseRoas, 'purchase'),
+      frequencia: parseFloat(row.frequency as string || '0'),
+      engajamentos: findAction(actions, 'post_engagement'),
+      leads: findAction(actions, 'lead'),
+      cpe: findAction(cpa, 'post_engagement'),
+      cpl: findAction(cpa, 'lead'),
+      custo_mensagem: findAction(cpa, 'onsite_conversion.messaging_conversation_started_7d')
+        || findAction(cpa, 'messaging_conversation_started_7d'),
+      cliques_link: parseInt(row.inline_link_clicks as string || '0'),
       periodo: datePreset,
     }
   }
