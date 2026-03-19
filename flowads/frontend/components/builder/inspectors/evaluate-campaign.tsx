@@ -25,6 +25,21 @@ export function EvaluateCampaignInspector({ config, onChange }: InspectorFieldPr
 
   return (
     <>
+      {/* Variável de entrada */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">VARIÁVEL DE ENTRADA</label>
+        <input
+          type="text"
+          value={(config.input_var as string) || 'anuncios'}
+          onChange={e => set('input_var', e.target.value || 'anuncios')}
+          placeholder="anuncios"
+          className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent font-mono"
+        />
+        <p className="text-[10px] text-text3">
+          Nome da variável do node anterior — ex: <code className="text-text2">anuncios</code> (padrão) ou <code className="text-text2">item</code> dentro de um Loop
+        </p>
+      </div>
+
       {/* Threshold override */}
       <div className="flex flex-col gap-1.5">
         <label className="text-[10px] font-syne font-semibold text-text3">THRESHOLD (override opcional)</label>

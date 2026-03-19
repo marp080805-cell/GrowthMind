@@ -797,7 +797,8 @@ async function executeMeta(
       }
 
       // ── SINGLE-AD MODE: input is one ad (from Loop {{item}}) ──────────────
-      const isSingleAd = inputRecord.id && !inputRecord.anuncios
+      const inputVar = (config.input_var as string) || 'anuncios'
+      const isSingleAd = inputRecord.id && !inputRecord[inputVar]
       if (isSingleAd) {
         const ad = inputRecord as unknown as EnrichedAd
         const metricas = ad.metricas || {} as import('../services/meta.service').MetaMetrics
@@ -838,8 +839,8 @@ async function executeMeta(
         }
       }
 
-      // ── BULK MODE: input has {anuncios:[...]} ──────────────────────────────
-      const ads = (inputRecord.anuncios as EnrichedAd[]) || []
+      // ── BULK MODE: input has {[inputVar]:[...]} ───────────────────────────
+      const ads = (inputRecord[inputVar] as EnrichedAd[]) || []
 
       // Evaluate each ad (metrics must be pre-fetched via get_ad_metrics node)
       const evaluated = ads.map((ad) => {
