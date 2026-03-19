@@ -525,7 +525,7 @@ export class MetaService {
     adsetId: string,
     datePreset: string,
     fields: string[]
-  ): Promise<Array<MetaMetrics & { ad_id: string; ad_name: string }>> {
+  ): Promise<Array<MetaMetrics & { id: string; name: string; ad_id: string; ad_name: string; metricas: MetaMetrics }>> {
     const apiFields = [
       'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend',
       'purchase_roas', 'frequency', 'inline_link_clicks',
@@ -567,9 +567,7 @@ export class MetaService {
       const conversas = findAction(actions, 'onsite_conversion.messaging_conversation_started_7d')
         || findAction(actions, 'messaging_conversation_started_7d')
 
-      return {
-        ad_id: row.ad_id as string || '',
-        ad_name: row.ad_name as string || '',
+      const metricas: MetaMetrics = {
         impressoes,
         alcance: parseInt(row.reach as string || '0'),
         cliques: parseInt(row.clicks as string || '0'),
@@ -599,6 +597,17 @@ export class MetaService {
         hook_rate: impressoes > 0 ? (videoViews / impressoes) * 100 : 0,
         receita: findAction(actionValues, 'omni_purchase') || findAction(actionValues, 'offsite_conversion.fb_pixel_purchase') || findAction(actionValues, 'purchase'),
         periodo: datePreset,
+      }
+
+      return {
+        id: row.ad_id as string || '',
+        name: row.ad_name as string || '',
+        // campos extras para compatibilidade com evaluate_campaign_performance
+        ad_id: row.ad_id as string || '',
+        ad_name: row.ad_name as string || '',
+        metricas,
+        // métricas também flat para acesso direto via variáveis
+        ...metricas,
       }
     })
   }
