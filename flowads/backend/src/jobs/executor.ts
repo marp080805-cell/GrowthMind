@@ -742,20 +742,19 @@ async function executeMeta(
     case 'fetch_metrics': {
       const period = (config.period as string) || '7d'
       const datePreset = periodMap[period] || period
-      const metricsFields = (config.metrics as string[]) || []
       const breakdown = config.breakdown as string
 
       if (breakdown === 'ad') {
         const adsetId = config.object_id as string
         if (!adsetId) throw new Error('Selecione um conjunto de anúncios para usar o breakdown por anúncio')
-        const anuncios = await meta.getMetricsByAd(adsetId, datePreset, metricsFields)
+        const anuncios = await meta.getMetricsByAd(adsetId, datePreset, [])
         return { anuncios_metricas: anuncios, total: anuncios.length }
       }
 
       const metrics = await meta.getMetrics(
         (config.object_id as string) || null,
         datePreset,
-        metricsFields,
+        [],
         breakdown
       )
       return { metricas: metrics }

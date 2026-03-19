@@ -434,16 +434,15 @@ export class MetaService {
       ? `${META_API}/${objectId}/insights`
       : `${this.accountUrl}/insights`
 
-    const defaultFields = [
+    const apiFields = [
       'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend',
       'purchase_roas', 'frequency', 'inline_link_clicks',
       'actions', 'cost_per_action_type', 'action_values',
       'video_thruplay_watched_actions',
     ]
-    const requestedFields = fields.length > 0 ? fields : defaultFields
 
     const params = new URLSearchParams({
-      fields: requestedFields.join(','),
+      fields: apiFields.join(','),
       date_preset: datePreset || 'last_7d',
       access_token: this.token,
     })
@@ -527,16 +526,15 @@ export class MetaService {
     datePreset: string,
     fields: string[]
   ): Promise<Array<MetaMetrics & { ad_id: string; ad_name: string }>> {
-    const defaultFields = [
+    const apiFields = [
       'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend',
       'purchase_roas', 'frequency', 'inline_link_clicks',
       'actions', 'cost_per_action_type', 'action_values',
       'video_thruplay_watched_actions',
     ]
-    const requestedFields = fields.length > 0 ? fields : defaultFields
 
     const params = new URLSearchParams({
-      fields: ['ad_id', 'ad_name', ...requestedFields].join(','),
+      fields: ['ad_id', 'ad_name', ...apiFields].join(','),
       date_preset: datePreset || 'last_7d',
       level: 'ad',
       access_token: this.token,
