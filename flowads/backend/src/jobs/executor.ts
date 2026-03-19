@@ -826,7 +826,10 @@ async function executeMeta(
           motivo = `Score ${score}/${threshold} — aprovado`
         }
 
+        const acao = skipEvaluation ? 'aguardar' : pausar ? 'pausar' : 'manter'
+
         return {
+          acao,
           pausar,
           manter: !pausar,
           score,
