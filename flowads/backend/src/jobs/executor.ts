@@ -724,7 +724,7 @@ async function executeMeta(
         const metricas = await meta.getMetrics(
           ad.id,
           periodMap[period] || period,
-          ['impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend', 'purchase_roas', 'frequency', 'inline_link_clicks', 'actions', 'cost_per_action_type']
+          ['impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend', 'purchase_roas', 'frequency', 'inline_link_clicks', 'actions', 'cost_per_action_type', 'action_values', 'video_thruplay_watched_actions']
         )
         const ageDays = ad.created_time
           ? Math.floor((Date.now() - new Date(ad.created_time).getTime()) / 86_400_000)
@@ -779,11 +779,29 @@ async function executeMeta(
         const totalWeight = enabledRules.reduce((s, r) => s + r.weight, 0)
         if (totalWeight === 0) return 0
         const metricsMap: Record<string, number> = {
-          ctr: metricas.ctr ?? 0, cpc: metricas.cpc ?? 0, cpm: metricas.cpm ?? 0,
-          gasto: metricas.gasto ?? 0, roas: metricas.roas ?? 0, frequencia: metricas.frequencia ?? 0,
-          cpe: metricas.cpe ?? 0, cpl: metricas.cpl ?? 0, custo_mensagem: metricas.custo_mensagem ?? 0,
+          // resultado
           engajamentos: metricas.engajamentos ?? 0, leads: metricas.leads ?? 0,
-          cliques_link: metricas.cliques_link ?? 0,
+          compras: metricas.compras ?? 0, seguidores: metricas.seguidores ?? 0,
+          conversas_iniciadas: metricas.conversas_iniciadas ?? 0,
+          adicoes_carrinho: metricas.adicoes_carrinho ?? 0,
+          visualizacoes_video: metricas.visualizacoes_video ?? 0,
+          thruplay: metricas.thruplay ?? 0,
+          // custo por resultado
+          cpe: metricas.cpe ?? 0, cpl: metricas.cpl ?? 0, custo_mensagem: metricas.custo_mensagem ?? 0,
+          custo_compra: metricas.custo_compra ?? 0, custo_seguidor: metricas.custo_seguidor ?? 0,
+          custo_conversa: metricas.custo_conversa ?? 0, custo_adicao: metricas.custo_adicao ?? 0,
+          custo_thruplay: metricas.custo_thruplay ?? 0,
+          // qualidade
+          ctr: metricas.ctr ?? 0, cliques_link: metricas.cliques_link ?? 0, hook_rate: metricas.hook_rate ?? 0,
+          // saturação
+          frequencia: metricas.frequencia ?? 0,
+          // distribuição
+          cpm: metricas.cpm ?? 0, cpc: metricas.cpc ?? 0,
+          alcance: metricas.alcance ?? 0, impressoes: metricas.impressoes ?? 0,
+          // controle
+          gasto: metricas.gasto ?? 0,
+          // retorno
+          roas: metricas.roas ?? 0, receita: metricas.receita ?? 0,
         }
         let weightedPassed = 0
         for (const rule of enabledRules) {

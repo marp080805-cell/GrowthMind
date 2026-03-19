@@ -5,28 +5,50 @@ import { clientsApi, type Client, type ScoringRule, type ScoringConfig } from '@
 
 const METRICS = [
   // ── Resultado principal ──────────────────────────────────────────────────
-  { key: 'engajamentos', label: 'Engajamentos', hint: 'Total de engajamentos — maior é melhor (>=)', group: 'Resultado' },
-  { key: 'leads',        label: 'Leads',        hint: 'Total de leads gerados — maior é melhor (>=)', group: 'Resultado' },
+  { key: 'engajamentos',        label: 'Engajamentos',          hint: 'Total de engajamentos no post — maior é melhor (>=)', group: 'Resultado' },
+  { key: 'leads',               label: 'Leads',                 hint: 'Total de leads gerados — maior é melhor (>=)', group: 'Resultado' },
+  { key: 'compras',             label: 'Compras',               hint: 'Total de compras/conversões — maior é melhor (>=)', group: 'Resultado' },
+  { key: 'seguidores',          label: 'Seguidores',            hint: 'Novos seguidores/likes na página — maior é melhor (>=)', group: 'Resultado' },
+  { key: 'conversas_iniciadas', label: 'Conversas iniciadas',   hint: 'Conversas iniciadas (WhatsApp/DM) — maior é melhor (>=)', group: 'Resultado' },
+  { key: 'adicoes_carrinho',    label: 'Adições ao carrinho',   hint: 'Total de adições ao carrinho — maior é melhor (>=)', group: 'Resultado' },
+  { key: 'visualizacoes_video', label: 'Visualizações vídeo',  hint: 'Visualizações de 3 segundos — maior é melhor (>=)', group: 'Resultado' },
+  { key: 'thruplay',            label: 'ThruPlay',              hint: 'Visualizações completas (ThruPlay) — maior é melhor (>=)', group: 'Resultado' },
   // ── Custo por resultado ──────────────────────────────────────────────────
-  { key: 'cpe',           label: 'Custo/Engajamento (R$)', hint: 'CPE — menor é melhor (<=)', group: 'Custo p/ resultado' },
-  { key: 'cpl',           label: 'Custo/Lead (R$)',        hint: 'CPL — menor é melhor (<=)', group: 'Custo p/ resultado' },
-  { key: 'custo_mensagem', label: 'Custo/Mensagem (R$)',  hint: 'Custo por conversa iniciada no WhatsApp — menor é melhor (<=)', group: 'Custo p/ resultado' },
+  { key: 'cpe',            label: 'Custo/Engajamento (R$)', hint: 'CPE — menor é melhor (<=)', group: 'Custo p/ resultado' },
+  { key: 'cpl',            label: 'Custo/Lead (R$)',        hint: 'CPL — menor é melhor (<=)', group: 'Custo p/ resultado' },
+  { key: 'custo_mensagem', label: 'Custo/Mensagem (R$)',   hint: 'Custo por conversa WhatsApp — menor é melhor (<=)', group: 'Custo p/ resultado' },
+  { key: 'custo_compra',   label: 'Custo/Compra (R$)',     hint: 'CPA de compra — menor é melhor (<=)', group: 'Custo p/ resultado' },
+  { key: 'custo_seguidor', label: 'Custo/Seguidor (R$)',   hint: 'Gasto ÷ seguidores conquistados — menor é melhor (<=)', group: 'Custo p/ resultado' },
+  { key: 'custo_conversa', label: 'Custo/Conversa (R$)',   hint: 'Custo por conversa iniciada — menor é melhor (<=)', group: 'Custo p/ resultado' },
+  { key: 'custo_adicao',   label: 'Custo/Adição carrinho (R$)', hint: 'Custo por adição ao carrinho — menor é melhor (<=)', group: 'Custo p/ resultado' },
+  { key: 'custo_thruplay', label: 'Custo/ThruPlay (R$)',   hint: 'Custo por visualização completa — menor é melhor (<=)', group: 'Custo p/ resultado' },
   // ── Qualidade do criativo ────────────────────────────────────────────────
-  { key: 'ctr',         label: 'CTR (%)',        hint: 'Taxa de cliques — maior é melhor (>=)', group: 'Qualidade' },
+  { key: 'ctr',        label: 'CTR (%)',         hint: 'Taxa de cliques — maior é melhor (>=)', group: 'Qualidade' },
   { key: 'cliques_link', label: 'Cliques no link', hint: 'Total de cliques no link — maior é melhor (>=)', group: 'Qualidade' },
+  { key: 'hook_rate',  label: 'Hook Rate (%)',    hint: 'Visualizações 3s ÷ Impressões × 100 — maior é melhor (>=)', group: 'Qualidade' },
   // ── Saturação ───────────────────────────────────────────────────────────
-  { key: 'frequencia',  label: 'Frequência',     hint: 'Vezes que o mesmo usuário viu o anúncio — menor é melhor (<=)', group: 'Saturação' },
+  { key: 'frequencia', label: 'Frequência',       hint: 'Vezes que o mesmo usuário viu o anúncio — menor é melhor (<=)', group: 'Saturação' },
   // ── Distribuição / custo ────────────────────────────────────────────────
-  { key: 'cpm',         label: 'CPM (R$)',        hint: 'Custo por mil impressões — menor é melhor (<=)', group: 'Distribuição' },
-  { key: 'cpc',         label: 'CPC (R$)',        hint: 'Custo por clique — menor é melhor (<=)', group: 'Distribuição' },
-  { key: 'gasto',       label: 'Gasto (R$)',      hint: 'Total gasto no período — menor é melhor (<=)', group: 'Controle' },
+  { key: 'cpm',        label: 'CPM (R$)',          hint: 'Custo por mil impressões — menor é melhor (<=)', group: 'Distribuição' },
+  { key: 'cpc',        label: 'CPC (R$)',          hint: 'Custo por clique — menor é melhor (<=)', group: 'Distribuição' },
+  { key: 'alcance',    label: 'Alcance',           hint: 'Total de pessoas alcançadas — maior é melhor (>=)', group: 'Distribuição' },
+  { key: 'impressoes', label: 'Impressões',        hint: 'Total de impressões — maior é melhor (>=)', group: 'Distribuição' },
+  // ── Controle ────────────────────────────────────────────────────────────
+  { key: 'gasto',      label: 'Gasto (R$)',        hint: 'Total gasto no período — controle de orçamento (<=)', group: 'Controle' },
   // ── Retorno ─────────────────────────────────────────────────────────────
-  { key: 'roas',        label: 'ROAS',            hint: 'Retorno sobre investimento em compras — maior é melhor (>=)', group: 'Retorno' },
+  { key: 'roas',       label: 'ROAS',              hint: 'Retorno sobre investimento em compras — maior é melhor (>=)', group: 'Retorno' },
+  { key: 'receita',    label: 'Receita (R$)',       hint: 'Valor total de compras geradas — maior é melhor (>=)', group: 'Retorno' },
 ]
 
 const DEFAULT_OPERATORS: Record<string, '>=' | '<='> = {
+  // maior é melhor
   ctr: '>=', roas: '>=', cliques_link: '>=', engajamentos: '>=', leads: '>=',
-  cpc: '<=', cpm: '<=', gasto: '<=', frequencia: '<=', cpe: '<=', cpl: '<=', custo_mensagem: '<=',
+  compras: '>=', seguidores: '>=', conversas_iniciadas: '>=', adicoes_carrinho: '>=',
+  visualizacoes_video: '>=', thruplay: '>=', hook_rate: '>=', alcance: '>=', impressoes: '>=', receita: '>=',
+  // menor é melhor
+  cpc: '<=', cpm: '<=', gasto: '<=', frequencia: '<=',
+  cpe: '<=', cpl: '<=', custo_mensagem: '<=', custo_compra: '<=',
+  custo_seguidor: '<=', custo_conversa: '<=', custo_adicao: '<=', custo_thruplay: '<=',
 }
 
 const PRESETS: Record<string, Partial<ScoringConfig>> = {
