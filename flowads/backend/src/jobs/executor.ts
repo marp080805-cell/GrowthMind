@@ -703,10 +703,24 @@ async function executeMeta(
 
     case 'get_ad_metrics': {
       const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
-      const ads = (inputRecord.anuncios as import('../services/meta.service').MetaAd[]) || []
       const period = (config.period as string) ?? '7d'
+      const source = (config.source as string) || 'fetch'
 
-      const enriched = await Promise.all(ads.map(async (ad) => {
+      // Decide where ads come from
+      let baseAds: import('../services/meta.service').MetaAd[]
+      if (source === 'input' || inputRecord.anuncios) {
+        // Use ads from previous node output
+        baseAds = (inputRecord.anuncios as import('../services/meta.service').MetaAd[]) || []
+      } else {
+        // Fetch ads using config: level + parent_id + status_filter
+        const level = (config.level as 'campaign' | 'adset' | 'account') || 'account'
+        const parentId = config.parent_id as string | undefined
+        const statusFilter = (config.status_filter as string) || 'ACTIVE'
+        baseAds = await meta.getAds(parentId, level, statusFilter)
+      }
+
+      // Fetch individual metrics for each ad in parallel
+      const enriched = await Promise.all(baseAds.map(async (ad) => {
         const metricas = await meta.getMetrics(
           ad.id,
           periodMap[period] || period,
@@ -739,7 +753,6 @@ async function executeMeta(
 
     case 'evaluate_campaign_performance': {
       const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
-      const ads = (inputRecord.anuncios as import('../services/meta.service').MetaAd[]) || []
 
       // Load client scoring config from DB
       if (!context.client?.id) throw new Error('Cliente não identificado no contexto')
@@ -755,12 +768,78 @@ async function executeMeta(
       const budgetPerCreative = cfg.budget_per_creative ?? 25
       const rules = (cfg.rules || []).filter(r => r.enabled !== false)
 
-      // Evaluate each ad (metrics must be pre-fetched via get_ad_metrics node)
       type EnrichedAd = import('../services/meta.service').MetaAd & {
         metricas?: import('../services/meta.service').MetaMetrics
         age_days?: number | null
       }
-      const evaluated = (ads as EnrichedAd[]).map((ad) => {
+
+      // Helper: score a single ad's metrics against rules
+      const calcScore = (metricas: import('../services/meta.service').MetaMetrics): number => {
+        const enabledRules = rules as ScoringRule[]
+        const totalWeight = enabledRules.reduce((s, r) => s + r.weight, 0)
+        if (totalWeight === 0) return 0
+        const metricsMap: Record<string, number> = {
+          ctr: metricas.ctr ?? 0, cpc: metricas.cpc ?? 0, cpm: metricas.cpm ?? 0,
+          gasto: metricas.gasto ?? 0, roas: metricas.roas ?? 0, frequencia: metricas.frequencia ?? 0,
+        }
+        let weightedPassed = 0
+        for (const rule of enabledRules) {
+          const val = metricsMap[rule.metric]
+          if (val !== undefined) {
+            const passes = rule.operator === '>=' ? val >= rule.target : val <= rule.target
+            if (passes) weightedPassed += rule.weight
+          }
+        }
+        return Math.round((weightedPassed / totalWeight) * 100)
+      }
+
+      // ── SINGLE-AD MODE: input is one ad (from Loop {{item}}) ──────────────
+      const isSingleAd = inputRecord.id && !inputRecord.anuncios
+      if (isSingleAd) {
+        const ad = inputRecord as EnrichedAd
+        const metricas = ad.metricas || {} as import('../services/meta.service').MetaMetrics
+        const ageDays = ad.age_days !== undefined
+          ? ad.age_days
+          : (ad.created_time ? Math.floor((Date.now() - new Date(ad.created_time).getTime()) / 86_400_000) : null)
+
+        const score = calcScore(metricas)
+        const tooYoung = ageDays !== null && ageDays < minDays
+        const tooOld = maxDays !== null && ageDays !== null && ageDays > maxDays
+        const collapso = score < 10 && ageDays !== null && ageDays > 3
+        const skipEvaluation = tooYoung && !collapso
+
+        let pausar = false
+        let motivo = ''
+        if (skipEvaluation) {
+          motivo = `Aguardando maturação (${ageDays}d < ${minDays}d mínimo)`
+        } else if (tooOld) {
+          pausar = true
+          motivo = `Tempo máximo atingido (${ageDays}d > ${maxDays}d)`
+        } else if (score < threshold) {
+          pausar = true
+          motivo = `Score ${score}/${threshold} — abaixo do threshold`
+        } else {
+          motivo = `Score ${score}/${threshold} — aprovado`
+        }
+
+        return {
+          pausar,
+          manter: !pausar,
+          score,
+          motivo,
+          age_days: ageDays,
+          skip_evaluation: skipEvaluation,
+          id: ad.id,
+          nome: ad.name,
+          metricas,
+        }
+      }
+
+      // ── BULK MODE: input has {anuncios:[...]} ──────────────────────────────
+      const ads = (inputRecord.anuncios as EnrichedAd[]) || []
+
+      // Evaluate each ad (metrics must be pre-fetched via get_ad_metrics node)
+      const evaluated = ads.map((ad) => {
         const metricas = ad.metricas || {} as import('../services/meta.service').MetaMetrics
 
         // Age in days — use pre-computed or calculate from created_time
@@ -771,27 +850,7 @@ async function executeMeta(
         const tooYoung = ageDays !== null && ageDays < minDays
         const tooOld = maxDays !== null && ageDays !== null && ageDays > maxDays
 
-        // Score calculation
-        const metricsMap: Record<string, number> = {
-          ctr: metricas.ctr,
-          cpc: metricas.cpc,
-          cpm: metricas.cpm,
-          gasto: metricas.gasto,
-          roas: metricas.roas ?? 0,
-          frequencia: metricas.frequencia ?? 0,
-        }
-        const enabledRules = rules as ScoringRule[]
-        const totalWeight = enabledRules.reduce((s, r) => s + r.weight, 0)
-        let weightedPassed = 0
-        for (const rule of enabledRules) {
-          const val = metricsMap[rule.metric]
-          if (val !== undefined) {
-            const passes = rule.operator === '>=' ? val >= rule.target : val <= rule.target
-            if (passes) weightedPassed += rule.weight
-          }
-        }
-        const score = totalWeight > 0 ? Math.round((weightedPassed / totalWeight) * 100) : 0
-        // Collapse early: critically bad before minimum age
+        const score = calcScore(metricas)
         const collapso = score < 10 && ageDays !== null && ageDays > 3
 
         return {

@@ -52,16 +52,26 @@ export function EvaluateCampaignInspector({ config, onChange }: InspectorFieldPr
         <ScoringConfig client={client} onSaved={setClient} compact />
       )}
 
-      {/* Saídas disponíveis */}
-      <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3">
-        <p className="font-syne font-bold text-accent mb-1.5">Saídas disponíveis</p>
-        <p><code className="text-accent">{'{{pausar}}'}</code> — array de anúncios para pausar</p>
-        <p><code className="text-accent">{'{{manter}}'}</code> — array de anúncios para manter</p>
-        <p><code className="text-accent">{'{{alertar}}'}</code> — true quando cliente precisa de novos criativos</p>
-        <p><code className="text-accent">{'{{motivo_alerta}}'}</code> — texto para enviar no WhatsApp</p>
-        <p><code className="text-accent">{'{{resumo}}'}</code> — resumo da decisão</p>
-        <p className="mt-1.5 font-syne font-bold text-text3">Fluxo recomendado:</p>
-        <p>Buscar anúncios → Avaliar campanha → Loop (pausar) → Pausar → IF alertar → WhatsApp</p>
+      {/* Saídas — dois modos */}
+      <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3 space-y-2">
+        <div>
+          <p className="font-syne font-bold text-accent mb-1">Modo bulk — recebe {'{{anuncios}}'}</p>
+          <p><code className="text-accent">{'{{pausar}}'}</code> — array para pausar</p>
+          <p><code className="text-accent">{'{{manter}}'}</code> — array para manter</p>
+          <p><code className="text-accent">{'{{alertar}}'}</code> — true se precisa de novos criativos</p>
+          <p><code className="text-accent">{'{{motivo_alerta}}'}</code> — texto para WhatsApp</p>
+          <p><code className="text-accent">{'{{resumo}}'}</code> — resumo da decisão</p>
+          <p className="mt-1 text-text3/70">Fluxo: Buscar anúncios → Buscar métricas → Avaliar → Loop (pausar) → Pausar → IF alertar → WhatsApp</p>
+        </div>
+        <div className="border-t border-accent/10 pt-2">
+          <p className="font-syne font-bold text-accent mb-1">Modo anúncio a anúncio — recebe {'{{item}}'} dentro de Loop</p>
+          <p><code className="text-accent">{'{{pausar}}'}</code> — true/false</p>
+          <p><code className="text-accent">{'{{manter}}'}</code> — true/false</p>
+          <p><code className="text-accent">{'{{score}}'}</code> — pontuação 0-100</p>
+          <p><code className="text-accent">{'{{motivo}}'}</code> — explicação da decisão</p>
+          <p><code className="text-accent">{'{{skip_evaluation}}'}</code> — true se ainda em maturação</p>
+          <p className="mt-1 text-text3/70">Fluxo: Buscar anúncios → Buscar métricas → Loop → Avaliar → IF pausar → Pausar</p>
+        </div>
       </div>
     </>
   )
