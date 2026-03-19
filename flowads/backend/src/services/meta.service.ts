@@ -281,14 +281,18 @@ export class MetaService {
 
   // ─── Ads ─────────────────────────────────────────────────────────────────
 
-  async getAds(parentId?: string, parentType: 'campaign' | 'adset' | 'account' = 'account'): Promise<MetaAd[]> {
+  async getAds(parentId?: string, parentType: 'campaign' | 'adset' | 'account' = 'account', statusFilter?: string): Promise<MetaAd[]> {
     const url = parentType === 'account'
       ? `${this.accountUrl}/ads`
       : `${META_API}/${parentId}/ads`
     const params = new URLSearchParams({
       fields: 'id,name,status,adset_id,campaign_id,creative{id},created_time',
       access_token: this.token,
+      limit: '500',
     })
+    if (statusFilter && statusFilter !== 'ALL') {
+      params.set('filtering', JSON.stringify([{ field: 'effective_status', operator: 'IN', value: [statusFilter] }]))
+    }
     const data = await metaGet<{ data?: MetaAd[] }>(`${url}?${params}`)
     return data.data || []
   }

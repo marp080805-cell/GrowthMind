@@ -696,8 +696,29 @@ async function executeMeta(
 
     case 'fetch_ads': {
       const parentType = (config.parent_type as 'campaign' | 'adset' | 'account') || 'account'
-      const ads = await meta.getAds(config.parent_id as string | undefined, parentType)
+      const statusFilter = (config.status_filter as string) || 'ACTIVE'
+      const ads = await meta.getAds(config.parent_id as string | undefined, parentType, statusFilter)
       return { anuncios: ads, total: ads.length }
+    }
+
+    case 'get_ad_metrics': {
+      const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
+      const ads = (inputRecord.anuncios as import('../services/meta.service').MetaAd[]) || []
+      const period = (config.period as string) ?? '7d'
+
+      const enriched = await Promise.all(ads.map(async (ad) => {
+        const metricas = await meta.getMetrics(
+          ad.id,
+          periodMap[period] || period,
+          ['impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend', 'purchase_roas', 'frequency']
+        )
+        const ageDays = ad.created_time
+          ? Math.floor((Date.now() - new Date(ad.created_time).getTime()) / 86_400_000)
+          : null
+        return { ...ad, metricas, age_days: ageDays }
+      }))
+
+      return { anuncios: enriched, total: enriched.length }
     }
 
     case 'fetch_metrics': {
@@ -727,7 +748,6 @@ async function executeMeta(
 
       // Node-level overrides
       const threshold = (config.threshold as number) ?? cfg.threshold ?? 60
-      const period = (config.period as string) ?? cfg.period ?? '7d'
       const minDays = cfg.min_days_running ?? 7
       const maxDays = cfg.max_days_running ?? null
       const minActivesMode = cfg.min_actives_mode ?? 'fixed'
@@ -735,21 +755,18 @@ async function executeMeta(
       const budgetPerCreative = cfg.budget_per_creative ?? 25
       const rules = (cfg.rules || []).filter(r => r.enabled !== false)
 
-      // Only evaluate ACTIVE ads
-      const activeAds = ads.filter(a => a.status === 'ACTIVE')
+      // Evaluate each ad (metrics must be pre-fetched via get_ad_metrics node)
+      type EnrichedAd = import('../services/meta.service').MetaAd & {
+        metricas?: import('../services/meta.service').MetaMetrics
+        age_days?: number | null
+      }
+      const evaluated = (ads as EnrichedAd[]).map((ad) => {
+        const metricas = ad.metricas || {} as import('../services/meta.service').MetaMetrics
 
-      // Fetch metrics + evaluate each ad in parallel
-      const evaluated = await Promise.all(activeAds.map(async (ad) => {
-        const metricas = await meta.getMetrics(
-          ad.id,
-          periodMap[period] || period,
-          ['impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend', 'purchase_roas', 'frequency']
-        )
-
-        // Age in days
-        const ageDays = ad.created_time
-          ? Math.floor((Date.now() - new Date(ad.created_time).getTime()) / 86_400_000)
-          : null
+        // Age in days — use pre-computed or calculate from created_time
+        const ageDays = ad.age_days !== undefined
+          ? ad.age_days
+          : (ad.created_time ? Math.floor((Date.now() - new Date(ad.created_time).getTime()) / 86_400_000) : null)
 
         const tooYoung = ageDays !== null && ageDays < minDays
         const tooOld = maxDays !== null && ageDays !== null && ageDays > maxDays
@@ -788,7 +805,7 @@ async function executeMeta(
           force_pause: tooOld,
           abaixo_threshold: score < threshold,
         }
-      }))
+      })
 
       // Group by adset, apply minimum actives protection per adset
       const adsetGroups = new Map<string, typeof evaluated>()

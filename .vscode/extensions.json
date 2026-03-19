@@ -1,0 +1,6 @@
+{
+    "recommendations": [
+        "Google.gemini-code-assist",
+        "anthropic.claude-code"
+    ]
+}

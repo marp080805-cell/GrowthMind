@@ -85,6 +85,7 @@ import { GenericInspector } from './inspectors/generic'
 
 // Performance
 import { EvaluateCampaignInspector } from './inspectors/evaluate-campaign'
+import { GetAdMetricsInspector } from './inspectors/get-ad-metrics'
 
 interface InspectorProps {
   nodeId: string
@@ -133,6 +134,7 @@ const INSPECTOR_MAP: Record<string, React.ComponentType<InspectorFieldProps>> = 
 
   // Meta — Performance
   'meta.evaluate_campaign_performance': EvaluateCampaignInspector,
+  'meta.get_ad_metrics': GetAdMetricsInspector,
 
   // Meta — Status
   'meta.pause_ad': PauseActivateInspector,

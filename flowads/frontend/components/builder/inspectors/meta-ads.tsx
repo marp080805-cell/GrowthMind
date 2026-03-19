@@ -14,34 +14,137 @@ const CTA_OPTIONS = [
 
 export function FetchAdsInspector({ config, onChange }: InspectorFieldProps) {
   const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
+  const params = useParams<{ id?: string }>()
+  const clientId = params?.id
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [adsets, setAdsets] = useState<AdSet[]>([])
+  const [loadingAdsets, setLoadingAdsets] = useState(false)
+  const [campaignForAdsets, setCampaignForAdsets] = useState('')
+
+  const parentType = (config.parent_type as string) || 'account'
+
+  useEffect(() => {
+    if (clientId) {
+      campaignsApi.list(clientId).then(setCampaigns).catch(() => {})
+    }
+  }, [clientId])
+
+  useEffect(() => {
+    if (clientId && parentType === 'adset' && campaignForAdsets) {
+      setLoadingAdsets(true)
+      setAdsets([])
+      adsetsApi.list(clientId, campaignForAdsets)
+        .then(setAdsets)
+        .catch(() => {})
+        .finally(() => setLoadingAdsets(false))
+    } else {
+      setAdsets([])
+    }
+  }, [clientId, parentType, campaignForAdsets])
+
+  const selectClass = "h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent w-full"
 
   return (
     <>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] font-syne font-semibold text-text3">NÍVEL</label>
-        <select
-          value={(config.parent_type as string) || 'account'}
-          onChange={(e) => set('parent_type', e.target.value)}
-          className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
-        >
-          <option value="account">Conta inteira</option>
-          <option value="campaign">Por campanha</option>
-          <option value="adset">Por adset</option>
-        </select>
+      <div className="flex gap-2">
+        <div className="flex flex-col gap-1.5 flex-1">
+          <label className="text-[10px] font-syne font-semibold text-text3">NÍVEL</label>
+          <select
+            value={parentType}
+            onChange={(e) => onChange({ ...config, parent_type: e.target.value, parent_id: '' })}
+            className={selectClass}
+          >
+            <option value="account">Conta inteira</option>
+            <option value="campaign">Por campanha</option>
+            <option value="adset">Por conjunto</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5 flex-1">
+          <label className="text-[10px] font-syne font-semibold text-text3">STATUS</label>
+          <select
+            value={(config.status_filter as string) || 'ACTIVE'}
+            onChange={(e) => set('status_filter', e.target.value)}
+            className={selectClass}
+          >
+            <option value="ACTIVE">Ativos</option>
+            <option value="PAUSED">Pausados</option>
+            <option value="ALL">Todos</option>
+          </select>
+        </div>
       </div>
 
-      {config.parent_type !== 'account' && (
+      {parentType === 'campaign' && (
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] font-syne font-semibold text-text3">
-            ID DA {config.parent_type === 'campaign' ? 'CAMPANHA' : 'ADSET'}
-          </label>
-          <VariableAutocomplete
-            value={(config.parent_id as string) || ''}
-            onChange={(v) => set('parent_id', v)}
-            placeholder="{{campaign_id}} ou {{adset_id}}"
-            rows={1}
-          />
+          <label className="text-[10px] font-syne font-semibold text-text3">CAMPANHA</label>
+          {campaigns.length > 0 ? (
+            <select
+              value={(config.parent_id as string) || ''}
+              onChange={(e) => set('parent_id', e.target.value)}
+              className={selectClass}
+            >
+              <option value="">Selecione a campanha...</option>
+              {campaigns.map((c) => (
+                <option key={c.meta_campaign_id} value={c.meta_campaign_id}>
+                  {c.name} {c.status !== 'ACTIVE' ? `(${c.status})` : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <VariableAutocomplete
+              value={(config.parent_id as string) || ''}
+              onChange={(v) => set('parent_id', v)}
+              placeholder="{{campaign_id}} ou ID da campanha"
+              rows={1}
+            />
+          )}
+          {!campaigns.length && (
+            <p className="text-[10px] text-text3">Sincronize campanhas na aba do cliente para ver aqui.</p>
+          )}
         </div>
+      )}
+
+      {parentType === 'adset' && (
+        <>
+          {campaigns.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-syne font-semibold text-text3">CAMPANHA (filtro para carregar conjuntos)</label>
+              <select
+                value={campaignForAdsets}
+                onChange={(e) => setCampaignForAdsets(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">Selecione para listar conjuntos...</option>
+                {campaigns.map((c) => (
+                  <option key={c.meta_campaign_id} value={c.meta_campaign_id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">CONJUNTO DE ANÚNCIOS</label>
+            {loadingAdsets ? (
+              <div className="text-[10px] text-text3 py-1">Carregando conjuntos...</div>
+            ) : adsets.length > 0 ? (
+              <select
+                value={(config.parent_id as string) || ''}
+                onChange={(e) => set('parent_id', e.target.value)}
+                className={selectClass}
+              >
+                <option value="">Selecione o conjunto...</option>
+                {adsets.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            ) : (
+              <VariableAutocomplete
+                value={(config.parent_id as string) || ''}
+                onChange={(v) => set('parent_id', v)}
+                placeholder="{{adset_id}} ou ID do conjunto"
+                rows={1}
+              />
+            )}
+          </div>
+        </>
       )}
 
       <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3">

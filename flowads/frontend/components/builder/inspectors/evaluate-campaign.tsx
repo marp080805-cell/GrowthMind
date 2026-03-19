@@ -23,38 +23,21 @@ export function EvaluateCampaignInspector({ config, onChange }: InspectorFieldPr
       .finally(() => setLoading(false))
   }, [clientId])
 
-  const period = client?.scoring_config?.period ?? '7d'
-
   return (
     <>
-      {/* Overrides opcionais no nó */}
-      <div className="flex gap-2">
-        <div className="flex flex-col gap-1.5 flex-1">
-          <label className="text-[10px] font-syne font-semibold text-text3">THRESHOLD (override)</label>
-          <input
-            type="number"
-            min={0} max={100}
-            value={(config.threshold as number) ?? ''}
-            onChange={(e) => set('threshold', e.target.value ? Number(e.target.value) : undefined)}
-            placeholder={String(client?.scoring_config?.threshold ?? 60)}
-            className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5 flex-1">
-          <label className="text-[10px] font-syne font-semibold text-text3">PERÍODO (override)</label>
-          <select
-            value={(config.period as string) || ''}
-            onChange={(e) => set('period', e.target.value || undefined)}
-            className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2 text-xs focus:outline-none focus:border-accent"
-          >
-            <option value="">Padrão ({period})</option>
-            <option value="7d">Últimos 7 dias</option>
-            <option value="14d">Últimos 14 dias</option>
-            <option value="30d">Últimos 30 dias</option>
-          </select>
-        </div>
+      {/* Threshold override */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">THRESHOLD (override opcional)</label>
+        <input
+          type="number"
+          min={0} max={100}
+          value={(config.threshold as number) ?? ''}
+          onChange={(e) => set('threshold', e.target.value ? Number(e.target.value) : undefined)}
+          placeholder={String(client?.scoring_config?.threshold ?? 60)}
+          className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+        />
+        <p className="text-[10px] text-text3">Deixe em branco para usar as metas configuradas abaixo.</p>
       </div>
-      <p className="text-[10px] text-text3 -mt-1">Deixe em branco para usar as metas abaixo.</p>
 
       {/* Configuração de metas do cliente — inline */}
       {loading && <p className="text-[10px] text-text3 py-2">Carregando configuração...</p>}
