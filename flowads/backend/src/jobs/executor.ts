@@ -732,7 +732,11 @@ async function executeMeta(
         return { ...ad, metricas, age_days: ageDays }
       }))
 
-      return { anuncios: enriched, total: enriched.length }
+      // Attach total active count to each ad so evaluate_campaign can check min_actives
+      const totalAtivos = enriched.length
+      const enrichedWithTotal = enriched.map(ad => ({ ...ad, _total_ativos: totalAtivos }))
+
+      return { anuncios: enrichedWithTotal, total: totalAtivos }
     }
 
     case 'fetch_metrics': {
@@ -853,16 +857,21 @@ async function executeMeta(
           motivo = `Score ${score}/${threshold} — aprovado`
         }
 
-        // alertar também quando anúncio atingiu tempo máximo (tooOld) → precisa de criativos novos
-        const needsNewCreatives = isSaturating || tooOld
+        // alertar quando: frequência alta OU ativos no conjunto <= mínimo configurado
+        const totalAtivos = (ad as unknown as Record<string, unknown>)._total_ativos as number | undefined
+        const minActives = (config.min_actives_fixed as number) ?? 3
+        const ativosAbaixoMinimo = totalAtivos !== undefined && totalAtivos <= minActives
 
-        // acao: pausar → bad score | alertar → saturação ou tempo máximo (precisa criativos novos) | manter → ok
+        const needsNewCreatives = isSaturating || ativosAbaixoMinimo
+
+        // acao: pausar → bad score | alertar → saturação ou poucos ativos no conjunto | manter → ok
         let acao: string
         if (skipEvaluation) {
           acao = 'manter'
         } else if (needsNewCreatives) {
           acao = 'alertar'
-          if (isSaturating) motivo += ` — Frequência ${currentFreq.toFixed(1)} indica saturação de criativos`
+          if (isSaturating) motivo += ` — Frequência ${currentFreq.toFixed(1)} indica saturação`
+          if (ativosAbaixoMinimo) motivo += ` — Apenas ${totalAtivos} ativo(s) no conjunto (mín. ${minActives})`
         } else if (pausar) {
           acao = 'pausar'
         } else {
