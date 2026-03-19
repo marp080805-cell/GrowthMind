@@ -438,6 +438,7 @@ export class MetaService {
       'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend',
       'purchase_roas', 'frequency', 'inline_link_clicks',
       'actions', 'cost_per_action_type', 'action_values',
+      'video_thruplay_watched_actions',
     ]
     const requestedFields = fields.length > 0 ? fields : defaultFields
 
@@ -464,23 +465,27 @@ export class MetaService {
     const findAction = (field: ActionEntry[] | undefined, type: string): number =>
       parseFloat(field?.find(a => a.action_type === type)?.value || '0')
 
+    const sumActions = (field: ActionEntry[] | undefined): number =>
+      (field || []).reduce((sum, a) => sum + parseFloat(a.value || '0'), 0)
+
     const actions = row.actions as ActionEntry[] | undefined
     const cpa = row.cost_per_action_type as ActionEntry[] | undefined
     const purchaseRoas = row.purchase_roas as ActionEntry[] | undefined
     const actionValues = row.action_values as ActionEntry[] | undefined
+    const thruplayField = row.video_thruplay_watched_actions as ActionEntry[] | undefined
 
     const impressoes = parseInt(row.impressions as string || '0')
     const gasto = parseFloat(row.spend as string || '0')
 
     const engajamentos = findAction(actions, 'post_engagement')
     const leads = findAction(actions, 'lead')
-    const compras = findAction(actions, 'omni_purchase') || findAction(actions, 'purchase')
+    const compras = findAction(actions, 'omni_purchase') || findAction(actions, 'offsite_conversion.fb_pixel_purchase') || findAction(actions, 'purchase')
     const seguidores = findAction(actions, 'like') || findAction(actions, 'follow')
     const conversas = findAction(actions, 'onsite_conversion.messaging_conversation_started_7d')
       || findAction(actions, 'messaging_conversation_started_7d')
     const adicoes = findAction(actions, 'offsite_conversion.fb_pixel_add_to_cart') || findAction(actions, 'add_to_cart')
     const videoViews = findAction(actions, 'video_view')
-    const thruplayCount = findAction(actions, 'video_thruplay_watched')
+    const thruplayCount = sumActions(thruplayField) || findAction(actions, 'video_thruplay_watched')
 
     return {
       impressoes,
@@ -526,6 +531,7 @@ export class MetaService {
       'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend',
       'purchase_roas', 'frequency', 'inline_link_clicks',
       'actions', 'cost_per_action_type', 'action_values',
+      'video_thruplay_watched_actions',
     ]
     const requestedFields = fields.length > 0 ? fields : defaultFields
 
@@ -545,17 +551,21 @@ export class MetaService {
     const findAction = (field: ActionEntry[] | undefined, type: string): number =>
       parseFloat(field?.find(a => a.action_type === type)?.value || '0')
 
+    const sumActions = (field: ActionEntry[] | undefined): number =>
+      (field || []).reduce((sum, a) => sum + parseFloat(a.value || '0'), 0)
+
     return rows.map(row => {
       const actions = row.actions as ActionEntry[] | undefined
       const cpa = row.cost_per_action_type as ActionEntry[] | undefined
       const purchaseRoas = row.purchase_roas as ActionEntry[] | undefined
       const actionValues = row.action_values as ActionEntry[] | undefined
+      const thruplayField = row.video_thruplay_watched_actions as ActionEntry[] | undefined
 
       const impressoes = parseInt(row.impressions as string || '0')
       const gasto = parseFloat(row.spend as string || '0')
       const seguidores = findAction(actions, 'like') || findAction(actions, 'follow')
       const videoViews = findAction(actions, 'video_view')
-      const thruplayCount = findAction(actions, 'video_thruplay_watched')
+      const thruplayCount = sumActions(thruplayField) || findAction(actions, 'video_thruplay_watched')
       const conversas = findAction(actions, 'onsite_conversion.messaging_conversation_started_7d')
         || findAction(actions, 'messaging_conversation_started_7d')
 
@@ -573,7 +583,7 @@ export class MetaService {
         frequencia: parseFloat(row.frequency as string || '0'),
         engajamentos: findAction(actions, 'post_engagement'),
         leads: findAction(actions, 'lead'),
-        compras: findAction(actions, 'omni_purchase') || findAction(actions, 'purchase'),
+        compras: findAction(actions, 'omni_purchase') || findAction(actions, 'offsite_conversion.fb_pixel_purchase') || findAction(actions, 'purchase'),
         seguidores,
         conversas_iniciadas: conversas,
         adicoes_carrinho: findAction(actions, 'offsite_conversion.fb_pixel_add_to_cart') || findAction(actions, 'add_to_cart'),
@@ -582,14 +592,14 @@ export class MetaService {
         cpe: findAction(cpa, 'post_engagement'),
         cpl: findAction(cpa, 'lead'),
         custo_mensagem: findAction(cpa, 'onsite_conversion.messaging_conversation_started_7d') || findAction(cpa, 'messaging_conversation_started_7d'),
-        custo_compra: findAction(cpa, 'omni_purchase') || findAction(cpa, 'purchase'),
+        custo_compra: findAction(cpa, 'omni_purchase') || findAction(cpa, 'offsite_conversion.fb_pixel_purchase') || findAction(cpa, 'purchase'),
         custo_seguidor: seguidores > 0 ? gasto / seguidores : 0,
         custo_conversa: findAction(cpa, 'onsite_conversion.messaging_conversation_started_7d') || findAction(cpa, 'messaging_conversation_started_7d'),
         custo_adicao: findAction(cpa, 'offsite_conversion.fb_pixel_add_to_cart') || findAction(cpa, 'add_to_cart'),
         custo_thruplay: thruplayCount > 0 ? gasto / thruplayCount : 0,
         cliques_link: parseInt(row.inline_link_clicks as string || '0'),
         hook_rate: impressoes > 0 ? (videoViews / impressoes) * 100 : 0,
-        receita: findAction(actionValues, 'omni_purchase') || findAction(actionValues, 'purchase'),
+        receita: findAction(actionValues, 'omni_purchase') || findAction(actionValues, 'offsite_conversion.fb_pixel_purchase') || findAction(actionValues, 'purchase'),
         periodo: datePreset,
       }
     })
