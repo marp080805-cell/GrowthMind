@@ -7,7 +7,10 @@ import type { InspectorFieldProps } from '../inspector'
 export function WebhookInspector({ config, onChange, nodeId }: InspectorFieldProps) {
   const [copied, setCopied] = useState(false)
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
-  const webhookUrl = `${apiUrl}/webhooks/${nodeId}`
+  const base = typeof window !== 'undefined' && apiUrl.startsWith('/')
+    ? `${window.location.origin}${apiUrl}`
+    : apiUrl
+  const webhookUrl = `${base}/webhooks/${nodeId}`
 
   const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
 
