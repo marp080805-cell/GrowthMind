@@ -1,20 +1,20 @@
 ---
 name: flowads-deploy
 description: >
-  Faz o deploy do FlowAds na VPS via Docker. Use esta skill sempre que o usuário quiser fazer deploy,
+  Faz o deploy do AdMind na VPS via Docker. Use esta skill sempre que o usuário quiser fazer deploy,
   publicar mudanças, atualizar a aplicação em produção, ou quando mencionar "subir para a VPS",
   "atualizar o servidor", "rebuild dos containers", "colocar em produção" ou qualquer variação.
   Também deve ser usada para diagnósticos de produção como "ver logs do servidor" ou "container caiu".
 ---
 
-# Deploy do FlowAds na VPS
+# Deploy do AdMind na VPS
 
 ## Contexto
 
-- **VPS path**: `/home/user/GrowthMind/flowads/`
+- **VPS path**: `/home/user/AdMind/admind/`
 - **Branch de produção**: `claude/flowads-mvp-setup-qI1gt`
-- **Containers**: `flowads-frontend-1` (8001), `flowads-backend-1` (4000), `flowads-redis-1` (6379)
-- **Rede Docker**: `flowads`
+- **Containers**: `admind-frontend-1` (8001), `admind-backend-1` (4000), `admind-redis-1` (6379)
+- **Rede Docker**: `admind`
 
 ---
 
@@ -38,7 +38,7 @@ git diff --name-only HEAD~1 HEAD
 ### 2. Puxar o código novo
 
 ```bash
-cd /home/user/GrowthMind
+cd /home/user/AdMind
 git pull origin claude/flowads-mvp-setup-qI1gt
 ```
 
@@ -48,21 +48,21 @@ Se houver conflito, resolva **antes** de continuar. Nunca force-push em produç�
 
 **Tudo (após mudanças no docker-compose ou nos dois serviços):**
 ```bash
-cd /home/user/GrowthMind/flowads
+cd /home/user/AdMind/admind
 docker compose build --no-cache
 docker compose up -d
 ```
 
 **Só o backend:**
 ```bash
-cd /home/user/GrowthMind/flowads
+cd /home/user/AdMind/admind
 docker compose build backend
 docker compose up -d backend
 ```
 
 **Só o frontend:**
 ```bash
-cd /home/user/GrowthMind/flowads
+cd /home/user/AdMind/admind
 docker compose build frontend
 docker compose up -d frontend
 ```

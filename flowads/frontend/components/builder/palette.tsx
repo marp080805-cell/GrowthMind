@@ -11,7 +11,7 @@ export function BlockPalette() {
   const [search, setSearch] = useState('')
 
   const onDragStart = (e: React.DragEvent, blockType: string) => {
-    e.dataTransfer.setData('application/flowads-block', blockType)
+    e.dataTransfer.setData('application/admind-block', blockType)
     e.dataTransfer.effectAllowed = 'move'
   }
 

@@ -1,14 +1,14 @@
 ---
 name: flowads-migration
 description: >
-  Cria e aplica migrations de banco de dados no FlowAds (Supabase/PostgreSQL). Use esta skill
+  Cria e aplica migrations de banco de dados no AdMind (Supabase/PostgreSQL). Use esta skill
   sempre que o usuário quiser adicionar coluna, criar tabela, alterar schema, ou quando mencionar
   "migration", "alterar o banco", "nova coluna", "criar tabela", "mudar o schema", "adicionar campo
   no banco" ou qualquer variação. Também deve ser usada quando uma nova feature exige mudanças no
   schema (ex: "quero salvar X" → precisa de coluna para isso).
 ---
 
-# Migrations do FlowAds (Supabase)
+# Migrations do AdMind (Supabase)
 
 ## Convenção de nomenclatura
 
@@ -104,7 +104,7 @@ nome text NOT NULL DEFAULT ''
 
 ## Como aplicar a migration
 
-O FlowAds usa o **Supabase Dashboard** ou `psql` direto — não há CLI de migration automatizada.
+O AdMind usa o **Supabase Dashboard** ou `psql` direto — não há CLI de migration automatizada.
 
 ### Opção 1 — Supabase Dashboard (recomendado)
 1. Acesse o Supabase Dashboard do projeto

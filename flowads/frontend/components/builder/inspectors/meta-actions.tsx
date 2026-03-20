@@ -464,8 +464,8 @@ export function FilterUnsponsoredPostsInspector({ config, onChange }: InspectorF
         <p className="font-syne font-bold text-accent">Como funciona</p>
         <p>Recebe automaticamente o array <code>{'{{posts}}'}</code> do fluxo e retorna apenas os que ainda <strong>não</strong> foram patrocinados.</p>
         <p className="mt-1">Verifica em duas fontes:</p>
-        <p>① Tabela interna do FlowAds (posts criados aqui)</p>
-        <p>② API do Meta Ads (posts patrocinados fora do FlowAds)</p>
+        <p>① Tabela interna do AdMind (posts criados aqui)</p>
+        <p>② API do Meta Ads (posts patrocinados fora do AdMind)</p>
       </div>
 
       <div className="flex flex-col gap-1.5">

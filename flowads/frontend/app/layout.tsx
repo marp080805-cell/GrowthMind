@@ -15,7 +15,7 @@ const dmSans = DM_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'FlowAds — Gestor de tráfego inteligente',
+  title: 'AdMind — Gestor de tráfego inteligente',
   description: 'Plataforma para gestores de tráfego pago automatizarem campanhas de Meta Ads',
 }
 

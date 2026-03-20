@@ -1037,7 +1037,28 @@ export class MetaService {
     const data = await res.json() as { id?: string; error?: { message?: string } }
     if (data.error?.message) throw new Error(`Erro ao fazer upload de vídeo para Meta: ${data.error.message}`)
     if (!data.id) throw new Error('Erro ao fazer upload de vídeo para Meta: id não retornado')
+
+    // Aguarda o vídeo ser processado antes de retornar (até 3 min)
+    await this.waitForVideoReady(data.id)
+
     return { video_id: data.id }
+  }
+
+  private async waitForVideoReady(videoId: string, maxWaitMs = 180_000): Promise<void> {
+    const interval = 5_000
+    const deadline = Date.now() + maxWaitMs
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, interval))
+      const url = `${META_API}/${videoId}?fields=status&access_token=${this.token}`
+      const res = await fetch(url)
+      if (!res.ok) continue
+      const d = await res.json() as { status?: { video_status?: string; processing_progress?: number } }
+      const status = d.status?.video_status
+      console.log(`[Meta] Vídeo ${videoId} status: ${status} (${d.status?.processing_progress ?? '?'}%)`)
+      if (status === 'ready') return
+      if (status === 'error') throw new Error(`Vídeo ${videoId} falhou ao processar na Meta`)
+    }
+    throw new Error(`Timeout aguardando processamento do vídeo ${videoId} na Meta (máx ${maxWaitMs / 1000}s)`)
   }
 
   // ─── Legacy compat ───────────────────────────────────────────────────────

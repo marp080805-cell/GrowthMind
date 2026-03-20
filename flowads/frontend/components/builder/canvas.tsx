@@ -294,7 +294,7 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
-      const blockType = e.dataTransfer.getData('application/flowads-block')
+      const blockType = e.dataTransfer.getData('application/admind-block')
       if (!blockType || !rfInstance || !wrapper.current) return
 
       const bounds = wrapper.current.getBoundingClientRect()

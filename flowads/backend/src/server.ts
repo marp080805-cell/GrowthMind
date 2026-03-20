@@ -65,7 +65,7 @@ async function start() {
   const host = process.env.HOST || '0.0.0.0'
 
   await fastify.listen({ port, host })
-  fastify.log.info(`FlowAds Backend running on http://${host}:${port}`)
+  fastify.log.info(`AdMind Backend running on http://${host}:${port}`)
 }
 
 start().catch((err) => {

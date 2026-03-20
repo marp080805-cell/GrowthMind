@@ -1,14 +1,14 @@
 ---
 name: flowads-new-block
 description: >
-  Cria um novo bloco de automação no FlowAds. Use esta skill sempre que o usuário quiser adicionar
+  Cria um novo bloco de automação no AdMind. Use esta skill sempre que o usuário quiser adicionar
   um novo tipo de nó/bloco ao visual builder — seja uma integração nova, lógica customizada,
   ou ação nova (ex: "criar bloco de e-mail", "adicionar bloco de Slack", "novo bloco de planilha").
   Também deve ser usada quando o usuário pedir para "adicionar suporte a X nas automações" ou
   "quero um nó que faça Y". Deve ser ativada para qualquer pedido de extensão do catálogo de blocos.
 ---
 
-# Criando um novo bloco no FlowAds
+# Criando um novo bloco no AdMind
 
 Criar um bloco envolve **4 arquivos** obrigatórios e segue um padrão específico. Siga exatamente esta ordem.
 

@@ -1210,7 +1210,7 @@ async function executeMeta(
       if (!pageId) throw new Error('Página do Facebook não configurada. Configure no cadastro do cliente.')
       if (!clientId) throw new Error('Cliente não identificado no contexto da automação.')
 
-      // 1. Posts já registrados na nossa tabela (criados pelo FlowAds)
+      // 1. Posts já registrados na nossa tabela (criados pelo AdMind)
       const { data: alreadySponsored } = await supabase
         .from('sponsored_posts')
         .select('post_id')
@@ -1705,7 +1705,7 @@ async function executeUtil(
     }
 
     case 'log': {
-      console.log('[FlowAds Log]', config.label ? `[${config.label}]` : '', input)
+      console.log('[AdMind Log]', config.label ? `[${config.label}]` : '', input)
       return input
     }
 
