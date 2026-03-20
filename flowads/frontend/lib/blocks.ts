@@ -70,6 +70,7 @@ export const BLOCKS: BlockDefinition[] = [
   { type: 'meta.create_ads_from_new_posts', label: 'Criar anúncios de posts novos', description: 'Cria anúncios para posts Instagram ainda não patrocinados. Evita duplicatas automaticamente.', icon: '📸', category: 'meta', color: CATEGORY_COLORS.meta, handles: { inputs: ['default'], outputs: ['default'] } },
   { type: 'meta.duplicate_campaign', label: 'Duplicar campanha', description: 'Clona campanha existente', icon: '📋', category: 'meta', color: CATEGORY_COLORS.meta, handles: { inputs: ['default'], outputs: ['default'] } },
   { type: 'meta.create_audience', label: 'Criar público', description: 'Cria custom audience a partir de lista ou regras', icon: '👤', category: 'meta', color: CATEGORY_COLORS.meta, handles: { inputs: ['default'], outputs: ['default'] } },
+  { type: 'meta.upload_creative', label: 'Upload criativo', description: 'Baixa arquivo do Google Drive e faz upload para a Meta. Detecta automaticamente imagem/vídeo e placement (feed ou story).', icon: '🖼️', category: 'meta', color: CATEGORY_COLORS.meta, handles: { inputs: ['default'], outputs: ['default'] }, defaultConfig: { drive_url: '' } },
 
   // META ADS — Edição
   { type: 'meta.edit_campaign', label: 'Editar campanha', description: 'Atualiza nome, orçamento ou datas', icon: '✏️', category: 'meta', color: CATEGORY_COLORS.meta, handles: { inputs: ['default'], outputs: ['default'] } },

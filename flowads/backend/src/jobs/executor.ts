@@ -660,6 +660,24 @@ async function executeNode(
 
 // ─── META ─────────────────────────────────────────────────────────────────────
 
+function detectImagePlacement(buf: Buffer): { width: number; height: number; placement_type: string } {
+  let width = 1, height = 1
+  if (buf[0] === 0x89 && buf[1] === 0x50) { // PNG
+    width = buf.readUInt32BE(16)
+    height = buf.readUInt32BE(20)
+  } else if (buf[0] === 0xFF && buf[1] === 0xD8) { // JPEG
+    for (let i = 2; i < buf.length - 8; i++) {
+      if (buf[i] === 0xFF && (buf[i + 1] === 0xC0 || buf[i + 1] === 0xC2)) {
+        height = buf.readUInt16BE(i + 5)
+        width = buf.readUInt16BE(i + 7)
+        break
+      }
+    }
+  }
+  const placement_type = height / width >= 1.6 ? 'story' : 'feed'
+  return { width, height, placement_type }
+}
+
 async function executeMeta(
   action: string,
   config: Record<string, unknown>,
@@ -1110,6 +1128,7 @@ async function executeMeta(
         title: config.title as string | undefined,
         body: config.body as string | undefined,
         image_url: config.image_url as string | undefined,
+        image_hash: config.image_hash as string | undefined,
         video_id: config.video_id as string | undefined,
         link_url: config.link_url as string | undefined,
         call_to_action: config.call_to_action as string | undefined,
@@ -1340,6 +1359,58 @@ async function executeMeta(
       return { instagram_account_id: instagramAccountId, boosted: true }
     }
 
+    // ── Upload criativo do Google Drive para a Meta ───────────────────────
+    case 'upload_creative': {
+      const driveToken = context.settings.drive_token
+      if (!driveToken) throw new Error('Token Google Drive não configurado em Configurações')
+
+      let rawUrl = (config.drive_url as string) || ''
+      if (!rawUrl) throw new Error('URL do Google Drive não configurada no bloco')
+
+      // Extrai file ID de link compartilhado: drive.google.com/file/d/{ID}/view
+      const fileIdMatch = rawUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)
+      const fileId = fileIdMatch?.[1] || null
+
+      // Busca metadados (nome + mimeType)
+      let fileName = 'creative'
+      let mimeType = 'image/jpeg'
+      if (fileId) {
+        const metaRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,mimeType`,
+          { headers: { Authorization: `Bearer ${driveToken}` } }
+        )
+        if (metaRes.ok) {
+          const fileMeta = await metaRes.json() as { name?: string; mimeType?: string }
+          if (fileMeta.name) fileName = fileMeta.name
+          if (fileMeta.mimeType) mimeType = fileMeta.mimeType
+        }
+        rawUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+      }
+
+      // Baixa o arquivo com autenticação Drive
+      const fileRes = await fetch(rawUrl, { headers: { Authorization: `Bearer ${driveToken}` } })
+      if (!fileRes.ok) throw new Error(`Erro ao baixar arquivo do Drive: ${fileRes.status} ${fileRes.statusText}`)
+      const fileBuffer = Buffer.from(await fileRes.arrayBuffer())
+
+      const isVideo = mimeType.startsWith('video/')
+
+      if (isVideo) {
+        const lowerName = fileName.toLowerCase()
+        const placement_type = /story|stories|reel/.test(lowerName) ? 'story' : 'feed'
+        const result = await meta.uploadAdVideo(fileBuffer, fileName, mimeType)
+        return {
+          image_hash: null, video_id: result.video_id, type: 'video',
+          placement_type, nome_arquivo: fileName,
+        }
+      } else {
+        const { width, height, placement_type } = detectImagePlacement(fileBuffer)
+        const result = await meta.uploadAdImage(fileBuffer)
+        return {
+          image_hash: result.hash, video_id: null, type: 'image',
+          placement_type, width, height, nome_arquivo: fileName,
+        }
+      }
+    }
 
     default:
       return input

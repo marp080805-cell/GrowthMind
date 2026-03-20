@@ -86,6 +86,7 @@ import { GenericInspector } from './inspectors/generic'
 // Performance
 import { EvaluateCampaignInspector } from './inspectors/evaluate-campaign'
 import { GetAdMetricsInspector } from './inspectors/get-ad-metrics'
+import { UploadCreativeInspector } from './inspectors/meta-upload-creative'
 
 interface InspectorProps {
   nodeId: string
@@ -125,6 +126,7 @@ const INSPECTOR_MAP: Record<string, React.ComponentType<InspectorFieldProps>> = 
   'meta.duplicate_campaign': DuplicateCampaignInspector,
   'meta.create_audience': CreateAudienceInspector,
   'meta.create_ads_from_new_posts': CreateAdsFromNewPostsInspector,
+  'meta.upload_creative': UploadCreativeInspector,
 
   // Meta — Edição
   'meta.edit_campaign': EditCampaignInspector,

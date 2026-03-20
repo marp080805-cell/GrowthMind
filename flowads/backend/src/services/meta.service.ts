@@ -328,6 +328,7 @@ export class MetaService {
     title?: string
     body?: string
     image_url?: string
+    image_hash?: string
     video_id?: string
     link_url?: string
     call_to_action?: string
@@ -346,7 +347,8 @@ export class MetaService {
         if (params.title) linkData.name = params.title
         if (params.body) linkData.message = params.body
         if (params.link_url) linkData.link = params.link_url
-        if (params.image_url) linkData.picture = params.image_url
+        if (params.image_hash) linkData.image_hash = params.image_hash
+        else if (params.image_url) linkData.picture = params.image_url
         if (params.call_to_action) linkData.call_to_action = { type: params.call_to_action }
 
         if (params.video_id) {
@@ -1007,6 +1009,35 @@ export class MetaService {
     if (params.lookalike_spec) body.lookalike_spec = params.lookalike_spec
     const data = await metaPost(`${this.accountUrl}/customaudiences`, body)
     return { id: data.id as string, name: params.name }
+  }
+
+  // ─── Creative Upload ─────────────────────────────────────────────────────
+
+  async uploadAdImage(bytes: Buffer): Promise<{ hash: string }> {
+    const base64 = bytes.toString('base64')
+    const res = await metaPost(`${this.accountUrl}/adimages`, {
+      bytes: base64,
+      access_token: this.token,
+    })
+    const images = (res as { images?: Record<string, { hash: string }> }).images
+    const first = images ? Object.values(images)[0] : null
+    if (!first?.hash) throw new Error('Erro ao fazer upload de imagem para Meta: hash não retornado')
+    return { hash: first.hash }
+  }
+
+  async uploadAdVideo(bytes: Buffer, name: string, mimeType: string): Promise<{ video_id: string }> {
+    const form = new FormData()
+    form.append('access_token', this.token)
+    form.append('title', name)
+    form.append('source', new Blob([bytes], { type: mimeType }), name)
+    const res = await fetch(`https://graph-video.facebook.com/v21.0/${this.adAccountId}/advideos`, {
+      method: 'POST',
+      body: form,
+    })
+    const data = await res.json() as { id?: string; error?: { message?: string } }
+    if (data.error?.message) throw new Error(`Erro ao fazer upload de vídeo para Meta: ${data.error.message}`)
+    if (!data.id) throw new Error('Erro ao fazer upload de vídeo para Meta: id não retornado')
+    return { video_id: data.id }
   }
 
   // ─── Legacy compat ───────────────────────────────────────────────────────

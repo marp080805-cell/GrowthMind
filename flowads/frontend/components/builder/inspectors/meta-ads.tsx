@@ -287,6 +287,7 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
             { value: 'instagram_post', label: '📸 Post Instagram' },
             { value: 'new', label: 'Criar novo' },
             { value: 'existing', label: 'ID existente' },
+            { value: 'uploaded', label: '🖼️ Upload criativo' },
           ].map((t) => (
             <button
               key={t.value}
@@ -294,6 +295,7 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
               onClick={() => {
                 if (t.value === 'existing') onChange({ ...config, creative_type: 'existing', source_instagram_media_id: undefined })
                 else if (t.value === 'instagram_post') onChange({ ...config, creative_type: 'instagram_post', creative_id: undefined })
+                else if (t.value === 'uploaded') onChange({ ...config, creative_type: 'uploaded', creative_id: undefined, source_instagram_media_id: undefined })
                 else onChange({ ...config, creative_type: 'new', creative_id: undefined, source_instagram_media_id: undefined })
               }}
               className={`flex-1 h-8 rounded-[8px] text-xs font-syne font-bold transition-colors border ${
@@ -355,6 +357,58 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
           <div className="bg-blue-500/5 rounded-[8px] p-2.5 border border-blue-500/10 text-[10px] text-text3">
             <p className="font-syne font-bold text-blue-400 mb-1">Como funciona</p>
             <p>Cria um anúncio promovendo um post existente do Instagram. Requer o ID da Página do Facebook vinculada à conta Instagram (campo <code>object_id</code> da API Meta).</p>
+          </div>
+        </>
+      ) : config.creative_type === 'uploaded' ? (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">ID DA PÁGINA DO FACEBOOK *</label>
+            <VariableAutocomplete
+              value={(config.page_id as string) || ''}
+              onChange={(v) => set('page_id', v)}
+              placeholder="123456789"
+              rows={1}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">HASH DA IMAGEM ou ID DO VÍDEO *</label>
+            <VariableAutocomplete
+              value={(config.image_hash as string) || (config.video_id as string) || ''}
+              onChange={(v) => {
+                // Detecta se é video_id (numérico) ou image_hash (alfanumérico com letras)
+                const isVideoId = /^\d+$/.test(v) || v.startsWith('{{')
+                if (!v.startsWith('{{') && /^\d+$/.test(v)) {
+                  onChange({ ...config, video_id: v, image_hash: undefined })
+                } else {
+                  onChange({ ...config, image_hash: v, video_id: undefined })
+                }
+              }}
+              placeholder="{{image_hash}} ou {{video_id}}"
+              rows={1}
+            />
+            <p className="text-[10px] text-text3">Use a saída do bloco <strong>Upload criativo</strong>: <code className="text-accent">{'{{image_hash}}'}</code> para imagens ou <code className="text-accent">{'{{video_id}}'}</code> para vídeos.</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">TÍTULO</label>
+            <VariableAutocomplete value={(config.title as string) || ''} onChange={(v) => set('title', v)} placeholder="Título do anúncio" rows={1} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">TEXTO DO ANÚNCIO</label>
+            <VariableAutocomplete value={(config.body as string) || ''} onChange={(v) => set('body', v)} placeholder="Texto principal..." rows={3} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">URL DE DESTINO</label>
+            <VariableAutocomplete value={(config.link_url as string) || ''} onChange={(v) => set('link_url', v)} placeholder="https://seusite.com.br" rows={1} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">CALL TO ACTION</label>
+            <select value={(config.call_to_action as string) || 'LEARN_MORE'} onChange={(e) => set('call_to_action', e.target.value)} className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent">
+              {CTA_OPTIONS.map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">ID DO INSTAGRAM (opcional)</label>
+            <VariableAutocomplete value={(config.instagram_actor_id as string) || ''} onChange={(v) => set('instagram_actor_id', v)} placeholder="Deixe vazio para usar o do cliente" rows={1} />
           </div>
         </>
       ) : useExistingCreative ? (
