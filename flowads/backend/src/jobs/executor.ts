@@ -1096,7 +1096,7 @@ async function executeMeta(
 
       // Se vier source_instagram_media_id, cria criativo a partir de post existente do Instagram
       if (config.source_instagram_media_id) {
-        const instagramAccountId = (config.instagram_actor_id as string) || context.client?.instagram_account_id || undefined
+        const instagramAccountId = (config.instagram_actor_id as string) || undefined
         const pageId = (config.page_id as string) || context.client?.facebook_page_id || undefined
         try {
           const result = await meta.createAdFromInstagramPost({
@@ -1146,8 +1146,8 @@ async function executeMeta(
         link_url: config.link_url as string | undefined,
         call_to_action: config.call_to_action as string | undefined,
         page_id: (config.page_id as string) || context.client?.facebook_page_id || undefined,
-        // Usa instagram_actor_id do config, ou fallback para o ID do Instagram do cliente
-        instagram_actor_id: (config.instagram_actor_id as string) || context.client?.instagram_account_id || undefined,
+        // Só passa instagram_actor_id se explicitamente configurado no bloco — Meta usa a conta vinculada à Página automaticamente
+        instagram_actor_id: (config.instagram_actor_id as string) || undefined,
         status: (config.status as string) || 'PAUSED',
       })
       return { anuncio_criado: result, ad_id: result.id }
