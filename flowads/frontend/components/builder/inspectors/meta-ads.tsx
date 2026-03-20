@@ -363,12 +363,26 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
         <>
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-syne font-semibold text-text3">ID DA PÁGINA DO FACEBOOK *</label>
-            <VariableAutocomplete
-              value={(config.page_id as string) || ''}
-              onChange={(v) => set('page_id', v)}
-              placeholder="123456789"
-              rows={1}
-            />
+            {pages.length > 0 ? (
+              <select
+                value={(config.page_id as string) || ''}
+                onChange={(e) => set('page_id', e.target.value)}
+                className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+              >
+                <option value="">Selecione a página...</option>
+                {pages.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            ) : (
+              <VariableAutocomplete
+                value={(config.page_id as string) || ''}
+                onChange={(v) => set('page_id', v)}
+                placeholder="123456789"
+                rows={1}
+              />
+            )}
+            <p className="text-[10px] text-text3">Deixe vazio para usar a página do cliente.</p>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-syne font-semibold text-text3">HASH DA IMAGEM ou ID DO VÍDEO *</label>
