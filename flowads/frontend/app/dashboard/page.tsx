@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
 import { formatDateTime, formatDuration, getInitials, getAvatarColor } from '@/lib/utils'
-import { Users, Zap, Activity, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { Users, Brain, Activity, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 interface DashboardStats {
@@ -65,7 +65,7 @@ export default function DashboardPage() {
     {
       label: 'Automações rodando',
       value: stats?.running_automations,
-      icon: Zap,
+      icon: Brain,
       color: 'text-green',
       bg: 'bg-green/10',
     },
@@ -162,7 +162,7 @@ export default function DashboardPage() {
                     </Badge>
                   </div>
                   <div className="mt-3 flex items-center gap-1 text-xs text-text3">
-                    <Zap size={12} />
+                    <Brain size={12} />
                     <span>{client.automations_count || 0} automações</span>
                   </div>
                 </Link>

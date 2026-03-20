@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { getInitials, getAvatarColor } from '@/lib/utils'
-import { Zap, Clock, Trash2 } from 'lucide-react'
+import { Brain, Clock, Trash2 } from 'lucide-react'
 import type { Client } from '@/lib/api'
 import { formatDateTime } from '@/lib/utils'
 
@@ -45,7 +45,7 @@ export function ClientCard({ client, onDelete }: ClientCardProps) {
 
         <div className="flex items-center justify-between text-xs text-text3">
           <div className="flex items-center gap-1.5">
-            <Zap size={12} className="text-accent" />
+            <Brain size={12} className="text-accent" />
             <span>{client.automations_count || 0} automações ativas</span>
           </div>
           {client.last_execution && (

@@ -6,7 +6,7 @@ import { cn, getInitials, getAvatarColor } from '@/lib/utils'
 import {
   LayoutDashboard,
   Users,
-  Zap,
+  Brain,
   Settings,
   LogOut,
   Bot,
@@ -25,7 +25,7 @@ const navItems = [
   {
     section: 'FERRAMENTAS',
     items: [
-      { href: '/automacoes', icon: Zap, label: 'Automações' },
+      { href: '/automacoes', icon: Brain, label: 'Automações' },
       { href: '/agentes', icon: Bot, label: 'Agentes' },
       { href: '/users', icon: Users, label: 'Usuários' },
     ],
@@ -58,7 +58,7 @@ export function Sidebar({ user }: SidebarProps) {
       <div className="p-5 border-b border-[var(--border)]">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-[8px] bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[0_0_16px_var(--accent-glow)]">
-            <Zap size={16} className="text-white" />
+            <Brain size={16} className="text-white" />
           </div>
           <span className="font-syne font-bold text-lg">
             <span className="text-text">Ad</span>

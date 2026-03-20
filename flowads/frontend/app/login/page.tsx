@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Mail, Lock, Eye, EyeOff, Zap } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, Brain } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -62,10 +62,10 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
             <div className="w-14 h-14 rounded-[14px] bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[0_0_32px_var(--accent-glow)] mb-4">
-              <Zap size={28} className="text-white" />
+              <Brain size={28} className="text-white" />
             </div>
             <h1 className="font-syne font-bold text-3xl text-text">
-              Flow<span className="text-accent">Ads</span>
+              Ad<span className="text-accent">Mind</span>
             </h1>
             <p className="text-text2 text-sm mt-1">Gestor de tráfego inteligente</p>
           </div>

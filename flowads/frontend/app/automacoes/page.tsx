@@ -16,7 +16,7 @@ import { formatDateTime } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import {
   Plus, Copy, Pencil, Trash2, ChevronRight,
-  Layers, Search, Zap, BookmarkPlus,
+  Layers, Search, Brain, BookmarkPlus,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -233,7 +233,7 @@ export default function AutomacoesPage() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-16 text-text3">
-              <Zap size={32} className="mx-auto mb-3 opacity-30" />
+              <Brain size={32} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">Nenhuma automação encontrada</p>
               <Button size="sm" className="mt-4" onClick={() => setShowNewModal(true)}>
                 <Plus size={14} /> Nova Automação

@@ -21,7 +21,7 @@ import {
   type NodeLog,
 } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
-import { ArrowLeft, Save, Play, Zap, AlignJustify } from 'lucide-react'
+import { ArrowLeft, Save, Play, Brain, AlignJustify } from 'lucide-react'
 import Link from 'next/link'
 
 export default function BuilderPage() {
@@ -187,7 +187,7 @@ export default function BuilderPage() {
         {/* Client badge */}
         {client && (
           <div className="flex items-center gap-1.5 bg-surface border border-[var(--border)] rounded-[8px] px-2 py-1 text-xs text-text2">
-            <Zap size={12} className="text-accent" />
+            <Brain size={12} className="text-accent" />
             {client.name}
           </div>
         )}
