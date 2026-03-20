@@ -1408,9 +1408,28 @@ async function executeMeta(
         fileBuffer = Buffer.from(await fileRes.arrayBuffer())
       } else {
         // Sem token: download direto (arquivo deve estar público — "qualquer pessoa com o link")
-        const publicUrl = `https://drive.google.com/uc?export=download&id=${fileId}`
-        const fileRes = await fetch(publicUrl, { redirect: 'follow' })
-        if (!fileRes.ok) throw new Error(`Erro ao baixar arquivo público do Drive: ${fileRes.status}. Verifique se o arquivo está compartilhado como "qualquer pessoa com o link".`)
+        // Tenta múltiplas URLs pois o Google mudou o endpoint de download público
+        const driveUrls = [
+          `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`,
+          `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
+          `https://drive.google.com/uc?export=download&id=${fileId}`,
+        ]
+        let fileRes: Response | null = null
+        let lastError = ''
+        for (const url of driveUrls) {
+          try {
+            const r = await fetch(url, {
+              redirect: 'follow',
+              signal: AbortSignal.timeout(60_000),
+              headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AdMind/1.0)' },
+            })
+            if (r.ok) { fileRes = r; break }
+            lastError = `HTTP ${r.status} em ${url}`
+          } catch (e) {
+            lastError = `fetch failed em ${url}: ${e instanceof Error ? e.message : e}`
+          }
+        }
+        if (!fileRes) throw new Error(`Erro ao baixar arquivo do Google Drive. ${lastError}. Verifique se o arquivo está compartilhado como "qualquer pessoa com o link".`)
         const ct = fileRes.headers.get('content-type')
         if (ct) mimeType = ct.split(';')[0].trim()
         const cd = fileRes.headers.get('content-disposition')

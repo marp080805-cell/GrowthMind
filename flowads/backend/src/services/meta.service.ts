@@ -1070,7 +1070,7 @@ export class MetaService {
       if (!preferred?.uri) return null
 
       // Baixa os bytes do thumbnail
-      const imgRes = await fetch(preferred.uri)
+      const imgRes = await fetch(preferred.uri, { signal: AbortSignal.timeout(30_000) })
       if (!imgRes.ok) return null
       const imgBytes = Buffer.from(await imgRes.arrayBuffer())
 
