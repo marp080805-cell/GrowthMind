@@ -380,9 +380,16 @@ export class MetaService {
       try {
         creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
       } catch (err) {
-        // Re-throw with full creative body for debugging
-        const body = JSON.stringify({ page_id: params.page_id, video_id: params.video_id, image_hash: params.image_hash, thumbnail_hash: params.thumbnail_hash, account: this.adAccountId, object_story_spec: objectStorySpec })
-        throw new Error(`${(err as Error).message} | DEBUG: ${body}`)
+        const errMsg = (err as Error).message
+        // Se o erro for sobre instagram_actor_id inválido, tenta sem ele
+        if (params.instagram_actor_id && errMsg.includes('instagram_actor_id')) {
+          console.warn(`[Meta] instagram_actor_id ${params.instagram_actor_id} rejeitado, tentando sem ele`)
+          delete objectStorySpec.instagram_actor_id
+          creativeData = await metaPost(`${this.accountUrl}/adcreatives`, { ...creativeBody, object_story_spec: objectStorySpec })
+        } else {
+          const body = JSON.stringify({ page_id: params.page_id, video_id: params.video_id, image_hash: params.image_hash, thumbnail_hash: params.thumbnail_hash, account: this.adAccountId, object_story_spec: objectStorySpec })
+          throw new Error(`${errMsg} | DEBUG: ${body}`)
+        }
       }
       creativeId = creativeData.id as string
     }
