@@ -356,7 +356,7 @@ export class MetaService {
           objectStorySpec.page_id = params.page_id
           objectStorySpec.video_data = {
             video_id: params.video_id,
-            image_hash: params.thumbnail_hash || undefined,
+            image_hash: params.thumbnail_hash || params.image_hash || undefined,
             title: params.title,
             message: params.body,
             call_to_action: params.call_to_action ? { type: params.call_to_action, value: { link: params.link_url } } : undefined,
