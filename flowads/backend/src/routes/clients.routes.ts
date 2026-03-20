@@ -138,6 +138,30 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
     }
   })
 
+  // GET — busca info do Instagram já salvo no cliente (id, name, username)
+  fastify.get('/clients/:id/instagram-accounts', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const { data: client } = await supabase
+      .from('clients')
+      .select('meta_token, instagram_account_id')
+      .eq('id', id)
+      .single()
+
+    if (!client?.instagram_account_id) return { instagram_accounts: [] }
+
+    const token = client.meta_token
+    if (!token) return { instagram_accounts: [{ id: client.instagram_account_id, name: '', username: client.instagram_account_id }] }
+
+    try {
+      const res = await fetch(`https://graph.facebook.com/v21.0/${client.instagram_account_id}?fields=id,name,username&access_token=${token}`)
+      if (!res.ok) return { instagram_accounts: [{ id: client.instagram_account_id, name: '', username: client.instagram_account_id }] }
+      const data = await res.json() as { id?: string; name?: string; username?: string }
+      return { instagram_accounts: [{ id: data.id || client.instagram_account_id, name: data.name || '', username: data.username || client.instagram_account_id }] }
+    } catch {
+      return { instagram_accounts: [{ id: client.instagram_account_id, name: '', username: client.instagram_account_id }] }
+    }
+  })
+
   fastify.get('/clients/:id/facebook-pages', async (req, reply) => {
     const { id } = req.params as { id: string }
     const { data: client } = await supabase.from('clients').select('meta_token').eq('id', id).single()
