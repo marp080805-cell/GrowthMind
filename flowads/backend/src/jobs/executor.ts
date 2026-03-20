@@ -1138,6 +1138,7 @@ async function executeMeta(
         image_url: config.image_url as string | undefined,
         image_hash: config.image_hash as string | undefined,
         video_id: config.video_id as string | undefined,
+        thumbnail_url: config.thumbnail_url as string | undefined,
         link_url: config.link_url as string | undefined,
         call_to_action: config.call_to_action as string | undefined,
         page_id: (config.page_id as string) || context.client?.facebook_page_id || undefined,
@@ -1425,8 +1426,8 @@ async function executeMeta(
         const placement_type = /story|stories|reel/.test(lowerName) ? 'story' : 'feed'
         const result = await meta.uploadAdVideo(fileBuffer, fileName, mimeType)
         return {
-          image_hash: null, video_id: result.video_id, type: 'video',
-          placement_type, nome_arquivo: fileName,
+          image_hash: null, video_id: result.video_id, thumbnail_url: result.thumbnail_url,
+          type: 'video', placement_type, nome_arquivo: fileName,
         }
       } else {
         const { width, height, placement_type } = detectImagePlacement(fileBuffer)

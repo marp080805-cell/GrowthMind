@@ -330,6 +330,7 @@ export class MetaService {
     image_url?: string
     image_hash?: string
     video_id?: string
+    thumbnail_url?: string
     link_url?: string
     call_to_action?: string
     page_id?: string
@@ -355,6 +356,7 @@ export class MetaService {
           objectStorySpec.page_id = params.page_id
           objectStorySpec.video_data = {
             video_id: params.video_id,
+            image_url: params.thumbnail_url || undefined,
             title: params.title,
             message: params.body,
             call_to_action: params.call_to_action ? { type: params.call_to_action, value: { link: params.link_url } } : undefined,
@@ -1025,7 +1027,7 @@ export class MetaService {
     return { hash: first.hash }
   }
 
-  async uploadAdVideo(bytes: Buffer, name: string, mimeType: string): Promise<{ video_id: string }> {
+  async uploadAdVideo(bytes: Buffer, name: string, mimeType: string): Promise<{ video_id: string; thumbnail_url: string | null }> {
     const form = new FormData()
     form.append('access_token', this.token)
     form.append('title', name)
@@ -1041,7 +1043,24 @@ export class MetaService {
     // Aguarda o vídeo ser processado antes de retornar (até 3 min)
     await this.waitForVideoReady(data.id)
 
-    return { video_id: data.id }
+    // Busca thumbnail gerado pela Meta (obrigatório para criar creative de vídeo)
+    const thumbnail_url = await this.getVideoThumbnail(data.id)
+
+    return { video_id: data.id, thumbnail_url }
+  }
+
+  private async getVideoThumbnail(videoId: string): Promise<string | null> {
+    try {
+      const url = `${META_API}/${videoId}/thumbnails?access_token=${this.token}`
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const d = await res.json() as { data?: Array<{ uri: string; is_preferred?: boolean }> }
+      const thumbs = d.data || []
+      const preferred = thumbs.find((t) => t.is_preferred) || thumbs[0]
+      return preferred?.uri || null
+    } catch {
+      return null
+    }
   }
 
   private async waitForVideoReady(videoId: string, maxWaitMs = 180_000): Promise<void> {
