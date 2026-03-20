@@ -231,6 +231,14 @@ export async function executeAutomation(
         })
         lastOutput = triggerOutput
         templateVars.input = triggerOutput
+        // Flatten trigger output so top-level keys (data, source, etc.) são acessíveis diretamente
+        if (triggerOutput && typeof triggerOutput === 'object') {
+          Object.assign(templateVars, flattenOutput(triggerOutput as Record<string, unknown>))
+        }
+        // Alias: {{body...}} aponta para o payload do webhook
+        if (node.type === 'trigger.webhook') {
+          templateVars.body = triggerOutput
+        }
         continue
       }
 
