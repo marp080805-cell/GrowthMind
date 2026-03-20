@@ -366,7 +366,18 @@ export class MetaService {
           objectStorySpec.link_data = linkData
         }
 
-        if (params.instagram_actor_id) objectStorySpec.instagram_actor_id = params.instagram_actor_id
+        // Resolve instagram_actor_id: usa o explícito ou busca o vinculado à Página
+        let instagramActorId = params.instagram_actor_id
+        if (!instagramActorId && params.page_id) {
+          try {
+            const pageRes = await fetch(`${META_API}/${params.page_id}?fields=instagram_business_account&access_token=${this.token}`)
+            if (pageRes.ok) {
+              const pageData = await pageRes.json() as { instagram_business_account?: { id: string } }
+              instagramActorId = pageData.instagram_business_account?.id
+            }
+          } catch { /* ignora — segue sem instagram_actor_id */ }
+        }
+        if (instagramActorId) objectStorySpec.instagram_actor_id = instagramActorId
       }
 
       const creativeBody: Record<string, unknown> = {
