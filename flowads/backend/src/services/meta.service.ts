@@ -374,6 +374,16 @@ export class MetaService {
         object_story_spec: objectStorySpec,
         access_token: this.token,
       }
+      console.log('[Meta] createAd params:', JSON.stringify({
+        page_id: params.page_id,
+        video_id: params.video_id,
+        image_hash: params.image_hash,
+        thumbnail_hash: params.thumbnail_hash,
+        title: params.title,
+        link_url: params.link_url,
+        call_to_action: params.call_to_action,
+      }, null, 2))
+      console.log('[Meta] object_story_spec:', JSON.stringify(objectStorySpec, null, 2))
       const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
       creativeId = creativeData.id as string
     }
