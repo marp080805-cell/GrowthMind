@@ -117,7 +117,7 @@ export function Sidebar({ user }: SidebarProps) {
             </div>
             <button
               onClick={handleLogout}
-              className="text-text3 hover:text-red transition-colors opacity-0 group-hover:opacity-100"
+              className="text-text3 hover:text-red transition-colors"
               title="Sair"
             >
               <LogOut size={14} />
