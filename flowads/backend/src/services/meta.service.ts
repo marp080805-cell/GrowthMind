@@ -366,18 +366,9 @@ export class MetaService {
           objectStorySpec.link_data = linkData
         }
 
-        // Resolve instagram_actor_id: usa o explícito ou busca o vinculado à Página
-        let instagramActorId = params.instagram_actor_id
-        if (!instagramActorId && params.page_id) {
-          try {
-            const pageRes = await fetch(`${META_API}/${params.page_id}?fields=instagram_business_account&access_token=${this.token}`)
-            if (pageRes.ok) {
-              const pageData = await pageRes.json() as { instagram_business_account?: { id: string } }
-              instagramActorId = pageData.instagram_business_account?.id
-            }
-          } catch { /* ignora — segue sem instagram_actor_id */ }
-        }
-        if (instagramActorId) objectStorySpec.instagram_actor_id = instagramActorId
+        // Só passa instagram_actor_id se explicitamente configurado — deve ser uma conta
+        // conectada ao Business Manager e com acesso à conta de anúncios
+        if (params.instagram_actor_id) objectStorySpec.instagram_actor_id = params.instagram_actor_id
       }
 
       const creativeBody: Record<string, unknown> = {
