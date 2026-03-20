@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { VariableAutocomplete } from '../variable-autocomplete'
 import type { InspectorFieldProps } from '../inspector'
-import { campaignsApi, adsetsApi, pagesApi, clientsApi, type Campaign, type AdSet, type MetaInstagramAccount } from '@/lib/api'
+import { campaignsApi, adsetsApi, pagesApi, clientsApi, type Campaign, type AdSet, type MetaInstagramAccount, type Client } from '@/lib/api'
 
 const CTA_OPTIONS: { value: string; label: string }[] = [
   { value: 'NO_BUTTON', label: 'Sem botão' },
@@ -191,7 +191,18 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
   useEffect(() => {
     if (clientId) {
       pagesApi.list(clientId).then(res => setPages(res.pages)).catch(() => {})
-      clientsApi.getMetaAccounts(clientId).then(res => setInstagramAccounts(res.instagramAccounts || [])).catch(() => {})
+      // Busca o cliente para usar o instagram_account_id já salvo (sempre disponível)
+      // e tenta complementar com contas da API Meta
+      clientsApi.get(clientId).then((client: Client) => {
+        const saved: MetaInstagramAccount[] = client.instagram_account_id
+          ? [{ id: client.instagram_account_id, name: 'Conta do cliente', username: client.instagram_account_id }]
+          : []
+        setInstagramAccounts(saved)
+        // Tenta enriquecer com dados da Meta API (username real), substitui se vier com dados
+        clientsApi.getMetaAccounts(clientId).then(res => {
+          if (res.instagramAccounts?.length) setInstagramAccounts(res.instagramAccounts)
+        }).catch(() => {})
+      }).catch(() => {})
     }
   }, [clientId])
 
