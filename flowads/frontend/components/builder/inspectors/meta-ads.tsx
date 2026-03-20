@@ -6,10 +6,22 @@ import { VariableAutocomplete } from '../variable-autocomplete'
 import type { InspectorFieldProps } from '../inspector'
 import { campaignsApi, adsetsApi, pagesApi, type Campaign, type AdSet } from '@/lib/api'
 
-const CTA_OPTIONS = [
-  'NO_BUTTON', 'SHOP_NOW', 'LEARN_MORE', 'SIGN_UP', 'CONTACT_US',
-  'BOOK_NOW', 'DOWNLOAD', 'GET_OFFER', 'WATCH_MORE', 'SEND_MESSAGE',
-  'SUBSCRIBE', 'GET_QUOTE', 'REQUEST_TIME', 'APPLY_NOW', 'BUY_NOW',
+const CTA_OPTIONS: { value: string; label: string }[] = [
+  { value: 'NO_BUTTON', label: 'Sem botão' },
+  { value: 'SHOP_NOW', label: 'Comprar agora' },
+  { value: 'LEARN_MORE', label: 'Saiba mais' },
+  { value: 'SIGN_UP', label: 'Cadastre-se' },
+  { value: 'CONTACT_US', label: 'Fale conosco' },
+  { value: 'BOOK_NOW', label: 'Reserve agora' },
+  { value: 'DOWNLOAD', label: 'Baixar' },
+  { value: 'GET_OFFER', label: 'Pegar oferta' },
+  { value: 'WATCH_MORE', label: 'Ver mais' },
+  { value: 'SEND_MESSAGE', label: 'Enviar mensagem' },
+  { value: 'SUBSCRIBE', label: 'Assinar' },
+  { value: 'GET_QUOTE', label: 'Pedir orçamento' },
+  { value: 'REQUEST_TIME', label: 'Agendar horário' },
+  { value: 'APPLY_NOW', label: 'Candidatar-se' },
+  { value: 'BUY_NOW', label: 'Comprar' },
 ]
 
 export function FetchAdsInspector({ config, onChange }: InspectorFieldProps) {
@@ -417,7 +429,7 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-syne font-semibold text-text3">CALL TO ACTION</label>
             <select value={(config.call_to_action as string) || 'LEARN_MORE'} onChange={(e) => set('call_to_action', e.target.value)} className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent">
-              {CTA_OPTIONS.map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
+              {CTA_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1.5">
@@ -518,7 +530,7 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
               onChange={(e) => set('call_to_action', e.target.value)}
               className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
             >
-              {CTA_OPTIONS.map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
+              {CTA_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </div>
 
