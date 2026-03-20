@@ -1366,10 +1366,12 @@ async function executeMeta(
       const rawUrl = (config.drive_url as string) || ''
       if (!rawUrl) throw new Error('URL do Google Drive não configurada no bloco')
 
-      // Extrai file ID de link compartilhado: drive.google.com/file/d/{ID}/view
-      const fileIdMatch = rawUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)
+      // Extrai file ID — suporta: /file/d/{ID}, /open?id={ID}, ?id={ID}
+      const fileIdMatch =
+        rawUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+        rawUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/)
       const fileId = fileIdMatch?.[1] || null
-      if (!fileId) throw new Error('URL do Google Drive inválida. Use o link de compartilhamento (drive.google.com/file/d/...)')
+      if (!fileId) throw new Error(`URL do Google Drive inválida. URL recebida: "${rawUrl}". Use o link de compartilhamento (drive.google.com/file/d/...)`)
 
       let fileName = 'creative'
       let mimeType = 'image/jpeg'
