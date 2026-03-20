@@ -867,23 +867,24 @@ async function executeMeta(
           motivo = `Score ${score}/${threshold} — aprovado`
         }
 
-        // alertar quando: frequência alta OU ativos no conjunto <= mínimo configurado
         const totalAtivos = (ad as unknown as Record<string, unknown>)._total_ativos as number | undefined
         const minActives = (config.min_actives_fixed as number) ?? 3
+        // Se pausar este anúncio ficaria abaixo do mínimo, protege
         const ativosAbaixoMinimo = totalAtivos !== undefined && totalAtivos <= minActives
 
-        const needsNewCreatives = isSaturating || ativosAbaixoMinimo
-
-        // acao: pausar → bad score | alertar → saturação ou poucos ativos no conjunto | manter → ok
+        // Prioridade: pausar sempre vence, EXCETO se cair abaixo do mínimo de ativos
         let acao: string
         if (skipEvaluation) {
           acao = 'manter'
-        } else if (needsNewCreatives) {
+        } else if (pausar && ativosAbaixoMinimo) {
           acao = 'alertar'
-          if (isSaturating) motivo += ` — Frequência ${currentFreq.toFixed(1)} indica saturação`
-          if (ativosAbaixoMinimo) motivo += ` — Apenas ${totalAtivos} ativo(s) no conjunto (mín. ${minActives})`
+          motivo += ` — Mantido: pausar reduziria abaixo do mínimo de ${minActives} ativo(s) no conjunto`
         } else if (pausar) {
           acao = 'pausar'
+          if (isSaturating) motivo += ` — Frequência ${currentFreq.toFixed(1)} também indica saturação`
+        } else if (isSaturating) {
+          acao = 'alertar'
+          motivo += ` — Frequência ${currentFreq.toFixed(1)} indica saturação`
         } else {
           acao = 'manter'
         }
