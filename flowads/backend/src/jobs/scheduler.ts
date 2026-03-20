@@ -70,8 +70,13 @@ export async function scheduleAutomation(
     console.warn(`[Scheduler] Queue not initialized, skipping schedule for ${automationId}`)
     return
   }
-  // Remove existing job if any
-  await automationQueue.removeRepeatable(automationId, { jobId: automationId } as Parameters<typeof automationQueue.removeRepeatable>[1])
+  // Remove ALL existing repeatable jobs for this automation (by name match)
+  const repeatableJobs = await automationQueue.getRepeatableJobs()
+  for (const job of repeatableJobs) {
+    if (job.name === automationId) {
+      await automationQueue.removeRepeatableByKey(job.key)
+    }
+  }
 
   const cron = buildCron(triggerConfig)
   if (!cron) return
@@ -93,7 +98,12 @@ export async function scheduleAutomation(
 export async function unscheduleAutomation(automationId: string) {
   if (!automationQueue) return
   try {
-    await automationQueue.removeRepeatable(automationId, { jobId: automationId } as Parameters<typeof automationQueue.removeRepeatable>[1])
+    const repeatableJobs = await automationQueue.getRepeatableJobs()
+    for (const job of repeatableJobs) {
+      if (job.name === automationId) {
+        await automationQueue.removeRepeatableByKey(job.key)
+      }
+    }
     console.log(`[Scheduler] Unscheduled automation ${automationId}`)
   } catch (err) {
     console.warn(`[Scheduler] Could not unschedule ${automationId}:`, err)
