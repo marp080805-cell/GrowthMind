@@ -11,7 +11,6 @@ import {
   LogOut,
   Bot,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 const navItems = [
@@ -47,8 +46,7 @@ export function Sidebar({ user }: SidebarProps) {
   const router = useRouter()
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase?.auth.signOut()
+    await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
   }
 
