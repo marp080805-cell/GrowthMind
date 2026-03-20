@@ -33,7 +33,7 @@ export function initQueue() {
       console.log(`[Scheduler] Executing automation ${automationId}`)
       await executeAutomation(automationId, payload)
     },
-    { connection }
+    { connection, lockDuration: 600_000 } // 10 min lock — suporta uploads longos
   )
 
   schedulerWorker.on('failed', (job, err) => {

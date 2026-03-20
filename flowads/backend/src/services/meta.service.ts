@@ -1042,6 +1042,7 @@ export class MetaService {
     const res = await fetch(`https://graph-video.facebook.com/v21.0/act_${this.adAccountId}/advideos`, {
       method: 'POST',
       body: form,
+      signal: AbortSignal.timeout(300_000), // 5 min timeout para upload
     })
     const data = await res.json() as { id?: string; error?: { message?: string } }
     if (data.error?.message) throw new Error(`Erro ao fazer upload de vídeo para Meta: ${data.error.message}`)
@@ -1085,13 +1086,18 @@ export class MetaService {
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, interval))
       const url = `${META_API}/${videoId}?fields=status&access_token=${this.token}`
-      const res = await fetch(url)
-      if (!res.ok) continue
-      const d = await res.json() as { status?: { video_status?: string; processing_progress?: number } }
-      const status = d.status?.video_status
-      console.log(`[Meta] Vídeo ${videoId} status: ${status} (${d.status?.processing_progress ?? '?'}%)`)
-      if (status === 'ready') return
-      if (status === 'error') throw new Error(`Vídeo ${videoId} falhou ao processar na Meta`)
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+        if (!res.ok) continue
+        const d = await res.json() as { status?: { video_status?: string; processing_progress?: number } }
+        const status = d.status?.video_status
+        console.log(`[Meta] Vídeo ${videoId} status: ${status} (${d.status?.processing_progress ?? '?'}%)`)
+        if (status === 'ready') return
+        if (status === 'error') throw new Error(`Vídeo ${videoId} falhou ao processar na Meta`)
+      } catch (err) {
+        if ((err as Error).name === 'TimeoutError') continue
+        throw err
+      }
     }
     throw new Error(`Timeout aguardando processamento do vídeo ${videoId} na Meta (máx ${maxWaitMs / 1000}s)`)
   }
