@@ -22,6 +22,7 @@ const CTA_OPTIONS: { value: string; label: string }[] = [
   { value: 'REQUEST_TIME', label: 'Agendar horário' },
   { value: 'APPLY_NOW', label: 'Candidatar-se' },
   { value: 'BUY_NOW', label: 'Comprar' },
+  { value: 'ORDER_NOW', label: 'Pedir agora' },
 ]
 
 export function FetchAdsInspector({ config, onChange }: InspectorFieldProps) {
