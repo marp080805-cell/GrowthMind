@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { VariableAutocomplete } from '../variable-autocomplete'
 import type { InspectorFieldProps } from '../inspector'
-import { campaignsApi, adsetsApi, pagesApi, type Campaign, type AdSet } from '@/lib/api'
+import { campaignsApi, adsetsApi, pagesApi, clientsApi, type Campaign, type AdSet, type MetaInstagramAccount } from '@/lib/api'
 
 const CTA_OPTIONS: { value: string; label: string }[] = [
   { value: 'NO_BUTTON', label: 'Sem botão' },
@@ -178,6 +178,7 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
   const [adsets, setAdsets] = useState<AdSet[]>([])
   const [loadingAdsets, setLoadingAdsets] = useState(false)
   const [pages, setPages] = useState<{ id: string; name: string }[]>([])
+  const [instagramAccounts, setInstagramAccounts] = useState<MetaInstagramAccount[]>([])
   const selectedCampaignId = (config.campaign_id as string) || ''
   const selectedAdsetId = (config.adset_id as string) || ''
 
@@ -190,6 +191,7 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
   useEffect(() => {
     if (clientId) {
       pagesApi.list(clientId).then(res => setPages(res.pages)).catch(() => {})
+      clientsApi.getMetaAccounts(clientId).then(res => setInstagramAccounts(res.instagramAccounts || [])).catch(() => {})
     }
   }, [clientId])
 
@@ -359,13 +361,26 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
             <p className="text-[10px] text-text3">Deixe vazio para usar a página do cliente.</p>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-syne font-semibold text-text3">ID DA CONTA INSTAGRAM (opcional)</label>
-            <VariableAutocomplete
-              value={(config.instagram_actor_id as string) || ''}
-              onChange={(v) => set('instagram_actor_id', v)}
-              placeholder="Deixe vazio para usar o do cliente"
-              rows={1}
-            />
+            <label className="text-[10px] font-syne font-semibold text-text3">CONTA DO INSTAGRAM (opcional)</label>
+            {instagramAccounts.length > 0 ? (
+              <select
+                value={(config.instagram_actor_id as string) || ''}
+                onChange={(e) => set('instagram_actor_id', e.target.value)}
+                className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+              >
+                <option value="">Usar a do cliente</option>
+                {instagramAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>@{a.username} — {a.name}</option>
+                ))}
+              </select>
+            ) : (
+              <VariableAutocomplete
+                value={(config.instagram_actor_id as string) || ''}
+                onChange={(v) => set('instagram_actor_id', v)}
+                placeholder="Deixe vazio para usar o do cliente"
+                rows={1}
+              />
+            )}
           </div>
           <div className="bg-blue-500/5 rounded-[8px] p-2.5 border border-blue-500/10 text-[10px] text-text3">
             <p className="font-syne font-bold text-blue-400 mb-1">Como funciona</p>
@@ -434,8 +449,21 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
             </select>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-syne font-semibold text-text3">ID DO INSTAGRAM (opcional)</label>
-            <VariableAutocomplete value={(config.instagram_actor_id as string) || ''} onChange={(v) => set('instagram_actor_id', v)} placeholder="Deixe vazio para usar o do cliente" rows={1} />
+            <label className="text-[10px] font-syne font-semibold text-text3">CONTA DO INSTAGRAM (opcional)</label>
+            {instagramAccounts.length > 0 ? (
+              <select
+                value={(config.instagram_actor_id as string) || ''}
+                onChange={(e) => set('instagram_actor_id', e.target.value)}
+                className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+              >
+                <option value="">Usar a do cliente</option>
+                {instagramAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>@{a.username} — {a.name}</option>
+                ))}
+              </select>
+            ) : (
+              <VariableAutocomplete value={(config.instagram_actor_id as string) || ''} onChange={(v) => set('instagram_actor_id', v)} placeholder="Deixe vazio para usar o do cliente" rows={1} />
+            )}
           </div>
         </>
       ) : useExistingCreative ? (
@@ -536,13 +564,26 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-syne font-semibold text-text3">ID DO INSTAGRAM (opcional)</label>
-            <VariableAutocomplete
-              value={(config.instagram_actor_id as string) || ''}
-              onChange={(v) => set('instagram_actor_id', v)}
-              placeholder="ID da conta Instagram"
-              rows={1}
-            />
+            <label className="text-[10px] font-syne font-semibold text-text3">CONTA DO INSTAGRAM (opcional)</label>
+            {instagramAccounts.length > 0 ? (
+              <select
+                value={(config.instagram_actor_id as string) || ''}
+                onChange={(e) => set('instagram_actor_id', e.target.value)}
+                className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+              >
+                <option value="">Usar a do cliente</option>
+                {instagramAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>@{a.username} — {a.name}</option>
+                ))}
+              </select>
+            ) : (
+              <VariableAutocomplete
+                value={(config.instagram_actor_id as string) || ''}
+                onChange={(v) => set('instagram_actor_id', v)}
+                placeholder="ID da conta Instagram"
+                rows={1}
+              />
+            )}
           </div>
         </>
       )}
