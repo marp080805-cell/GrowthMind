@@ -61,8 +61,8 @@ export function Sidebar({ user }: SidebarProps) {
             <Zap size={16} className="text-white" />
           </div>
           <span className="font-syne font-bold text-lg">
-            <span className="text-text">Flow</span>
-            <span className="text-accent">Ads</span>
+            <span className="text-text">Ad</span>
+            <span className="text-accent">Mind</span>
           </span>
         </div>
       </div>
