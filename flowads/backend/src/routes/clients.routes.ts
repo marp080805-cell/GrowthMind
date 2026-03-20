@@ -154,27 +154,45 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
       if (!seen.has(a.id)) { seen.add(a.id); accounts.push(a) }
     }
 
-    // Tentativa 1: via Página do Facebook — retorna as contas Instagram "atores" da página
-    // Este endpoint retorna o ID usado pelo Ads Manager (ex: 1916293021718740)
+    // Tentativa 1: page_backed_instagram_accounts — contas Instagram criadas pelo Meta para a Página
     if (token && client?.facebook_page_id) {
       try {
-        const res = await fetch(`https://graph.facebook.com/v21.0/${client.facebook_page_id}/instagram_accounts?fields=id,name,username&access_token=${token}`)
-        if (res.ok) {
-          const data = await res.json() as { data?: { id: string; name: string; username: string }[] }
-          if (data.data?.length) data.data.forEach(add)
-        }
+        const res = await fetch(`https://graph.facebook.com/v21.0/${client.facebook_page_id}/page_backed_instagram_accounts?fields=id,name,username&access_token=${token}`)
+        const data = await res.json() as { data?: { id: string; name: string; username: string }[]; error?: unknown }
+        console.log('[ig-accounts] page_backed_instagram_accounts:', JSON.stringify(data).slice(0, 300))
+        if (res.ok && data.data?.length) data.data.forEach(add)
       } catch { /* tenta próximo */ }
     }
 
-    // Tentativa 2: via conta de anúncios
+    // Tentativa 2: instagram_actors via conta de anúncios
+    if (token && client?.ad_account_id) {
+      try {
+        const actId = client.ad_account_id.startsWith('act_') ? client.ad_account_id : `act_${client.ad_account_id}`
+        const res = await fetch(`https://graph.facebook.com/v21.0/${actId}/instagram_actors?fields=id,name,username&access_token=${token}`)
+        const data = await res.json() as { data?: { id: string; name: string; username: string }[]; error?: unknown }
+        console.log('[ig-accounts] instagram_actors:', JSON.stringify(data).slice(0, 300))
+        if (res.ok && data.data?.length) data.data.forEach(add)
+      } catch { /* tenta próximo */ }
+    }
+
+    // Tentativa 3: instagram_accounts via Página
+    if (token && client?.facebook_page_id) {
+      try {
+        const res = await fetch(`https://graph.facebook.com/v21.0/${client.facebook_page_id}/instagram_accounts?fields=id,name,username&access_token=${token}`)
+        const data = await res.json() as { data?: { id: string; name: string; username: string }[]; error?: unknown }
+        console.log('[ig-accounts] page/instagram_accounts:', JSON.stringify(data).slice(0, 300))
+        if (res.ok && data.data?.length) data.data.forEach(add)
+      } catch { /* tenta próximo */ }
+    }
+
+    // Tentativa 4: instagram_accounts via conta de anúncios
     if (token && client?.ad_account_id) {
       try {
         const actId = client.ad_account_id.startsWith('act_') ? client.ad_account_id : `act_${client.ad_account_id}`
         const res = await fetch(`https://graph.facebook.com/v21.0/${actId}/instagram_accounts?fields=id,name,username&access_token=${token}`)
-        if (res.ok) {
-          const data = await res.json() as { data?: { id: string; name: string; username: string }[] }
-          if (data.data?.length) data.data.forEach(add)
-        }
+        const data = await res.json() as { data?: { id: string; name: string; username: string }[]; error?: unknown }
+        console.log('[ig-accounts] act/instagram_accounts:', JSON.stringify(data).slice(0, 300))
+        if (res.ok && data.data?.length) data.data.forEach(add)
       } catch { /* tenta próximo */ }
     }
 
