@@ -543,8 +543,20 @@ export class MetaService {
     type ActionEntry = { action_type: string; value: string }
     type InsightRow = Record<string, string | ActionEntry[] | undefined>
 
-    const data = await metaGet<{ data?: InsightRow[] }>(`${META_API}/${adsetId}/insights?${params}`)
-    const rows = data.data || []
+    // Fetch insights + ad metadata (created_time, status) in parallel
+    const [insightsData, adsData] = await Promise.all([
+      metaGet<{ data?: InsightRow[] }>(`${META_API}/${adsetId}/insights?${params}`),
+      metaGet<{ data?: { id: string; created_time: string; status: string }[] }>(
+        `${META_API}/${adsetId}/ads?fields=id,created_time,status&limit=500&access_token=${this.token}`
+      ),
+    ])
+
+    const rows = insightsData.data || []
+    const adsMetadata = adsData.data || []
+
+    // Build lookup: ad_id → metadata
+    const adsMeta = new Map(adsMetadata.map(a => [a.id, a]))
+    const totalAtivos = adsMetadata.filter(a => a.status === 'ACTIVE').length
 
     const findAction = (field: ActionEntry[] | undefined, type: string): number =>
       parseFloat(field?.find(a => a.action_type === type)?.value || '0')
@@ -599,12 +611,22 @@ export class MetaService {
         periodo: datePreset,
       }
 
+      const adId = row.ad_id as string || ''
+      const meta = adsMeta.get(adId)
+      const createdTime = meta?.created_time
+      const ageDays = createdTime
+        ? Math.floor((Date.now() - new Date(createdTime).getTime()) / 86_400_000)
+        : null
+
       return {
-        id: row.ad_id as string || '',
+        id: adId,
         name: row.ad_name as string || '',
         // campos extras para compatibilidade com evaluate_campaign_performance
-        ad_id: row.ad_id as string || '',
+        ad_id: adId,
         ad_name: row.ad_name as string || '',
+        created_time: createdTime,
+        age_days: ageDays,
+        _total_ativos: totalAtivos,
         metricas,
         // métricas também flat para acesso direto via variáveis
         ...metricas,

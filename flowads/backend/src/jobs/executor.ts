@@ -891,9 +891,11 @@ async function executeMeta(
         return {
           acao,
           pausar,
-          manter: !pausar,
+          alertar: acao === 'alertar',
+          manter: acao === 'manter',
           score,
           motivo,
+          motivo_alerta: acao === 'alertar' ? motivo : '',
           age_days: ageDays,
           skip_evaluation: skipEvaluation,
           id: ad.id,
