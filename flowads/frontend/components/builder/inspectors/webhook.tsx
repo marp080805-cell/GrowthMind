@@ -38,26 +38,7 @@ export function WebhookInspector({ config, onChange, nodeId }: InspectorFieldPro
             {copied ? <Check size={13} className="text-green" /> : <Copy size={13} />}
           </button>
         </div>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] font-syne font-semibold text-text3">MÉTODO</label>
-        <div className="flex gap-1.5">
-          {['GET', 'POST'].map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => set('method', m)}
-              className={`flex-1 h-8 rounded-[8px] text-xs font-syne font-bold transition-colors border ${
-                (config.method || 'POST') === m
-                  ? 'bg-accent/10 text-accent border-accent/30'
-                  : 'bg-surface text-text3 border-[var(--border)] hover:border-[var(--border2)]'
-              }`}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
+        <p className="text-[10px] text-text3">Aceita <strong>POST</strong> (JSON no corpo) e <strong>GET</strong> (parâmetros na URL). Cole essa URL no Notion, Zapier, Make, etc.</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -69,6 +50,7 @@ export function WebhookInspector({ config, onChange, nodeId }: InspectorFieldPro
           placeholder="Token de validação"
           className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
         />
+        <p className="text-[10px] text-text3">Se preenchido, a requisição precisa ter o header <code className="text-accent">x-webhook-secret</code> com esse valor.</p>
       </div>
     </>
   )
