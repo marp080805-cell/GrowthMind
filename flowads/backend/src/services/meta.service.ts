@@ -330,7 +330,7 @@ export class MetaService {
     image_url?: string
     image_hash?: string
     video_id?: string
-    thumbnail_url?: string
+    thumbnail_hash?: string
     link_url?: string
     call_to_action?: string
     page_id?: string
@@ -356,7 +356,7 @@ export class MetaService {
           objectStorySpec.page_id = params.page_id
           objectStorySpec.video_data = {
             video_id: params.video_id,
-            image_url: params.thumbnail_url || undefined,
+            image_hash: params.thumbnail_hash || undefined,
             title: params.title,
             message: params.body,
             call_to_action: params.call_to_action ? { type: params.call_to_action, value: { link: params.link_url } } : undefined,
@@ -1027,7 +1027,7 @@ export class MetaService {
     return { hash: first.hash }
   }
 
-  async uploadAdVideo(bytes: Buffer, name: string, mimeType: string): Promise<{ video_id: string; thumbnail_url: string | null }> {
+  async uploadAdVideo(bytes: Buffer, name: string, mimeType: string): Promise<{ video_id: string; thumbnail_hash: string | null }> {
     const form = new FormData()
     form.append('access_token', this.token)
     form.append('title', name)
@@ -1043,21 +1043,30 @@ export class MetaService {
     // Aguarda o vídeo ser processado antes de retornar (até 3 min)
     await this.waitForVideoReady(data.id)
 
-    // Busca thumbnail gerado pela Meta (obrigatório para criar creative de vídeo)
-    const thumbnail_url = await this.getVideoThumbnail(data.id)
+    // Busca thumbnail, faz upload como imagem e retorna o hash (obrigatório para creative de vídeo)
+    const thumbnail_hash = await this.uploadVideoThumbnailAsImage(data.id)
 
-    return { video_id: data.id, thumbnail_url }
+    return { video_id: data.id, thumbnail_hash }
   }
 
-  private async getVideoThumbnail(videoId: string): Promise<string | null> {
+  private async uploadVideoThumbnailAsImage(videoId: string): Promise<string | null> {
     try {
-      const url = `${META_API}/${videoId}/thumbnails?access_token=${this.token}`
-      const res = await fetch(url)
-      if (!res.ok) return null
-      const d = await res.json() as { data?: Array<{ uri: string; is_preferred?: boolean }> }
-      const thumbs = d.data || []
+      // Busca URL do thumbnail gerado pela Meta
+      const thumbRes = await fetch(`${META_API}/${videoId}/thumbnails?access_token=${this.token}`)
+      if (!thumbRes.ok) return null
+      const thumbData = await thumbRes.json() as { data?: Array<{ uri: string; is_preferred?: boolean }> }
+      const thumbs = thumbData.data || []
       const preferred = thumbs.find((t) => t.is_preferred) || thumbs[0]
-      return preferred?.uri || null
+      if (!preferred?.uri) return null
+
+      // Baixa os bytes do thumbnail
+      const imgRes = await fetch(preferred.uri)
+      if (!imgRes.ok) return null
+      const imgBytes = Buffer.from(await imgRes.arrayBuffer())
+
+      // Faz upload como ad image para obter image_hash
+      const result = await this.uploadAdImage(imgBytes)
+      return result.hash
     } catch {
       return null
     }
