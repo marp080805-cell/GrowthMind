@@ -1361,20 +1361,22 @@ async function executeMeta(
 
     // ── Upload criativo do Google Drive para a Meta ───────────────────────
     case 'upload_creative': {
-      const driveToken = context.settings.drive_token
-      if (!driveToken) throw new Error('Token Google Drive não configurado em Configurações')
+      const driveToken = (context.settings.drive_token as string) || null
 
-      let rawUrl = (config.drive_url as string) || ''
+      const rawUrl = (config.drive_url as string) || ''
       if (!rawUrl) throw new Error('URL do Google Drive não configurada no bloco')
 
       // Extrai file ID de link compartilhado: drive.google.com/file/d/{ID}/view
       const fileIdMatch = rawUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)
       const fileId = fileIdMatch?.[1] || null
+      if (!fileId) throw new Error('URL do Google Drive inválida. Use o link de compartilhamento (drive.google.com/file/d/...)')
 
-      // Busca metadados (nome + mimeType)
       let fileName = 'creative'
       let mimeType = 'image/jpeg'
-      if (fileId) {
+      let fileBuffer: Buffer
+
+      if (driveToken) {
+        // Com token OAuth: usa API do Drive (suporta arquivos privados)
         const metaRes = await fetch(
           `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,mimeType`,
           { headers: { Authorization: `Bearer ${driveToken}` } }
@@ -1384,13 +1386,26 @@ async function executeMeta(
           if (fileMeta.name) fileName = fileMeta.name
           if (fileMeta.mimeType) mimeType = fileMeta.mimeType
         }
-        rawUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+        const fileRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+          { headers: { Authorization: `Bearer ${driveToken}` } }
+        )
+        if (!fileRes.ok) throw new Error(`Erro ao baixar arquivo do Drive (token): ${fileRes.status} ${fileRes.statusText}`)
+        fileBuffer = Buffer.from(await fileRes.arrayBuffer())
+      } else {
+        // Sem token: download direto (arquivo deve estar público — "qualquer pessoa com o link")
+        const publicUrl = `https://drive.google.com/uc?export=download&id=${fileId}`
+        const fileRes = await fetch(publicUrl, { redirect: 'follow' })
+        if (!fileRes.ok) throw new Error(`Erro ao baixar arquivo público do Drive: ${fileRes.status}. Verifique se o arquivo está compartilhado como "qualquer pessoa com o link".`)
+        const ct = fileRes.headers.get('content-type')
+        if (ct) mimeType = ct.split(';')[0].trim()
+        const cd = fileRes.headers.get('content-disposition')
+        if (cd) {
+          const fnMatch = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';\n]+)["']?/i)
+          if (fnMatch) fileName = decodeURIComponent(fnMatch[1].trim())
+        }
+        fileBuffer = Buffer.from(await fileRes.arrayBuffer())
       }
-
-      // Baixa o arquivo com autenticação Drive
-      const fileRes = await fetch(rawUrl, { headers: { Authorization: `Bearer ${driveToken}` } })
-      if (!fileRes.ok) throw new Error(`Erro ao baixar arquivo do Drive: ${fileRes.status} ${fileRes.statusText}`)
-      const fileBuffer = Buffer.from(await fileRes.arrayBuffer())
 
       const isVideo = mimeType.startsWith('video/')
 
