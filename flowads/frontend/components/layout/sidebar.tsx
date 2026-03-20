@@ -101,30 +101,33 @@ export function Sidebar({ user }: SidebarProps) {
         ))}
       </nav>
 
-      {/* User info */}
-      {user && (
-        <div className="p-3 border-t border-[var(--border)]">
-          <div className="flex items-center gap-3 p-2 rounded-[10px] hover:bg-surface transition-colors group">
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-syne font-bold text-white shrink-0"
-              style={{ backgroundColor: getAvatarColor(user.name) }}
-            >
-              {getInitials(user.name)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-text truncate">{user.name}</p>
-              <p className="text-[10px] text-text3 capitalize">{user.role}</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="text-text3 hover:text-red transition-colors"
-              title="Sair"
-            >
-              <LogOut size={14} />
-            </button>
-          </div>
+      {/* User info + logout */}
+      <div className="p-3 border-t border-[var(--border)]">
+        <div className="flex items-center gap-3 p-2 rounded-[10px] hover:bg-surface transition-colors">
+          {user && (
+            <>
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-syne font-bold text-white shrink-0"
+                style={{ backgroundColor: getAvatarColor(user.name) }}
+              >
+                {getInitials(user.name)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-text truncate">{user.name}</p>
+                <p className="text-[10px] text-text3 capitalize">{user.role}</p>
+              </div>
+            </>
+          )}
+          <button
+            onClick={handleLogout}
+            className="ml-auto text-text3 hover:text-red transition-colors flex items-center gap-1.5 text-xs"
+            title="Sair"
+          >
+            <LogOut size={14} />
+            {!user && <span>Sair</span>}
+          </button>
         </div>
-      )}
+      </div>
     </aside>
   )
 }
