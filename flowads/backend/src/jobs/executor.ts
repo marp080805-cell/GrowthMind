@@ -1138,9 +1138,11 @@ async function executeMeta(
         title: config.title as string | undefined,
         body: config.body as string | undefined,
         image_url: config.image_url as string | undefined,
-        image_hash: (config.image_hash as string) || (prevOutput.image_hash as string) || undefined,
-        video_id: (config.video_id as string) || (prevOutput.video_id as string) || undefined,
-        thumbnail_hash: (config.thumbnail_hash as string) || undefined,
+        // prevOutput wins — se há um nó upload_creative anterior, usa sempre o hash/video_id dele
+        // config só é fallback se o usuário digitou um valor real (sem espaços = não é placeholder)
+        image_hash: (prevOutput.image_hash as string) || ((config.image_hash as string || '').trim().includes(' ') ? undefined : config.image_hash as string) || undefined,
+        video_id: (prevOutput.video_id as string) || ((config.video_id as string || '').trim().includes(' ') ? undefined : config.video_id as string) || undefined,
+        thumbnail_hash: (prevOutput.thumbnail_hash as string) || (config.thumbnail_hash as string) || undefined,
         link_url: config.link_url as string | undefined,
         call_to_action: config.call_to_action as string | undefined,
         page_id: (config.page_id as string) || context.client?.facebook_page_id || undefined,
