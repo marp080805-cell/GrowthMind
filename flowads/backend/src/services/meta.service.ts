@@ -1030,7 +1030,7 @@ export class MetaService {
     form.append('access_token', this.token)
     form.append('title', name)
     form.append('source', new Blob([new Uint8Array(bytes)], { type: mimeType }), name)
-    const res = await fetch(`https://graph-video.facebook.com/v21.0/${this.adAccountId}/advideos`, {
+    const res = await fetch(`https://graph-video.facebook.com/v21.0/act_${this.adAccountId}/advideos`, {
       method: 'POST',
       body: form,
     })
