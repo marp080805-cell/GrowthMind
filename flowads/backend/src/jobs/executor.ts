@@ -1140,8 +1140,8 @@ async function executeMeta(
         video_id: config.video_id as string | undefined,
         link_url: config.link_url as string | undefined,
         call_to_action: config.call_to_action as string | undefined,
-        page_id: config.page_id as string | undefined,
-        instagram_actor_id: config.instagram_actor_id as string | undefined,
+        page_id: (config.page_id as string) || context.client?.facebook_page_id || undefined,
+        instagram_actor_id: (config.instagram_actor_id as string) || context.client?.instagram_account_id || undefined,
         status: (config.status as string) || 'PAUSED',
       })
       return { anuncio_criado: result, ad_id: result.id }
