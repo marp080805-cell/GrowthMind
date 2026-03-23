@@ -46,9 +46,9 @@ export function initQueue() {
     {
       connection,
       lockDuration: 600_000,  // 10 min — suporta uploads longos
-      concurrency: 10,        // até 10 automações simultâneas
+      concurrency: 4,         // 4 automações simultâneas (~1/3 da VPS KVM2)
       limiter: {
-        max: 20,              // máx 20 jobs iniciados por janela
+        max: 8,               // máx 8 jobs iniciados por janela
         duration: 10_000,     // janela de 10 segundos
       },
     }
