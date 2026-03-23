@@ -21,6 +21,16 @@ function parseRedisConnection(url: string) {
 export let automationQueue: Queue
 let schedulerWorker: Worker
 
+// Espalha execuções agendadas no mesmo horário em até 5 minutos
+// Determinístico por automationId — sempre o mesmo delay entre restarts
+function staggerDelay(automationId: string): number {
+  let hash = 0
+  for (let i = 0; i < automationId.length; i++) {
+    hash = (hash * 31 + automationId.charCodeAt(i)) >>> 0
+  }
+  return (hash % 300) * 1000 // 0 a 299 segundos
+}
+
 export function initQueue() {
   const connection = parseRedisConnection(redisUrl)
 
@@ -33,7 +43,15 @@ export function initQueue() {
       console.log(`[Scheduler] Executing automation ${automationId}`)
       await executeAutomation(automationId, payload)
     },
-    { connection, lockDuration: 600_000 } // 10 min lock — suporta uploads longos
+    {
+      connection,
+      lockDuration: 600_000,  // 10 min — suporta uploads longos
+      concurrency: 10,        // até 10 automações simultâneas
+      limiter: {
+        max: 20,              // máx 20 jobs iniciados por janela
+        duration: 10_000,     // janela de 10 segundos
+      },
+    }
   )
 
   schedulerWorker.on('failed', (job, err) => {
@@ -90,6 +108,7 @@ export async function scheduleAutomation(
       jobId: automationId,
       removeOnComplete: true,
       removeOnFail: 100,
+      delay: staggerDelay(automationId), // espalha clientes no mesmo horário em até 5 min
     }
   )
   console.log(`[Scheduler] Scheduled automation ${automationId} with cron: ${cron} (tz: ${tz})`)

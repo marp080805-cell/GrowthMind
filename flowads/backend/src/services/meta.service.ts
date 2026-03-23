@@ -104,6 +104,29 @@ export interface MetaInstagramAccount {
   username: string
 }
 
+// Códigos de erro de rate limit da Meta API
+const RATE_LIMIT_CODES = new Set([4, 17, 32, 613, 80000, 80001, 80002, 80003, 80004, 80005, 80006, 80007, 80008])
+const META_MAX_RETRIES = 5
+
+function metaSleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)) }
+
+// Monitora uso do BUC e avisa quando próximo do limite
+function checkRateLimitHeaders(res: Response) {
+  try {
+    const bucHeader = res.headers.get('X-Business-Use-Case-Usage')
+    if (bucHeader) {
+      const parsed = JSON.parse(bucHeader) as Record<string, Array<{ call_count: number; type: string; estimated_time_to_regain_access?: number }>>
+      for (const entries of Object.values(parsed)) {
+        for (const entry of entries) {
+          if (entry.call_count > 80) {
+            console.warn(`[Meta] Rate limit warning: ${entry.type} em ${entry.call_count}% — desacelerando`)
+          }
+        }
+      }
+    }
+  } catch { /* ignora header malformado */ }
+}
+
 async function metaPost(url: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
   // Meta Graph API is form-encoded by design; complex fields are JSON strings
   const formData = new URLSearchParams()
@@ -115,28 +138,68 @@ async function metaPost(url: string, body: Record<string, unknown>): Promise<Rec
       formData.set(key, String(value))
     }
   }
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: formData.toString(),
-  })
-  const data = await res.json() as Record<string, unknown> & { error?: { message?: string; code?: number; error_subcode?: number; error_user_msg?: string; error_user_title?: string } }
-  if (!res.ok || data.error) {
-    const e = data.error as { message?: string; code?: number; error_subcode?: number; error_user_msg?: string; error_user_title?: string } | undefined
-    const code = e?.code ? ` [código ${e.code}${e.error_subcode ? '/' + e.error_subcode : ''}]` : ''
-    const detail = e?.error_user_msg ? ` — ${e.error_user_msg}` : ''
-    throw new Error((e?.message || 'Erro na API do Meta') + code + detail)
+
+  for (let attempt = 0; attempt <= META_MAX_RETRIES; attempt++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData.toString(),
+    })
+    const data = await res.json() as Record<string, unknown> & { error?: { message?: string; code?: number; error_subcode?: number; error_user_msg?: string; error_user_title?: string; error_data?: { estimated_time_to_regain_access?: number } } }
+
+    checkRateLimitHeaders(res)
+
+    if (!res.ok || data.error) {
+      const e = data.error
+      const errorCode = e?.code ?? 0
+
+      // Rate limit — espera e tenta de novo
+      if (RATE_LIMIT_CODES.has(errorCode) && attempt < META_MAX_RETRIES) {
+        const regainSecs = e?.error_data?.estimated_time_to_regain_access
+        const waitMs = regainSecs
+          ? regainSecs * 1000
+          : Math.min(Math.pow(2, attempt) * 1000 + Math.random() * 1000, 64000)
+        console.warn(`[Meta] Rate limit (código ${errorCode}), aguardando ${Math.round(waitMs / 1000)}s (tentativa ${attempt + 1}/${META_MAX_RETRIES})`)
+        await metaSleep(waitMs)
+        continue
+      }
+
+      const code = e?.code ? ` [código ${e.code}${e.error_subcode ? '/' + e.error_subcode : ''}]` : ''
+      const detail = e?.error_user_msg ? ` — ${e.error_user_msg}` : ''
+      throw new Error((e?.message || 'Erro na API do Meta') + code + detail)
+    }
+
+    return data
   }
-  return data
+
+  throw new Error('Meta API: número máximo de tentativas excedido')
 }
 
 async function metaGet<T>(url: string): Promise<T> {
-  const res = await fetch(url)
-  const data = await res.json() as T & { error?: { message?: string } }
-  if (!res.ok || (data as Record<string, unknown>).error) {
-    throw new Error(((data as Record<string, unknown>).error as { message?: string })?.message || 'Erro na API do Meta')
+  for (let attempt = 0; attempt <= META_MAX_RETRIES; attempt++) {
+    const res = await fetch(url)
+    const data = await res.json() as T & { error?: { message?: string; code?: number; error_data?: { estimated_time_to_regain_access?: number } } }
+
+    checkRateLimitHeaders(res)
+
+    const errorCode = (data as { error?: { code?: number } }).error?.code ?? 0
+    if (!res.ok || (data as Record<string, unknown>).error) {
+      if (RATE_LIMIT_CODES.has(errorCode) && attempt < META_MAX_RETRIES) {
+        const regainSecs = (data as { error?: { error_data?: { estimated_time_to_regain_access?: number } } }).error?.error_data?.estimated_time_to_regain_access
+        const waitMs = regainSecs
+          ? regainSecs * 1000
+          : Math.min(Math.pow(2, attempt) * 1000 + Math.random() * 1000, 64000)
+        console.warn(`[Meta] Rate limit GET (código ${errorCode}), aguardando ${Math.round(waitMs / 1000)}s (tentativa ${attempt + 1}/${META_MAX_RETRIES})`)
+        await metaSleep(waitMs)
+        continue
+      }
+      throw new Error(((data as Record<string, unknown>).error as { message?: string })?.message || 'Erro na API do Meta')
+    }
+
+    return data
   }
-  return data
+
+  throw new Error('Meta API: número máximo de tentativas excedido')
 }
 
 interface MetaPagedResponse<T> {
