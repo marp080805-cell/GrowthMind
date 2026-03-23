@@ -161,7 +161,6 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
         const res = await fetch(`https://graph.facebook.com/v21.0/${client.facebook_page_id}?fields=access_token&access_token=${userToken}`)
         const data = await res.json() as { access_token?: string }
         if (data.access_token) pageToken = data.access_token
-        console.log('[ig-accounts] page_token obtido:', !!pageToken)
       } catch { /* usa userToken como fallback */ }
     }
 
@@ -172,7 +171,6 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const res = await fetch(`https://graph.facebook.com/v21.0/${client.facebook_page_id}/instagram_accounts?fields=id,name,username&access_token=${tokenForPage}`)
         const data = await res.json() as { data?: { id: string; name: string; username: string }[]; error?: unknown }
-        console.log('[ig-accounts] page/instagram_accounts:', JSON.stringify(data).slice(0, 300))
         if (res.ok && data.data?.length) data.data.forEach(add)
       } catch { /* tenta próximo */ }
     }
@@ -182,7 +180,6 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const res = await fetch(`https://graph.facebook.com/v21.0/${client.facebook_page_id}/page_backed_instagram_accounts?fields=id,name,username&access_token=${tokenForPage}`)
         const data = await res.json() as { data?: { id: string; name: string; username: string }[]; error?: unknown }
-        console.log('[ig-accounts] page_backed_instagram_accounts:', JSON.stringify(data).slice(0, 300))
         if (res.ok && data.data?.length) data.data.forEach(add)
       } catch { /* tenta próximo */ }
     }
@@ -193,12 +190,9 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
         const actId = client.ad_account_id.startsWith('act_') ? client.ad_account_id : `act_${client.ad_account_id}`
         const res = await fetch(`https://graph.facebook.com/v21.0/${actId}/instagram_accounts?fields=id,name,username&access_token=${userToken}`)
         const data = await res.json() as { data?: { id: string; name: string; username: string }[]; error?: unknown }
-        console.log('[ig-accounts] act/instagram_accounts:', JSON.stringify(data).slice(0, 300))
         if (res.ok && data.data?.length) data.data.forEach(add)
       } catch { /* tenta próximo */ }
     }
-
-    console.log('[ig-accounts] total encontrado:', accounts.length, accounts.map(a => a.id))
 
     // Fallback: usa o instagram_account_id salvo no cliente (pode ser ID incorreto mas é o que temos)
     if (accounts.length === 0 && client?.instagram_account_id) {
