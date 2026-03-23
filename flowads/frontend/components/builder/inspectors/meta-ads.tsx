@@ -366,8 +366,8 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
             <label className="text-[10px] font-syne font-semibold text-text3">CONTA DO INSTAGRAM (opcional)</label>
             {instagramAccounts.length > 0 ? (
               <select
-                value={(config.instagram_actor_id as string) || ''}
-                onChange={(e) => set('instagram_actor_id', e.target.value)}
+                value={(config.instagram_user_id as string) || ''}
+                onChange={(e) => set('instagram_user_id', e.target.value)}
                 className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
               >
                 <option value="">Usar a do cliente</option>
@@ -377,8 +377,8 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
               </select>
             ) : (
               <VariableAutocomplete
-                value={(config.instagram_actor_id as string) || ''}
-                onChange={(v) => set('instagram_actor_id', v)}
+                value={(config.instagram_user_id as string) || ''}
+                onChange={(v) => set('instagram_user_id', v)}
                 placeholder="Deixe vazio para usar o do cliente"
                 rows={1}
               />
@@ -454,8 +454,8 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
             <label className="text-[10px] font-syne font-semibold text-text3">CONTA DO INSTAGRAM (opcional)</label>
             {instagramAccounts.length > 0 ? (
               <select
-                value={(config.instagram_actor_id as string) || ''}
-                onChange={(e) => set('instagram_actor_id', e.target.value)}
+                value={(config.instagram_user_id as string) || ''}
+                onChange={(e) => set('instagram_user_id', e.target.value)}
                 className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
               >
                 <option value="">Usar a do cliente</option>
@@ -464,7 +464,7 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
                 ))}
               </select>
             ) : (
-              <VariableAutocomplete value={(config.instagram_actor_id as string) || ''} onChange={(v) => set('instagram_actor_id', v)} placeholder="Deixe vazio para usar o do cliente" rows={1} />
+              <VariableAutocomplete value={(config.instagram_user_id as string) || ''} onChange={(v) => set('instagram_user_id', v)} placeholder="Deixe vazio para usar o do cliente" rows={1} />
             )}
           </div>
         </>
@@ -569,8 +569,8 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
             <label className="text-[10px] font-syne font-semibold text-text3">CONTA DO INSTAGRAM (opcional)</label>
             {instagramAccounts.length > 0 ? (
               <select
-                value={(config.instagram_actor_id as string) || ''}
-                onChange={(e) => set('instagram_actor_id', e.target.value)}
+                value={(config.instagram_user_id as string) || ''}
+                onChange={(e) => set('instagram_user_id', e.target.value)}
                 className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
               >
                 <option value="">Usar a do cliente</option>
@@ -580,8 +580,8 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
               </select>
             ) : (
               <VariableAutocomplete
-                value={(config.instagram_actor_id as string) || ''}
-                onChange={(v) => set('instagram_actor_id', v)}
+                value={(config.instagram_user_id as string) || ''}
+                onChange={(v) => set('instagram_user_id', v)}
                 placeholder="ID da conta Instagram"
                 rows={1}
               />

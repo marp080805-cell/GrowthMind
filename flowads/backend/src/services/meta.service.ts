@@ -334,7 +334,7 @@ export class MetaService {
     link_url?: string
     call_to_action?: string
     page_id?: string
-    instagram_actor_id?: string
+    instagram_user_id?: string
     status?: string
   }): Promise<{ id: string; name: string }> {
     let creativeId = params.creative_id
@@ -366,9 +366,9 @@ export class MetaService {
           objectStorySpec.link_data = linkData
         }
 
-        // Só passa instagram_actor_id se explicitamente configurado — deve ser uma conta
-        // conectada ao Business Manager e com acesso à conta de anúncios
-        if (params.instagram_actor_id) objectStorySpec.instagram_actor_id = params.instagram_actor_id
+        // instagram_user_id (substituto de instagram_actor_id desde Marketing API v22.0)
+        // Deve ser um Shadow IG User ID — obtido via GET /{page_id}/instagram_accounts
+        if (params.instagram_user_id) objectStorySpec.instagram_user_id = params.instagram_user_id
       }
 
       const creativeBody: Record<string, unknown> = {
@@ -381,10 +381,10 @@ export class MetaService {
         creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
       } catch (err) {
         const errMsg = (err as Error).message
-        // Se o erro for sobre instagram_actor_id inválido, tenta sem ele
-        if (params.instagram_actor_id && errMsg.includes('instagram_actor_id')) {
-          console.warn(`[Meta] instagram_actor_id ${params.instagram_actor_id} rejeitado, tentando sem ele`)
-          delete objectStorySpec.instagram_actor_id
+        // Se o erro for sobre instagram_user_id inválido, tenta sem ele
+        if (params.instagram_user_id && (errMsg.includes('instagram_user_id') || errMsg.includes('instagram_actor_id'))) {
+          console.warn(`[Meta] instagram_user_id ${params.instagram_user_id} rejeitado, tentando sem ele`)
+          delete objectStorySpec.instagram_user_id
           creativeData = await metaPost(`${this.accountUrl}/adcreatives`, { ...creativeBody, object_story_spec: objectStorySpec })
         } else {
           const body = JSON.stringify({ page_id: params.page_id, video_id: params.video_id, image_hash: params.image_hash, thumbnail_hash: params.thumbnail_hash, account: this.adAccountId, object_story_spec: objectStorySpec })
