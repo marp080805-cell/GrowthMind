@@ -147,7 +147,7 @@ export const clientsRoutes: FastifyPluginAsync = async (fastify) => {
       .eq('id', id)
       .single()
 
-    const userToken = client?.meta_token
+    const userToken = client?.meta_token || (await supabase.from('settings').select('meta_token').single()).data?.meta_token
     const seen = new Set<string>()
     const accounts: { id: string; name: string; username: string }[] = []
     const add = (a: { id: string; name: string; username: string }) => {
