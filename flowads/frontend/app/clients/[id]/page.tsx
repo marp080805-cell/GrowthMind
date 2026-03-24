@@ -14,8 +14,8 @@ import { CampaignRow } from '@/components/clients/campaign-row'
 import { AgentCard } from '@/components/agents/agent-card'
 import { AgentForm } from '@/components/agents/agent-form'
 import {
-  clientsApi, campaignsApi, automationsApi, agentsApi,
-  type Client, type Campaign, type Automation, type Agent, type ExecutionLog
+  clientsApi, campaignsApi, automationsApi, agentsApi, presetsApi,
+  type Client, type Campaign, type Automation, type Agent, type ExecutionLog, type Preset
 } from '@/lib/api'
 import { ScoringConfig } from '@/components/clients/scoring-config'
 import { useRouter } from 'next/navigation'
@@ -25,7 +25,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import {
   Pencil, RefreshCw, Plus, Copy,
-  CheckCircle, XCircle, Loader2, ChevronRight
+  CheckCircle, XCircle, Loader2, ChevronRight, Layers
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -52,6 +52,10 @@ export default function ClientDetailPage() {
   const [editingAgent, setEditingAgent] = useState<Agent | undefined>()
   const [duplicatingAuto, setDuplicatingAuto] = useState<Automation | null>(null)
   const [duplicatingSaving, setDuplicatingSaving] = useState(false)
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [presets, setPresets] = useState<Preset[]>([])
+  const [selectedPresetId, setSelectedPresetId] = useState('')
+  const [applyingTemplate, setApplyingTemplate] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -117,6 +121,31 @@ export default function ClientDetailPage() {
       error('Erro ao duplicar automação')
     } finally {
       setDuplicatingSaving(false)
+    }
+  }
+
+  const openTemplateModal = async () => {
+    if (presets.length === 0) {
+      const list = await presetsApi.list().catch(() => [])
+      setPresets(list)
+    }
+    setSelectedPresetId('')
+    setShowTemplateModal(true)
+  }
+
+  const handleApplyTemplate = async () => {
+    if (!selectedPresetId) return
+    setApplyingTemplate(true)
+    try {
+      const auto = await presetsApi.apply(selectedPresetId, id)
+      setAutomations((prev) => [auto, ...prev])
+      setShowTemplateModal(false)
+      success('Template aplicado! Abrindo builder...')
+      router.push(`/clients/${id}/automations/${auto.id}`)
+    } catch {
+      error('Erro ao aplicar template')
+    } finally {
+      setApplyingTemplate(false)
     }
   }
 
@@ -289,6 +318,10 @@ export default function ClientDetailPage() {
         {tab === 'automations' && (
           <div>
             <div className="flex items-center gap-2 justify-end mb-4">
+              <Button variant="outline" size="sm" onClick={openTemplateModal}>
+                <Layers size={14} />
+                Usar template
+              </Button>
               <Link href={`/clients/${id}/automations/new`} className={buttonVariants({ size: 'sm' })}>
                 <Plus size={14} />
                 Nova Automação
@@ -467,6 +500,50 @@ export default function ClientDetailPage() {
           <Button onClick={handleDuplicateAuto} loading={duplicatingSaving} className="flex-1">
             Duplicar automação
           </Button>
+        </div>
+      </Modal>
+
+      {/* Apply Template Modal */}
+      <Modal
+        open={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        title="Usar template"
+        description="Selecione um template para criar uma automação para este cliente."
+      >
+        <div className="space-y-4">
+          {presets.length === 0 ? (
+            <p className="text-sm text-text3 text-center py-4">Nenhum template disponível</p>
+          ) : (
+            <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+              {presets.map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => setSelectedPresetId(preset.id)}
+                  className={`flex items-center gap-3 p-3 rounded-[10px] border text-left transition-all ${
+                    selectedPresetId === preset.id
+                      ? 'border-accent bg-accent/5'
+                      : 'border-[var(--border)] hover:border-[var(--border2)] hover:bg-surface2'
+                  }`}
+                >
+                  <span className="text-2xl shrink-0">{preset.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-text">{preset.name}</p>
+                    {preset.description && (
+                      <p className="text-xs text-text3 truncate">{preset.description}</p>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-text3 shrink-0">{preset.nodes?.length || 0} blocos</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setShowTemplateModal(false)} className="flex-1">Cancelar</Button>
+            <Button onClick={handleApplyTemplate} loading={applyingTemplate} disabled={!selectedPresetId} className="flex-1">
+              <Layers size={14} />
+              Aplicar template
+            </Button>
+          </div>
         </div>
       </Modal>
 

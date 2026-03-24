@@ -16,7 +16,7 @@ import { formatDateTime } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import {
   Plus, Copy, Pencil, Trash2, ChevronRight,
-  Layers, Search, Brain, BookmarkPlus,
+  Layers, Search, Brain, BookmarkPlus, Settings2,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -55,6 +55,11 @@ export default function AutomacoesPage() {
   const [savingAsTemplate, setSavingAsTemplate] = useState<AutomationWithClient | null>(null)
   const [templateForm, setTemplateForm] = useState({ name: '', description: '', icon: '⚡', tags: '' })
   const [savingTemplate, setSavingTemplate] = useState(false)
+
+  // Edit template modal
+  const [editingPreset, setEditingPreset] = useState<Preset | null>(null)
+  const [editPresetForm, setEditPresetForm] = useState({ name: '', description: '', icon: '⚡', tags: '' })
+  const [savingEditPreset, setSavingEditPreset] = useState(false)
 
   // New automation modal
   const [showNewModal, setShowNewModal] = useState(false)
@@ -150,6 +155,37 @@ export default function AutomacoesPage() {
       error('Erro ao criar template')
     } finally {
       setSavingTemplate(false)
+    }
+  }
+
+  const openEditPreset = (preset: Preset) => {
+    setEditPresetForm({
+      name: preset.name,
+      description: preset.description || '',
+      icon: preset.icon || '⚡',
+      tags: preset.tags.join(', '),
+    })
+    setEditingPreset(preset)
+  }
+
+  const handleEditPreset = async () => {
+    if (!editingPreset) return
+    setSavingEditPreset(true)
+    try {
+      const tags = editPresetForm.tags.split(',').map((t) => t.trim()).filter(Boolean)
+      const updated = await presetsApi.update(editingPreset.id, {
+        name: editPresetForm.name,
+        description: editPresetForm.description,
+        icon: editPresetForm.icon,
+        tags,
+      })
+      setPresets((prev) => prev.map((p) => p.id === editingPreset.id ? updated : p))
+      setEditingPreset(null)
+      success('Template atualizado!')
+    } catch {
+      error('Erro ao atualizar template')
+    } finally {
+      setSavingEditPreset(false)
     }
   }
 
@@ -306,13 +342,22 @@ export default function AutomacoesPage() {
                   key={preset.id}
                   className="relative group bg-surface border border-[var(--border)] rounded-lg p-5 hover:border-[var(--border2)] transition-all"
                 >
-                  <button
-                    onClick={() => setDeletingPreset(preset)}
-                    className="absolute top-3 right-3 p-1.5 rounded-[8px] opacity-0 group-hover:opacity-100 hover:bg-red/10 text-text3 hover:text-red transition-all"
-                    title="Excluir template"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <button
+                      onClick={() => openEditPreset(preset)}
+                      className="p-1.5 rounded-[8px] hover:bg-surface2 text-text3 hover:text-text transition-colors"
+                      title="Editar template"
+                    >
+                      <Settings2 size={13} />
+                    </button>
+                    <button
+                      onClick={() => setDeletingPreset(preset)}
+                      className="p-1.5 rounded-[8px] hover:bg-red/10 text-text3 hover:text-red transition-colors"
+                      title="Excluir template"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                   <div className="flex items-start gap-3 mb-3">
                     <span className="text-3xl">{preset.icon}</span>
                     <div className="pr-6">
@@ -430,6 +475,62 @@ export default function AutomacoesPage() {
         <div className="flex gap-2">
           <Button variant="ghost" onClick={() => setDeletingPreset(null)} className="flex-1">Cancelar</Button>
           <Button variant="danger" onClick={handleDeletePreset} className="flex-1">Remover</Button>
+        </div>
+      </Modal>
+
+      {/* Edit template modal */}
+      <Modal
+        open={!!editingPreset}
+        onClose={() => setEditingPreset(null)}
+        title="Editar template"
+        description="Altere as informações do template."
+      >
+        <div className="space-y-4">
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 w-16">
+              <label className="text-sm font-medium text-text2 font-syne">Ícone</label>
+              <input
+                value={editPresetForm.icon}
+                onChange={(e) => setEditPresetForm((p) => ({ ...p, icon: e.target.value }))}
+                className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-center text-xl focus:outline-none focus:border-accent"
+                maxLength={2}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label className="text-sm font-medium text-text2 font-syne">Nome *</label>
+              <input
+                value={editPresetForm.name}
+                onChange={(e) => setEditPresetForm((p) => ({ ...p, name: e.target.value }))}
+                className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent"
+                placeholder="Nome do template"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-text2 font-syne">Descrição</label>
+            <input
+              value={editPresetForm.description}
+              onChange={(e) => setEditPresetForm((p) => ({ ...p, description: e.target.value }))}
+              className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent"
+              placeholder="Descreva o que essa automação faz..."
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-text2 font-syne">Tags <span className="text-text3 font-normal">(separadas por vírgula)</span></label>
+            <input
+              value={editPresetForm.tags}
+              onChange={(e) => setEditPresetForm((p) => ({ ...p, tags: e.target.value }))}
+              className="h-10 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent"
+              placeholder="ex: meta, instagram, agendamento"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setEditingPreset(null)} className="flex-1">Cancelar</Button>
+            <Button onClick={handleEditPreset} loading={savingEditPreset} disabled={!editPresetForm.name} className="flex-1">
+              <Settings2 size={14} />
+              Salvar alterações
+            </Button>
+          </div>
         </div>
       </Modal>
 

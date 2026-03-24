@@ -95,6 +95,21 @@ export const presetsRoutes: FastifyPluginAsync = async (fastify) => {
     return data
   })
 
+  fastify.put('/presets/:id', async (req) => {
+    const { id } = req.params as { id: string }
+    const { name, description, icon, tags } = req.body as {
+      name: string; description?: string; icon?: string; tags?: string[]
+    }
+    const { data, error } = await supabase
+      .from('presets')
+      .update({ name, description: description || '', icon: icon || '⚡', tags: tags || [] })
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  })
+
   fastify.delete('/presets/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
     const { error } = await supabase.from('presets').delete().eq('id', id)
