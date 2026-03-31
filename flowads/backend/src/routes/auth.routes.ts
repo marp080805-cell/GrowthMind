@@ -54,7 +54,15 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     const successUrl = `${frontendUrl}/auth/meta/success`
     const errorUrl = (msg: string) => `${frontendUrl}/auth/meta/success?error=${encodeURIComponent(msg)}`
 
-    console.log('[Meta OAuth Callback] received', { has_code: !!code, error_reason, error_description })
+    console.log('[Meta OAuth Callback] received', {
+      has_code: !!code,
+      code_length: code?.length,
+      code_preview: code?.slice(0, 20),
+      redirect_uri: redirectUri,
+      app_id: appId,
+      error_reason,
+      error_description,
+    })
 
     if (error_reason || !code) {
       const msg = error_description || error_reason || 'cancelled'
@@ -69,11 +77,17 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     tokenUrl.searchParams.set('redirect_uri', redirectUri)
     tokenUrl.searchParams.set('code', code)
 
+    console.log('[Meta OAuth Callback] exchanging code with:', {
+      client_id: appId,
+      redirect_uri: redirectUri,
+      code_length: code.length,
+    })
+
     const tokenRes = await fetch(tokenUrl.toString())
-    const tokenData = await tokenRes.json() as { access_token?: string; error?: { message?: string } }
+    const tokenData = await tokenRes.json() as { access_token?: string; error?: { message?: string; type?: string; code?: number } }
     console.log('[Meta OAuth Callback] short-lived token response:', {
       ok: !!tokenData.access_token,
-      error: tokenData.error?.message,
+      error: tokenData.error,
     })
 
     if (!tokenData.access_token) {
