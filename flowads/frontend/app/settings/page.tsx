@@ -144,6 +144,33 @@ function SettingsPageInner() {
     }
   }
 
+  const [showManualToken, setShowManualToken] = useState(false)
+  const [manualToken, setManualToken] = useState('')
+  const [savingToken, setSavingToken] = useState(false)
+
+  const saveManualToken = async () => {
+    if (!manualToken.trim()) { error('Cole o token antes de salvar'); return }
+    setSavingToken(true)
+    try {
+      const res = await fetch(`${API_URL}/auth/meta/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: manualToken.trim(), type: 'settings' }),
+      })
+      const data = await res.json() as { ok?: boolean; message?: string }
+      if (!res.ok) throw new Error(data.message || 'Erro ao salvar token')
+      const updated = await settingsApi.get()
+      setSettings(updated)
+      setManualToken('')
+      setShowManualToken(false)
+      success('Token Meta salvo com sucesso!')
+    } catch (e: unknown) {
+      error(e instanceof Error ? e.message : 'Erro ao salvar token')
+    } finally {
+      setSavingToken(false)
+    }
+  }
+
   const otherIntegrations = [
     {
       id: 'whatsapp',
@@ -249,6 +276,32 @@ function SettingsPageInner() {
                 <Copy size={13} />
                 Copiar link (para colar em outro navegador)
               </button>
+              <button
+                onClick={() => setShowManualToken((v) => !v)}
+                className="flex items-center justify-center gap-2 h-9 w-full rounded-[12px] text-text3 text-xs font-medium border border-[var(--border)] hover:text-text2 hover:border-accent transition-colors"
+              >
+                <Link size={13} />
+                Inserir token manualmente (Graph API Explorer)
+              </button>
+              {showManualToken && (
+                <div className="space-y-2 p-3 rounded-[12px] bg-bg3 border border-[var(--border)]">
+                  <p className="text-xs text-text3">
+                    Gere o token em <span className="text-accent font-medium">developers.facebook.com/tools/explorer</span> → selecione o app <span className="font-medium text-text2">ZI-AI</span> → adicione as permissões → clique em <span className="font-medium text-text2">Gerar token de acesso</span>.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={manualToken}
+                      onChange={(e) => setManualToken(e.target.value)}
+                      placeholder="Cole o token aqui..."
+                      className="flex-1 h-9 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent transition-colors"
+                    />
+                    <Button size="sm" onClick={saveManualToken} loading={savingToken}>
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

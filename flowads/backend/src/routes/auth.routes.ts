@@ -153,6 +153,47 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.redirect(`${frontendUrl}/clients?meta_token=${encodeURIComponent(finalToken)}`)
   })
 
+  // ─── Manual token save ────────────────────────────────────────────────────
+  fastify.post('/auth/meta/token', async (req, reply) => {
+    const { token, type, client_id } = req.body as { token: string; type?: string; client_id?: string }
+    const appId = process.env.META_APP_ID!
+    const appSecret = process.env.META_APP_SECRET!
+
+    if (!token) return reply.status(400).send({ message: 'Token obrigatório' })
+
+    // Extend to long-lived token
+    let finalToken = token
+    try {
+      const longUrl = new URL('https://graph.facebook.com/v21.0/oauth/access_token')
+      longUrl.searchParams.set('grant_type', 'fb_exchange_token')
+      longUrl.searchParams.set('client_id', appId)
+      longUrl.searchParams.set('client_secret', appSecret)
+      longUrl.searchParams.set('fb_exchange_token', token)
+      const longRes = await fetch(longUrl.toString())
+      const longData = await longRes.json() as { access_token?: string }
+      if (longData.access_token) finalToken = longData.access_token
+    } catch {
+      // Use original token if extension fails
+    }
+
+    if (type === 'settings' || !type) {
+      const { data: existing } = await supabase.from('settings').select('id').single()
+      if (existing) {
+        await supabase.from('settings').update({ meta_token: finalToken, updated_at: new Date().toISOString() }).eq('id', existing.id)
+      } else {
+        await supabase.from('settings').insert({ meta_token: finalToken })
+      }
+      return { ok: true, message: 'Token salvo com sucesso' }
+    }
+
+    if (client_id) {
+      await supabase.from('clients').update({ meta_token: finalToken }).eq('id', client_id)
+      return { ok: true, message: 'Token salvo com sucesso' }
+    }
+
+    return reply.status(400).send({ message: 'Tipo de conexão inválido' })
+  })
+
   // ─── App auth ──────────────────────────────────────────────────────────────
 
   fastify.post('/auth/login', async (req, reply) => {
