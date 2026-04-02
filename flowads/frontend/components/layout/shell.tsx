@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
 import { ToastProvider } from '@/components/ui/toast'
+import { JarvisOrb } from '@/components/jarvis/jarvis-orb'
 import { createClient } from '@/lib/supabase'
 
 interface ShellProps {
@@ -38,6 +39,7 @@ export function Shell({ title, breadcrumbs, actions, children }: ShellProps) {
         <main className="flex-1 p-7 overflow-y-auto">{children}</main>
       </div>
       <ToastProvider />
+      <JarvisOrb />
     </div>
   )
 }

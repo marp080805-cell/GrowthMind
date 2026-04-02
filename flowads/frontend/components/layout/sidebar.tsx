@@ -24,6 +24,7 @@ const navItems = [
   {
     section: 'FERRAMENTAS',
     items: [
+      { href: '/jarvis', icon: Bot, label: 'Jarvis' },
       { href: '/automacoes', icon: Brain, label: 'Automações' },
       { href: '/agentes', icon: Bot, label: 'Agentes' },
       { href: '/users', icon: Users, label: 'Usuários' },
