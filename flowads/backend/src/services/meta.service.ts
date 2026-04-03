@@ -824,6 +824,8 @@ export class MetaService {
     adsetId: string
     adName: string
     status?: string
+    videoUrl?: string   // URL do vídeo para fallback de upload (Reels)
+    caption?: string    // Legenda para usar no video_data
   }): Promise<{ ad_id: string; creative_id: string }> {
     // Meta Marketing API: to use an existing Instagram post as an ad creative,
     // page_id is REQUIRED. instagram_actor_id is optional — Meta infers it from source_instagram_media_id.
@@ -870,8 +872,41 @@ export class MetaService {
           const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, minBody)
           creativeId = creativeData.id as string
         } catch (err3) {
-          const msg = err2 instanceof Error ? err2.message : String(err3)
-          throw new Error(`[adcreatives] ${msg}`)
+          // Tentativa 4 (Reels): upload do vídeo para Facebook + criativo com video_id
+          // Meta error 1815279 exige isso: "carregue o vídeo no Facebook antes de criar o anúncio"
+          if (params.videoUrl && params.pageId) {
+            try {
+              console.warn(`[Meta] Tentando upload do vídeo para Facebook (Reel fallback)`)
+              const uploadRes = await metaPost(`${this.accountUrl}/advideos`, {
+                file_url: params.videoUrl,
+                name: params.adName,
+                access_token: this.token,
+              })
+              const fbVideoId = uploadRes.id as string
+              const videoCreativeBody: Record<string, unknown> = {
+                name: `Creative - ${params.adName}`,
+                object_story_spec: {
+                  page_id: params.pageId,
+                  video_data: {
+                    video_id: fbVideoId,
+                    message: params.caption || '',
+                  },
+                },
+                access_token: this.token,
+              }
+              if (params.instagramAccountId) {
+                (videoCreativeBody.object_story_spec as Record<string, unknown>).instagram_actor_id = params.instagramAccountId
+              }
+              const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, videoCreativeBody)
+              creativeId = creativeData.id as string
+            } catch (err4) {
+              const msg = err4 instanceof Error ? err4.message : String(err4)
+              throw new Error(`[adcreatives] ${msg}`)
+            }
+          } else {
+            const msg = err3 instanceof Error ? err3.message : String(err3)
+            throw new Error(`[adcreatives] ${msg}`)
+          }
         }
       }
     }
