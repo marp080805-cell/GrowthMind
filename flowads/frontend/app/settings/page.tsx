@@ -29,6 +29,9 @@ function SettingsPageInner() {
   const [models, setModels] = useState<AIModel[]>([])
   const [showAddModel, setShowAddModel] = useState(false)
   const [newModel, setNewModel] = useState({ provider: 'openai' as 'openai' | 'anthropic', slug: '', display_name: '' })
+  const [showManualToken, setShowManualToken] = useState(false)
+  const [manualToken, setManualToken] = useState('')
+  const [savingToken, setSavingToken] = useState(false)
   useEffect(() => {
     Promise.all([settingsApi.get(), settingsApi.getModels()])
       .then(([s, m]) => { setSettings(s); setModels(m) })
@@ -143,10 +146,6 @@ function SettingsPageInner() {
       error('Erro ao gerar link')
     }
   }
-
-  const [showManualToken, setShowManualToken] = useState(false)
-  const [manualToken, setManualToken] = useState('')
-  const [savingToken, setSavingToken] = useState(false)
 
   const saveManualToken = async () => {
     if (!manualToken.trim()) { error('Cole o token antes de salvar'); return }
