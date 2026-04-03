@@ -622,18 +622,43 @@ const SKIPPABLE_META_CODES = [
   '2875030', // Reel with copyrighted music cannot be used as ad
   '1487470', // Content not eligible for promotion
   '1487760', // Post cannot be boosted — copyright/policy violation
+  '1885006', // Media cannot be promoted
+  '1885057', // Reel is not eligible for ads
+  '2207026', // Reel not eligible for ads
+  '1349152', // Post cannot be used as ad creative
+  '100',     // Invalid parameter — catch-all for Reel restrictions
 ]
 
-function isSkippableMetaError(msg: string): boolean {
-  return SKIPPABLE_META_CODES.some((code) => msg.includes(code))
+const SKIPPABLE_META_PATTERNS = [
+  'invalid parameter',
+  'not eligible',
+  'cannot be used',
+  'cannot be promoted',
+  'not promotable',
+  'media cannot',
+  'direitos autorais',
+  'copyright',
+  'music rights',
+]
+
+function isSkippableMetaError(msg: string, mediaType?: string): boolean {
+  const lower = msg.toLowerCase()
+  if (SKIPPABLE_META_CODES.some((code) => msg.includes(code))) return true
+  // Para posts de vídeo/Reel, qualquer erro de "invalid parameter" da Meta é uma restrição da plataforma
+  if (mediaType === 'VIDEO' && SKIPPABLE_META_PATTERNS.some((p) => lower.includes(p))) return true
+  return false
 }
 
 function humanizeMetaSkipReason(msg: string): string {
-  if (msg.includes('2875030') || msg.toLowerCase().includes('músicas com direitos') || msg.toLowerCase().includes('copyright')) {
+  const lower = msg.toLowerCase()
+  if (msg.includes('2875030') || lower.includes('músicas com direitos') || lower.includes('copyright') || lower.includes('music rights')) {
     return 'Reel com música protegida por direitos autorais — não pode ser anunciado'
   }
-  if (msg.includes('1487470') || msg.includes('1487760')) {
-    return 'Post não elegível para promoção — item pulado'
+  if (msg.includes('1487470') || msg.includes('1487760') || msg.includes('1885006') || msg.includes('1885057') || msg.includes('2207026') || msg.includes('1349152')) {
+    return 'Post não elegível para promoção pela Meta — item pulado'
+  }
+  if (lower.includes('invalid parameter') || lower.includes('not eligible') || lower.includes('cannot be') || lower.includes('not promotable')) {
+    return 'Reel com restrição da Meta (collab, template ou efeito restrito) — item pulado'
   }
   return 'Post bloqueado pela política do Meta — item pulado'
 }
@@ -1114,7 +1139,8 @@ async function executeMeta(
           const postData = (input && typeof input === 'object' && !Array.isArray(input))
             ? input as Record<string, unknown>
             : {}
-          const motivo = isSkippableMetaError(msg) ? humanizeMetaSkipReason(msg) : msg
+          const mediaType = (postData.media_type as string) || ''
+          const motivo = isSkippableMetaError(msg, mediaType) ? humanizeMetaSkipReason(msg) : msg
           return {
             success: false,
             motivo,
