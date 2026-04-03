@@ -847,7 +847,29 @@ export class MetaService {
       const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
       creativeId = creativeData.id as string
     } catch (err) {
-      throw new Error(`[adcreatives] ${err instanceof Error ? err.message : String(err)}`)
+      const errMsg = err instanceof Error ? err.message : String(err)
+      // Fallback 1: se tinha instagram_user_id, tenta sem ele
+      if (params.instagramAccountId) {
+        try {
+          console.warn(`[Meta] instagram_user_id rejeitado no Reel, tentando sem ele`)
+          delete creativeBody.instagram_user_id
+          const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
+          creativeId = creativeData.id as string
+        } catch (err2) {
+          const errMsg2 = err2 instanceof Error ? err2.message : String(err2)
+          // Fallback 2: tenta sem object_id também (deixa Meta inferir pela mídia)
+          try {
+            console.warn(`[Meta] object_id rejeitado no Reel, tentando sem ele`)
+            delete creativeBody.object_id
+            const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
+            creativeId = creativeData.id as string
+          } catch (err3) {
+            throw new Error(`[adcreatives] ${err instanceof Error ? err.message : String(err3)} | fallback1: ${errMsg2}`)
+          }
+        }
+      } else {
+        throw new Error(`[adcreatives] ${errMsg}`)
+      }
     }
 
     const adBody: Record<string, unknown> = {
