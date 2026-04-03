@@ -33,7 +33,8 @@ export const jarvisRoutes: FastifyPluginAsync = async (fastify) => {
 
   // ─── Chat: transcrever e processar áudio ────────────────────────────────────
   fastify.post('/jarvis/audio', async (req, reply) => {
-    const data = await req.file?.()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await (req as any).file?.()
     if (!data) return reply.status(400).send({ error: 'Arquivo de áudio não recebido' })
 
     try {

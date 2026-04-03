@@ -363,13 +363,12 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       })
 
       // Cria anúncio com post do Instagram
-      const ad = await meta.createAd({
-        name: campaignName,
-        adset_id: adset.id,
-        campaign_id: campaign.id,
-        creative_type: 'instagram_post',
-        source_instagram_media_id: post_id,
-        page_id: client.facebook_page_id || '',
+      const ad = await meta.createAdFromInstagramPost({
+        postId: post_id,
+        adsetId: adset.id,
+        adName: campaignName,
+        pageId: client.facebook_page_id || '',
+        instagramAccountId: client.instagram_account_id || undefined,
         status: 'ACTIVE',
       })
 
@@ -402,29 +401,39 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       if (!client) throw new Error('Cliente não encontrado')
       const meta = buildMetaService(client)
 
-      const ad = await meta.createAd({
-        name: ad_name,
-        adset_id,
-        campaign_id,
-        creative_type: creative_type as 'instagram_post' | 'uploaded',
-        source_instagram_media_id: instagram_post_id,
-        drive_url,
-        title: ad_title,
-        body: ad_body,
-        page_id: client.facebook_page_id || '',
-        status: 'ACTIVE',
-      })
+      let adId: string
+      if (creative_type === 'instagram_post' && instagram_post_id) {
+        const ad = await meta.createAdFromInstagramPost({
+          postId: instagram_post_id,
+          adsetId: adset_id,
+          adName: ad_name,
+          pageId: client.facebook_page_id || '',
+          instagramAccountId: client.instagram_account_id || undefined,
+          status: 'ACTIVE',
+        })
+        adId = ad.ad_id
+      } else {
+        const ad = await meta.createAd({
+          name: ad_name,
+          adset_id,
+          title: ad_title,
+          body: ad_body,
+          page_id: client.facebook_page_id || '',
+          status: 'ACTIVE',
+        })
+        adId = ad.id
+      }
 
       await supabase.from('jarvis_action_log').insert({
         client_id, client_name: client.name,
         action_type: 'create_ad_in_existing',
         action_params: input,
         success: true,
-        result: ad,
+        result: { ad_id: adId },
         channel: 'platform',
       })
 
-      return { success: true, ad_id: ad.ad_id, message: `Anúncio "${ad_name}" criado com sucesso!` }
+      return { success: true, ad_id: adId, message: `Anúncio "${ad_name}" criado com sucesso!` }
     }
 
     case 'pause_ads': {
@@ -718,7 +727,7 @@ export async function processJarvisMessage(
           actionsExecuted.push({
             tool: toolName,
             success: false,
-            summary: result.error as string,
+            summary: (result as { error: string }).error,
           })
         }
 
@@ -771,7 +780,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   // Tenta OpenAI Whisper primeiro (melhor qualidade para PT-BR)
   if (settings?.openai_key) {
     const formData = new FormData()
-    const blob = new Blob([audioBuffer], { type: mimeType })
+    const blob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType })
     formData.append('file', blob, 'audio.ogg')
     formData.append('model', 'whisper-1')
     formData.append('language', 'pt')
