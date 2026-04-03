@@ -832,9 +832,7 @@ export class MetaService {
       throw new Error('Página do Facebook não configurada. Selecione a página no bloco "Criar anúncio" ou cadastre-a no perfil do cliente.')
     }
 
-    // Use top-level object_id + instagram_user_id (not object_story_spec) — this is the format
-    // that Meta accepts for "Use Posts as Instagram Ads" and was confirmed working.
-    // object_story_spec with instagram_actor_id causes "must be a valid Instagram account id" errors.
+    // Tentativa 1: object_id (page) + instagram_user_id — funciona para posts de imagem
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
@@ -846,29 +844,35 @@ export class MetaService {
     try {
       const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
       creativeId = creativeData.id as string
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err)
-      // Fallback 1: se tinha instagram_user_id, tenta sem ele
-      if (params.instagramAccountId) {
-        try {
-          console.warn(`[Meta] instagram_user_id rejeitado no Reel, tentando sem ele`)
-          delete creativeBody.instagram_user_id
-          const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
-          creativeId = creativeData.id as string
-        } catch (err2) {
-          const errMsg2 = err2 instanceof Error ? err2.message : String(err2)
-          // Fallback 2: tenta sem object_id também (deixa Meta inferir pela mídia)
-          try {
-            console.warn(`[Meta] object_id rejeitado no Reel, tentando sem ele`)
-            delete creativeBody.object_id
-            const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
-            creativeId = creativeData.id as string
-          } catch (err3) {
-            throw new Error(`[adcreatives] ${err instanceof Error ? err.message : String(err3)} | fallback1: ${errMsg2}`)
-          }
+    } catch {
+      // Tentativa 2: instagram_actor_id — formato correto para Reels (Meta error 1815279)
+      // source_instagram_media_id + instagram_actor_id é o campo correto para vídeos do Instagram
+      try {
+        console.warn(`[Meta] Tentando formato Reel: instagram_actor_id`)
+        const reelBody: Record<string, unknown> = {
+          name: `Creative - ${params.adName}`,
+          source_instagram_media_id: params.postId,
+          access_token: this.token,
         }
-      } else {
-        throw new Error(`[adcreatives] ${errMsg}`)
+        if (params.instagramAccountId) reelBody.instagram_actor_id = params.instagramAccountId
+        else if (params.pageId) reelBody.object_id = params.pageId
+        const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, reelBody)
+        creativeId = creativeData.id as string
+      } catch (err2) {
+        // Tentativa 3: apenas source_instagram_media_id sem identificadores extras
+        try {
+          console.warn(`[Meta] Tentando formato mínimo: só source_instagram_media_id`)
+          const minBody: Record<string, unknown> = {
+            name: `Creative - ${params.adName}`,
+            source_instagram_media_id: params.postId,
+            access_token: this.token,
+          }
+          const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, minBody)
+          creativeId = creativeData.id as string
+        } catch (err3) {
+          const msg = err2 instanceof Error ? err2.message : String(err3)
+          throw new Error(`[adcreatives] ${msg}`)
+        }
       }
     }
 
