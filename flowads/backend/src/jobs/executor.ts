@@ -649,6 +649,16 @@ function isSkippableMetaError(msg: string, mediaType?: string): boolean {
   return false
 }
 
+function humanizeBoostIneligibility(reason: string): string {
+  if (reason.includes('COPYRIGHT') || reason.includes('MUSIC')) return 'Reel com música protegida por direitos autorais — não pode ser anunciado'
+  if (reason.includes('COLLAB') || reason.includes('COLLABORATION')) return 'Reel em colaboração (collab) — não pode ser anunciado'
+  if (reason.includes('TEMPLATE')) return 'Reel criado a partir de template — não pode ser anunciado'
+  if (reason.includes('FILTER') || reason.includes('EFFECT')) return 'Reel com efeito/filtro restrito — não pode ser anunciado'
+  if (reason.includes('REMIX')) return 'Reel remixado — não pode ser anunciado'
+  if (reason.includes('INTERACTIVE')) return 'Reel com elemento interativo — não pode ser anunciado'
+  return `Reel não elegível para anúncio (${reason}) — item pulado`
+}
+
 function humanizeMetaSkipReason(msg: string): string {
   const lower = msg.toLowerCase()
   if (msg.includes('2875030') || lower.includes('músicas com direitos') || lower.includes('copyright') || lower.includes('music rights')) {
@@ -1123,6 +1133,27 @@ async function executeMeta(
       if (config.source_instagram_media_id) {
         const instagramAccountId = (config.instagram_user_id as string) || (config.instagram_actor_id as string) || undefined
         const pageId = (config.page_id as string) || context.client?.facebook_page_id || undefined
+        const postData = (input && typeof input === 'object' && !Array.isArray(input))
+          ? input as Record<string, unknown>
+          : {}
+
+        // Verificar elegibilidade antes de tentar criar o anúncio
+        const boostInfo = postData.boost_eligibility_info as Record<string, unknown> | undefined
+        if (boostInfo && boostInfo.boost_eligible === false) {
+          const reason = (boostInfo.ineligibility_reason as string) || 'UNKNOWN'
+          return {
+            success: false,
+            motivo: humanizeBoostIneligibility(reason),
+            erro_meta: `boost_eligibility: ${reason}`,
+            post_id: config.source_instagram_media_id as string,
+            post_permalink: (postData.permalink as string) || '',
+            post_caption: (postData.caption as string) || '',
+            post_media_type: (postData.media_type as string) || '',
+            post_media_url: (postData.media_url as string) || '',
+            post_timestamp: (postData.timestamp as string) || '',
+          }
+        }
+
         try {
           const result = await meta.createAdFromInstagramPost({
             postId: config.source_instagram_media_id as string,
@@ -1131,16 +1162,10 @@ async function executeMeta(
             adsetId,
             adName: (config.name as string) || `Post ${config.source_instagram_media_id}`,
             status: (config.status as string) || 'PAUSED',
-            videoUrl: (postData.media_url as string) || undefined,
-            caption: (postData.caption as string) || undefined,
           })
           return { success: true, anuncio_criado: result, ad_id: result.ad_id, creative_id: result.creative_id }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          // Always return failure as data — downstream IF node routes to WhatsApp for any error
-          const postData = (input && typeof input === 'object' && !Array.isArray(input))
-            ? input as Record<string, unknown>
-            : {}
           const mediaType = (postData.media_type as string) || ''
           const motivo = isSkippableMetaError(msg, mediaType) ? humanizeMetaSkipReason(msg) : msg
           return {

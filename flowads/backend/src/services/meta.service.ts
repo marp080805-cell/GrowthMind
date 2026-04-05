@@ -824,8 +824,6 @@ export class MetaService {
     adsetId: string
     adName: string
     status?: string
-    videoUrl?: string   // URL do vídeo para fallback de upload (Reels)
-    caption?: string    // Legenda para usar no video_data
   }): Promise<{ ad_id: string; creative_id: string }> {
     // Meta Marketing API: to use an existing Instagram post as an ad creative,
     // page_id is REQUIRED. instagram_actor_id is optional — Meta infers it from source_instagram_media_id.
@@ -962,7 +960,7 @@ export class MetaService {
 
     // Fetch in batches of 50; stop early once posts are older than sinceMs
     const params = new URLSearchParams({
-      fields: 'id,caption,media_type,media_product_type,media_url,permalink,timestamp,like_count,comments_count',
+      fields: 'id,caption,media_type,media_product_type,media_url,permalink,timestamp,like_count,comments_count,boost_eligibility_info',
       limit: '50',
       access_token: this.token,
     })
