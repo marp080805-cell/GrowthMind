@@ -1310,8 +1310,6 @@ async function executeMeta(
             adsetId,
             adName,
             status,
-            videoUrl: (post as Record<string, unknown>).media_url as string | undefined,
-            caption: (post as Record<string, unknown>).caption as string | undefined,
           })
           await supabase.from('sponsored_posts').insert({
             client_id: clientId,

@@ -832,7 +832,7 @@ export class MetaService {
       throw new Error('Página do Facebook não configurada. Selecione a página no bloco "Criar anúncio" ou cadastre-a no perfil do cliente.')
     }
 
-    // Tentativa 1: object_id (page) + instagram_user_id — funciona para posts de imagem
+    // Tentativa 1: source_instagram_media_id direto no adcreatives — funciona para imagens e carrosséis
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
@@ -844,68 +844,38 @@ export class MetaService {
     try {
       const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
       creativeId = creativeData.id as string
-    } catch {
-      // Tentativa 2: instagram_actor_id — formato correto para Reels (Meta error 1815279)
-      // source_instagram_media_id + instagram_actor_id é o campo correto para vídeos do Instagram
+    } catch (err1) {
+      const errMsg1 = err1 instanceof Error ? err1.message : String(err1)
+      // Tentativa 2: para vídeos/Reels (erro 1815279)
+      // O endpoint /advideos aceita source_instagram_media_id e vincula o vídeo do Instagram
+      // à conta de anúncios do Facebook sem precisar baixar o arquivo — é exatamente o que
+      // o Ads Manager faz internamente quando você seleciona um Reel existente.
+      console.warn(`[Meta] adcreatives falhou (${errMsg1}), tentando via advideos + video_data`)
       try {
-        console.warn(`[Meta] Tentando formato Reel: instagram_actor_id`)
-        const reelBody: Record<string, unknown> = {
-          name: `Creative - ${params.adName}`,
+        const videoUpload = await metaPost(`${this.accountUrl}/advideos`, {
           source_instagram_media_id: params.postId,
+          name: params.adName,
           access_token: this.token,
+        })
+        const fbVideoId = (videoUpload.video_id || videoUpload.id) as string
+        if (!fbVideoId) throw new Error('advideos não retornou video_id')
+
+        const objectStorySpec: Record<string, unknown> = {
+          page_id: params.pageId,
+          video_data: { video_id: fbVideoId },
         }
-        if (params.instagramAccountId) reelBody.instagram_actor_id = params.instagramAccountId
-        else if (params.pageId) reelBody.object_id = params.pageId
-        const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, reelBody)
+        if (params.instagramAccountId) objectStorySpec.instagram_user_id = params.instagramAccountId
+
+        const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, {
+          name: `Creative - ${params.adName}`,
+          object_story_spec: objectStorySpec,
+          access_token: this.token,
+        })
         creativeId = creativeData.id as string
+        console.log(`[Meta] Reel vinculado via advideos — fbVideoId=${fbVideoId} creativeId=${creativeId}`)
       } catch (err2) {
-        // Tentativa 3: apenas source_instagram_media_id sem identificadores extras
-        try {
-          console.warn(`[Meta] Tentando formato mínimo: só source_instagram_media_id`)
-          const minBody: Record<string, unknown> = {
-            name: `Creative - ${params.adName}`,
-            source_instagram_media_id: params.postId,
-            access_token: this.token,
-          }
-          const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, minBody)
-          creativeId = creativeData.id as string
-        } catch (err3) {
-          // Tentativa 4 (Reels): upload do vídeo para Facebook + criativo com video_id
-          // Meta error 1815279 exige isso: "carregue o vídeo no Facebook antes de criar o anúncio"
-          if (params.videoUrl && params.pageId) {
-            try {
-              console.warn(`[Meta] Tentando upload do vídeo para Facebook (Reel fallback)`)
-              const uploadRes = await metaPost(`${this.accountUrl}/advideos`, {
-                file_url: params.videoUrl,
-                name: params.adName,
-                access_token: this.token,
-              })
-              const fbVideoId = uploadRes.id as string
-              const videoCreativeBody: Record<string, unknown> = {
-                name: `Creative - ${params.adName}`,
-                object_story_spec: {
-                  page_id: params.pageId,
-                  video_data: {
-                    video_id: fbVideoId,
-                    message: params.caption || '',
-                  },
-                },
-                access_token: this.token,
-              }
-              if (params.instagramAccountId) {
-                (videoCreativeBody.object_story_spec as Record<string, unknown>).instagram_actor_id = params.instagramAccountId
-              }
-              const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, videoCreativeBody)
-              creativeId = creativeData.id as string
-            } catch (err4) {
-              const msg = err4 instanceof Error ? err4.message : String(err4)
-              throw new Error(`[adcreatives] ${msg}`)
-            }
-          } else {
-            const msg = err3 instanceof Error ? err3.message : String(err3)
-            throw new Error(`[adcreatives] ${msg}`)
-          }
-        }
+        const errMsg2 = err2 instanceof Error ? err2.message : String(err2)
+        throw new Error(`[adcreatives] ${errMsg1} | [advideos] ${errMsg2}`)
       }
     }
 
