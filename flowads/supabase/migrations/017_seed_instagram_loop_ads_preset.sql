@@ -19,7 +19,7 @@ VALUES (
     {"id":"n07","type":"logic.stop","label":"Nenhum post novo","config":{},"position":{"x":450,"y":750}},
     {"id":"n08","type":"logic.loop","label":"Loop","config":{"list":"{{posts}}"},"position":{"x":80,"y":750}},
     {"id":"n09","type":"meta.create_ad","label":"Criar anúncio","config":{"creative_type":"instagram_post","source_instagram_media_id":"{{item.id}}","adset_id":"","campaign_id":"","name":"Post Instagram {{item.id}}"},"position":{"x":80,"y":900}},
-    {"id":"n10","type":"logic.if","label":"Anúncio criado?","config":{"value":"true","operator":"=","variable":"success"},"position":{"x":80,"y":1050}},
+    {"id":"n10","type":"logic.if","label":"Anúncio criado?","config":{"operator":"not_empty","variable":"ad_id"},"position":{"x":80,"y":1050}},
     {"id":"n11","type":"whatsapp.send_message","label":"Notificar erro","config":{"message":"❌ *Falha ao criar anúncio {{cliente.nome}}*\n\n🔗 Post: {{post_permalink}}\n📝 Legenda: {{post_caption}}\n📸 Tipo: {{post_media_type}}\n\n⚠️ Motivo: {{motivo}}\n🛠️ Erro técnico: {{erro_meta}}\n\n▶️ Acesse o post para subir manualmente."},"position":{"x":300,"y":1200}},
     {"id":"n12","type":"whatsapp.send_message","label":"Loop concluído","config":{"message":"✅ *Loop de anúncios {{cliente.nome}}*\n\n📊 Posts analisados: {{loop_total}}\n\n🔗 Posts processados:\n{{posts}}"},"position":{"x":580,"y":900}}
   ]'::jsonb,
