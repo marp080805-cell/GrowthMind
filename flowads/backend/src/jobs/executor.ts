@@ -1644,8 +1644,8 @@ async function executeLogic(
         case '<': result = parseFloat(actual) < parseFloat(value); break
         case '>=': result = parseFloat(actual) >= parseFloat(value); break
         case '<=': result = parseFloat(actual) <= parseFloat(value); break
-        case '=': result = actual === value; break
-        case '!=': result = actual !== value; break
+        case '=': result = actual === String(value); break
+        case '!=': result = actual !== String(value); break
         case 'contains': result = actual.toLowerCase().includes(value.toLowerCase()); break
         case 'not_contains': result = !actual.toLowerCase().includes(value.toLowerCase()); break
         case 'is_empty': result = !actual || actual === 'null' || actual === 'undefined'; break
