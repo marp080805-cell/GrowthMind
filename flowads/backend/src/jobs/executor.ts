@@ -1164,7 +1164,15 @@ async function executeMeta(
             status: (config.status as string) || 'PAUSED',
             thumbnailUrl: (postData.thumbnail_url as string) || (postData.media_url as string) || undefined,
           })
-          return { success: true, anuncio_criado: result, ad_id: result.ad_id, creative_id: result.creative_id }
+          return {
+            success: true,
+            anuncio_criado: result,
+            ad_id: result.ad_id,
+            creative_id: result.creative_id,
+            post_permalink: (postData.permalink as string) || '',
+            post_caption: (postData.caption as string) || '',
+            post_media_type: (postData.media_type as string) || '',
+          }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
           const mediaType = (postData.media_type as string) || ''
