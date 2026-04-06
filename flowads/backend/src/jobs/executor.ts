@@ -1162,6 +1162,7 @@ async function executeMeta(
             adsetId,
             adName: (config.name as string) || `Post ${config.source_instagram_media_id}`,
             status: (config.status as string) || 'PAUSED',
+            thumbnailUrl: (postData.thumbnail_url as string) || (postData.media_url as string) || undefined,
           })
           return { success: true, anuncio_criado: result, ad_id: result.ad_id, creative_id: result.creative_id }
         } catch (err) {
@@ -1310,6 +1311,7 @@ async function executeMeta(
             adsetId,
             adName,
             status,
+            thumbnailUrl: (post as Record<string, unknown>).thumbnail_url as string | undefined,
           })
           await supabase.from('sponsored_posts').insert({
             client_id: clientId,

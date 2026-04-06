@@ -824,6 +824,7 @@ export class MetaService {
     adsetId: string
     adName: string
     status?: string
+    thumbnailUrl?: string
   }): Promise<{ ad_id: string; creative_id: string }> {
     // Meta Marketing API: to use an existing Instagram post as an ad creative,
     // page_id is REQUIRED. instagram_actor_id is optional — Meta infers it from source_instagram_media_id.
@@ -860,9 +861,11 @@ export class MetaService {
         const fbVideoId = (videoUpload.video_id || videoUpload.id) as string
         if (!fbVideoId) throw new Error('advideos não retornou video_id')
 
+        const videoData: Record<string, unknown> = { video_id: fbVideoId }
+        if (params.thumbnailUrl) videoData.image_url = params.thumbnailUrl
         const objectStorySpec: Record<string, unknown> = {
           page_id: params.pageId,
-          video_data: { video_id: fbVideoId },
+          video_data: videoData,
         }
         if (params.instagramAccountId) objectStorySpec.instagram_user_id = params.instagramAccountId
 
@@ -930,7 +933,7 @@ export class MetaService {
 
     // Fetch in batches of 50; stop early once posts are older than sinceMs
     const params = new URLSearchParams({
-      fields: 'id,caption,media_type,media_product_type,media_url,permalink,timestamp,like_count,comments_count,boost_eligibility_info',
+      fields: 'id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,boost_eligibility_info',
       limit: '50',
       access_token: this.token,
     })
