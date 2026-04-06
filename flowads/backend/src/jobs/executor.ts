@@ -1638,16 +1638,20 @@ async function executeLogic(
       const actual = (rawVar && Object.prototype.hasOwnProperty.call(inputRecord, rawVar))
         ? String(inputRecord[rawVar])
         : rawVar !== '' ? rawVar : String(input)
+      // Normalize: trim whitespace; convert boolean-like values to lowercase
+      const normStr = (s: string) => { const t = s.trim().toLowerCase(); return (t === 'true' || t === 'false') ? t : s.trim() }
+      const normalActual = normStr(actual)
+      const normalValue = normStr(String(value ?? ''))
       let result = false
       switch (operator) {
-        case '>': result = parseFloat(actual) > parseFloat(value); break
-        case '<': result = parseFloat(actual) < parseFloat(value); break
-        case '>=': result = parseFloat(actual) >= parseFloat(value); break
-        case '<=': result = parseFloat(actual) <= parseFloat(value); break
-        case '=': result = actual === String(value); break
-        case '!=': result = actual !== String(value); break
-        case 'contains': result = actual.toLowerCase().includes(value.toLowerCase()); break
-        case 'not_contains': result = !actual.toLowerCase().includes(value.toLowerCase()); break
+        case '>': result = parseFloat(actual) > parseFloat(String(value)); break
+        case '<': result = parseFloat(actual) < parseFloat(String(value)); break
+        case '>=': result = parseFloat(actual) >= parseFloat(String(value)); break
+        case '<=': result = parseFloat(actual) <= parseFloat(String(value)); break
+        case '=': result = normalActual === normalValue; break
+        case '!=': result = normalActual !== normalValue; break
+        case 'contains': result = actual.toLowerCase().includes(String(value ?? '').toLowerCase()); break
+        case 'not_contains': result = !actual.toLowerCase().includes(String(value ?? '').toLowerCase()); break
         case 'is_empty': result = !actual || actual === 'null' || actual === 'undefined'; break
         case 'not_empty': result = !!actual && actual !== 'null' && actual !== 'undefined'; break
       }
