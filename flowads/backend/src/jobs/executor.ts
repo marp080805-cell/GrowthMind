@@ -1164,18 +1164,6 @@ async function executeMeta(
             status: (config.status as string) || 'PAUSED',
           })
           // Salvar post_id localmente para que filter_unsponsored_posts detecte mesmo
-          // quando a Meta API ainda não reflete o anúncio (delay de propagação) ou
-          // quando é um Reel criado via advideos (source_instagram_media_id não fica no criativo)
-          const clientIdForSave = context.client?.id
-          if (clientIdForSave) {
-            await supabase.from('sponsored_posts').upsert({
-              client_id: clientIdForSave,
-              instagram_account_id: instagramAccountId || context.client?.instagram_account_id || '',
-              post_id: config.source_instagram_media_id as string,
-              ad_id: result.ad_id,
-              adset_id: adsetId,
-            }, { onConflict: 'client_id,post_id', ignoreDuplicates: true })
-          }
           return {
             success: true,
             anuncio_criado: result,
@@ -1262,21 +1250,10 @@ async function executeMeta(
 
       if (!posts.length) return { posts: [], total: 0, posts_pulados: 0, instagram_account_id: instagramAccountId }
 
-      // 1. Posts já registrados localmente (criados pelo AdMind)
-      // Cobre Reels (sem source_instagram_media_id no criativo) e delay de propagação da Meta API
-      const localSponsoredIds = new Set<string>()
-      if (clientId) {
-        const { data: localRows } = await supabase
-          .from('sponsored_posts')
-          .select('post_id')
-          .eq('client_id', clientId)
-        for (const row of localRows || []) localSponsoredIds.add((row as { post_id: string }).post_id)
-      }
-
-      // 2. Verificar via Meta API (captura posts patrocinados fora do AdMind)
+      // Verificar via Meta API quais posts já foram patrocinados
       const metaSponsoredIds = await meta.getSponsoredInstagramPostIds()
 
-      const filteredPosts = posts.filter((p) => !localSponsoredIds.has(p.id) && !metaSponsoredIds.has(p.id))
+      const filteredPosts = posts.filter((p) => !metaSponsoredIds.has(p.id))
       return {
         posts: filteredPosts,
         total: filteredPosts.length,
