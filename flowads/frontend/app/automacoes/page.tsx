@@ -344,9 +344,16 @@ export default function AutomacoesPage() {
                 >
                   <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
                     <button
+                      onClick={() => router.push(`/presets/${preset.id}/edit`)}
+                      className="p-1.5 rounded-[8px] hover:bg-accent/10 text-text3 hover:text-accent transition-colors"
+                      title="Editar fluxo"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
                       onClick={() => openEditPreset(preset)}
                       className="p-1.5 rounded-[8px] hover:bg-surface2 text-text3 hover:text-text transition-colors"
-                      title="Editar template"
+                      title="Editar informações"
                     >
                       <Settings2 size={13} />
                     </button>
