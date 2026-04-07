@@ -1143,6 +1143,7 @@ async function executeMeta(
           const reason = (boostInfo.ineligibility_reason as string) || 'UNKNOWN'
           return {
             success: false,
+            ad_id: '',
             motivo: humanizeBoostIneligibility(reason),
             erro_meta: `boost_eligibility: ${reason}`,
             post_id: config.source_instagram_media_id as string,
@@ -1179,6 +1180,7 @@ async function executeMeta(
           const motivo = isSkippableMetaError(msg, mediaType) ? humanizeMetaSkipReason(msg) : msg
           return {
             success: false,
+            ad_id: '',
             motivo,
             erro_meta: msg,
             post_id: config.source_instagram_media_id as string,
