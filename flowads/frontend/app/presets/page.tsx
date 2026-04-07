@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { CardSkeleton } from '@/components/ui/skeleton'
 import { presetsApi, clientsApi, type Preset, type Client } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
-import { Layers, ChevronRight } from 'lucide-react'
+import { Layers, ChevronRight, Pencil } from 'lucide-react'
 import { CATEGORY_COLORS } from '@/lib/blocks'
 
 const TAG_COLORS: Record<string, 'info' | 'success' | 'purple' | 'orange' | 'cyan' | 'warning'> = {
@@ -97,10 +97,20 @@ export default function PresetsPage() {
                 <span className="text-[10px] text-text3">
                   {preset.nodes?.length || 0} blocos
                 </span>
-                <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setSelectedPreset(preset) }}>
-                  Usar preset
-                  <ChevronRight size={13} />
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => { e.stopPropagation(); router.push(`/presets/${preset.id}/edit`) }}
+                    title="Editar fluxo do template"
+                  >
+                    <Pencil size={12} />
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setSelectedPreset(preset) }}>
+                    Usar preset
+                    <ChevronRight size={13} />
+                  </Button>
+                </div>
               </div>
             </div>
           ))}

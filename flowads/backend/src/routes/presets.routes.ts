@@ -97,12 +97,18 @@ export const presetsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.put('/presets/:id', async (req) => {
     const { id } = req.params as { id: string }
-    const { name, description, icon, tags } = req.body as {
+    const { name, description, icon, tags, nodes, edges } = req.body as {
       name: string; description?: string; icon?: string; tags?: string[]
+      nodes?: unknown[]; edges?: unknown[]
     }
+    const update: Record<string, unknown> = {
+      name, description: description || '', icon: icon || '⚡', tags: tags || [],
+    }
+    if (nodes !== undefined) update.nodes = nodes
+    if (edges !== undefined) update.edges = edges
     const { data, error } = await supabase
       .from('presets')
-      .update({ name, description: description || '', icon: icon || '⚡', tags: tags || [] })
+      .update(update)
       .eq('id', id)
       .select()
       .single()

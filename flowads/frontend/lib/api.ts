@@ -131,7 +131,7 @@ export const presetsApi = {
     api.post<Automation>('/presets/apply', { presetId, clientId }),
   createFromAutomation: (data: { automation_id: string; name: string; description?: string; icon?: string; tags?: string[] }) =>
     api.post<Preset>('/presets/from-automation', data),
-  update: (id: string, data: { name: string; description?: string; icon?: string; tags?: string[] }) =>
+  update: (id: string, data: { name: string; description?: string; icon?: string; tags?: string[]; nodes?: AutomationNode[]; edges?: AutomationEdge[] }) =>
     api.put<Preset>(`/presets/${id}`, data),
   delete: (id: string) => api.delete(`/presets/${id}`),
 }
