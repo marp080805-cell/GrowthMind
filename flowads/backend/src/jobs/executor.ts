@@ -1162,7 +1162,6 @@ async function executeMeta(
             adsetId,
             adName: (config.name as string) || `Post ${config.source_instagram_media_id}`,
             status: (config.status as string) || 'PAUSED',
-            thumbnailUrl: (postData.thumbnail_url as string) || (postData.media_url as string) || undefined,
           })
           // Salvar post_id localmente para que filter_unsponsored_posts detecte mesmo
           // quando a Meta API ainda não reflete o anúncio (delay de propagação) ou
@@ -1341,7 +1340,6 @@ async function executeMeta(
             adsetId,
             adName,
             status,
-            thumbnailUrl: (post as Record<string, unknown>).thumbnail_url as string | undefined,
           })
           await supabase.from('sponsored_posts').insert({
             client_id: clientId,

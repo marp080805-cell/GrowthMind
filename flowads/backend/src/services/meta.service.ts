@@ -827,7 +827,6 @@ export class MetaService {
     adsetId: string
     adName: string
     status?: string
-    thumbnailUrl?: string
   }): Promise<{ ad_id: string; creative_id: string }> {
     // Meta Marketing API: to use an existing Instagram post as an ad creative,
     // page_id is REQUIRED. instagram_actor_id is optional — Meta infers it from source_instagram_media_id.
@@ -836,7 +835,8 @@ export class MetaService {
       throw new Error('Página do Facebook não configurada. Selecione a página no bloco "Criar anúncio" ou cadastre-a no perfil do cliente.')
     }
 
-    // Tentativa 1: source_instagram_media_id direto no adcreatives — funciona para imagens e carrosséis
+    // Cria criativo turbinando o post original do Instagram via source_instagram_media_id.
+    // Não há fallback — se a Meta rejeitar, o erro é propagado e tratado como falha no loop.
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
@@ -844,46 +844,8 @@ export class MetaService {
       access_token: this.token,
     }
     if (params.instagramAccountId) creativeBody.instagram_user_id = params.instagramAccountId
-    let creativeId: string
-    try {
-      const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
-      creativeId = creativeData.id as string
-    } catch (err1) {
-      const errMsg1 = err1 instanceof Error ? err1.message : String(err1)
-      // Tentativa 2: para vídeos/Reels (erro 1815279)
-      // O endpoint /advideos aceita source_instagram_media_id e vincula o vídeo do Instagram
-      // à conta de anúncios do Facebook sem precisar baixar o arquivo — é exatamente o que
-      // o Ads Manager faz internamente quando você seleciona um Reel existente.
-      console.warn(`[Meta] adcreatives falhou (${errMsg1}), tentando via advideos + video_data`)
-      try {
-        const videoUpload = await metaPost(`${this.accountUrl}/advideos`, {
-          source_instagram_media_id: params.postId,
-          name: params.adName,
-          access_token: this.token,
-        })
-        const fbVideoId = (videoUpload.video_id || videoUpload.id) as string
-        if (!fbVideoId) throw new Error('advideos não retornou video_id')
-
-        const videoData: Record<string, unknown> = { video_id: fbVideoId }
-        if (params.thumbnailUrl) videoData.image_url = params.thumbnailUrl
-        const objectStorySpec: Record<string, unknown> = {
-          page_id: params.pageId,
-          video_data: videoData,
-        }
-        if (params.instagramAccountId) objectStorySpec.instagram_user_id = params.instagramAccountId
-
-        const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, {
-          name: `Creative - ${params.adName}`,
-          object_story_spec: objectStorySpec,
-          access_token: this.token,
-        })
-        creativeId = creativeData.id as string
-        console.log(`[Meta] Reel vinculado via advideos — fbVideoId=${fbVideoId} creativeId=${creativeId}`)
-      } catch (err2) {
-        const errMsg2 = err2 instanceof Error ? err2.message : String(err2)
-        throw new Error(`[adcreatives] ${errMsg1} | [advideos] ${errMsg2}`)
-      }
-    }
+    const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
+    const creativeId = creativeData.id as string
 
     const adBody: Record<string, unknown> = {
       adset_id: params.adsetId,
