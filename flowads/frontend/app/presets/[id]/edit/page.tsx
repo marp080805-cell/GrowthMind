@@ -12,6 +12,10 @@ import { useToast } from '@/hooks/use-toast'
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
 
+// Referência estável — sem isso, executionState={} cria novo objeto a cada render
+// e dispara o useEffect do BuilderCanvas em loop (React error #185)
+const EMPTY_EXECUTION_STATE: Record<string, import('@/lib/api').NodeLog> = {}
+
 export default function PresetEditPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -127,6 +131,7 @@ export default function PresetEditPage() {
             initialNodes={preset.nodes || []}
             initialEdges={preset.edges || []}
             onChange={handleChange}
+            executionState={EMPTY_EXECUTION_STATE}
           />
         )}
       </div>
