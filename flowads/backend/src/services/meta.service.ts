@@ -805,7 +805,8 @@ export class MetaService {
         }
       }
       return ids
-    } catch {
+    } catch (err) {
+      console.error('[Meta] getSponsoredInstagramPostIds falhou — retornando Set vazio (todos os posts passarão pelo filtro):', err instanceof Error ? err.message : err)
       return new Set()
     }
   }
