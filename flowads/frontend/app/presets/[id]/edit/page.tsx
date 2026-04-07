@@ -20,28 +20,28 @@ export default function PresetEditPage() {
   const [preset, setPreset] = useState<Preset | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [nodes, setNodes] = useState<AutomationNode[]>([])
-  const [edges, setEdges] = useState<AutomationEdge[]>([])
   const [presetName, setPresetName] = useState('')
 
-  // Debounce ref — auto-save 2s after last change
+  // Refs para dados em edição — não causam re-render, não realimentam o canvas
+  const currentNodes = useRef<AutomationNode[]>([])
+  const currentEdges = useRef<AutomationEdge[]>([])
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     presetsApi.list()
       .then((all) => {
         const found = all.find((p) => p.id === id)
-        if (!found) { error('Preset não encontrado'); router.push('/presets'); return }
+        if (!found) { error('Preset não encontrado'); router.push('/automacoes'); return }
+        currentNodes.current = found.nodes || []
+        currentEdges.current = found.edges || []
         setPreset(found)
-        setNodes(found.nodes || [])
-        setEdges(found.edges || [])
         setPresetName(found.name)
       })
       .catch(() => error('Erro ao carregar preset'))
       .finally(() => setLoading(false))
   }, [id])
 
-  const persistSave = useCallback(async (n: AutomationNode[], e: AutomationEdge[], name: string) => {
+  const persistSave = useCallback(async (name: string) => {
     if (!preset) return
     setSaving(true)
     try {
@@ -50,8 +50,8 @@ export default function PresetEditPage() {
         description: preset.description,
         icon: preset.icon,
         tags: preset.tags,
-        nodes: n,
-        edges: e,
+        nodes: currentNodes.current,
+        edges: currentEdges.current,
       })
     } catch {
       error('Erro ao salvar preset')
@@ -61,17 +61,16 @@ export default function PresetEditPage() {
   }, [preset])
 
   const handleChange = useCallback((newNodes: AutomationNode[], newEdges: AutomationEdge[]) => {
-    setNodes(newNodes)
-    setEdges(newEdges)
+    // Armazena em refs — sem setState para não re-renderizar e realimentar o canvas
+    currentNodes.current = newNodes
+    currentEdges.current = newEdges
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      persistSave(newNodes, newEdges, presetName)
-    }, 2000)
+    saveTimer.current = setTimeout(() => persistSave(presetName), 2000)
   }, [presetName, persistSave])
 
   const handleSave = async () => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    await persistSave(nodes, edges, presetName)
+    await persistSave(presetName)
     success('Template salvo!')
   }
 
@@ -91,7 +90,7 @@ export default function PresetEditPage() {
       {/* Topbar */}
       <div className="h-14 bg-bg2 border-b border-[var(--border)] flex items-center px-4 gap-3 shrink-0 z-20">
         <Link
-          href="/presets"
+          href="/automacoes"
           className="flex items-center gap-1.5 text-text2 hover:text-text transition-colors text-sm"
         >
           <ArrowLeft size={16} />
@@ -122,12 +121,14 @@ export default function PresetEditPage() {
       {/* Builder Body */}
       <div className="flex flex-1 overflow-hidden">
         <BlockPalette />
-        <BuilderCanvas
-          key={id}
-          initialNodes={nodes}
-          initialEdges={edges}
-          onChange={handleChange}
-        />
+        {preset && (
+          <BuilderCanvas
+            key={preset.id}
+            initialNodes={preset.nodes || []}
+            initialEdges={preset.edges || []}
+            onChange={handleChange}
+          />
+        )}
       </div>
 
       <ToastProvider />
