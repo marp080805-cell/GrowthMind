@@ -786,7 +786,7 @@ export class MetaService {
   async getSponsoredInstagramPostIds(): Promise<Set<string>> {
     try {
       const params = new URLSearchParams({
-        fields: 'creative{source_instagram_media_id}',
+        fields: 'creative{source_instagram_media_id,effective_instagram_media_id}',
         filtering: JSON.stringify([{
           field: 'effective_status',
           operator: 'IN',
@@ -795,14 +795,16 @@ export class MetaService {
         limit: '500',
         access_token: this.token,
       })
-      const ads = await metaGetAll<{ creative?: { source_instagram_media_id?: string } }>(
+      const ads = await metaGetAll<{ creative?: { source_instagram_media_id?: string; effective_instagram_media_id?: string } }>(
         `${this.accountUrl}/ads?${params}`
       )
       const ids = new Set<string>()
       for (const ad of ads) {
-        if (ad.creative?.source_instagram_media_id) {
-          ids.add(ad.creative.source_instagram_media_id)
-        }
+        // source_instagram_media_id: preenchido quando criativo usa Path 1 (adcreatives direto)
+        // effective_instagram_media_id: preenchido automaticamente pela Meta em qualquer path,
+        // inclusive Reels criados via advideos + object_story_spec (Path 2)
+        if (ad.creative?.source_instagram_media_id) ids.add(ad.creative.source_instagram_media_id)
+        if (ad.creative?.effective_instagram_media_id) ids.add(ad.creative.effective_instagram_media_id)
       }
       return ids
     } catch (err) {
