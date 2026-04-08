@@ -626,7 +626,7 @@ const SKIPPABLE_META_CODES = [
   '1885057', // Reel is not eligible for ads
   '2207026', // Reel not eligible for ads
   '1349152', // Post cannot be used as ad creative
-  '100',     // Invalid parameter — catch-all for Reel restrictions
+  '1815279', // Reel requires advideos upload to Facebook first — não pode ser turbinado diretamente
 ]
 
 const SKIPPABLE_META_PATTERNS = [
@@ -666,6 +666,9 @@ function humanizeMetaSkipReason(msg: string): string {
   }
   if (msg.includes('1487470') || msg.includes('1487760') || msg.includes('1885006') || msg.includes('1885057') || msg.includes('2207026') || msg.includes('1349152')) {
     return 'Post não elegível para promoção pela Meta — item pulado'
+  }
+  if (msg.includes('1815279')) {
+    return 'Reel não pode ser turbinado diretamente pela API — suba o anúncio manualmente no Gerenciador de Anúncios'
   }
   if (lower.includes('invalid parameter') || lower.includes('not eligible') || lower.includes('cannot be') || lower.includes('not promotable')) {
     return 'Reel com restrição da Meta (collab, template ou efeito restrito) — item pulado'
