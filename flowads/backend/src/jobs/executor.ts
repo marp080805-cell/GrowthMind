@@ -626,7 +626,7 @@ const SKIPPABLE_META_CODES = [
   '1885057', // Reel is not eligible for ads
   '2207026', // Reel not eligible for ads
   '1349152', // Post cannot be used as ad creative
-  '1815279', // Reel requires advideos upload to Facebook first — não pode ser turbinado diretamente
+  '1815279', // Incompatibilidade técnica de vídeo no fluxo da Meta API — post não pode ser turbinado
 ]
 
 const SKIPPABLE_META_PATTERNS = [
@@ -668,7 +668,7 @@ function humanizeMetaSkipReason(msg: string): string {
     return 'Post não elegível para promoção pela Meta — item pulado'
   }
   if (msg.includes('1815279')) {
-    return 'Reel não pode ser turbinado diretamente pela API — suba o anúncio manualmente no Gerenciador de Anúncios'
+    return 'Vídeo com incompatibilidade técnica no fluxo da Meta API — suba o anúncio manualmente no Gerenciador de Anúncios'
   }
   if (lower.includes('invalid parameter') || lower.includes('not eligible') || lower.includes('cannot be') || lower.includes('not promotable')) {
     return 'Reel com restrição da Meta (collab, template ou efeito restrito) — item pulado'
@@ -1142,8 +1142,8 @@ async function executeMeta(
 
         // Verificar elegibilidade antes de tentar criar o anúncio
         const boostInfo = postData.boost_eligibility_info as Record<string, unknown> | undefined
-        if (boostInfo && boostInfo.boost_eligible === false) {
-          const reason = (boostInfo.ineligibility_reason as string) || 'UNKNOWN'
+        if (boostInfo && boostInfo.eligible_to_boost === false) {
+          const reason = (boostInfo.boost_ineligibility_reason as string) || 'UNKNOWN'
           return {
             success: false,
             ad_id: '',
@@ -1170,11 +1170,6 @@ async function executeMeta(
           })
           return {
             success: true,
-            via_boost: result.via_boost,
-            tipo_anuncio: result.via_boost
-              ? '📌 Post original turbinado'
-              : '⚠️ Anúncio independente (post tem música licenciada — engajamento não reflete no Reel original)',
-            anuncio_criado: result,
             ad_id: result.ad_id,
             creative_id: result.creative_id,
             post_permalink: (postData.permalink as string) || '',
@@ -1243,30 +1238,48 @@ async function executeMeta(
       const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
       // source_posts: user can specify {{posts}} from any previous node; after interpolation it becomes a JSON string
       // Falls back to input.posts or input.input.posts (when preceded by logic.if which wraps input)
-      let posts: Array<{ id: string; timestamp: string; media_type: string }> = []
+      let posts: Array<Record<string, unknown>> = []
       const sourcePosts = config.source_posts as string | undefined
       if (sourcePosts && sourcePosts.trim()) {
         try { posts = JSON.parse(sourcePosts) } catch { posts = [] }
       } else {
-        posts = (inputRecord.posts as Array<{ id: string; timestamp: string; media_type: string }>)
-          || ((inputRecord.input as Record<string, unknown>)?.posts as Array<{ id: string; timestamp: string; media_type: string }>)
+        posts = (inputRecord.posts as Array<Record<string, unknown>>)
+          || ((inputRecord.input as Record<string, unknown>)?.posts as Array<Record<string, unknown>>)
           || []
       }
       const instagramAccountId = (config.instagram_account_id as string)
         || (inputRecord.instagram_account_id as string)
         || context.client?.instagram_account_id
-      const clientId = context.client?.id
 
       if (!posts.length) return { posts: [], total: 0, posts_pulados: 0, instagram_account_id: instagramAccountId }
 
-      // Verificar via Meta API quais posts já foram patrocinados
+      // 1. Filtrar posts já patrocinados via Meta API
       const metaSponsoredIds = await meta.getSponsoredInstagramPostIds()
+      const naoPatrocinados = posts.filter((p) => !metaSponsoredIds.has(p.id as string))
 
-      const filteredPosts = posts.filter((p) => !metaSponsoredIds.has(p.id))
+      // 2. Filtrar posts inelegíveis para promoção via boost_eligibility_info
+      // O campo já vem preenchido no fetch_instagram_posts — sem chamada extra à API
+      const elegíveis: Array<Record<string, unknown>> = []
+      const inelegiveis: Array<{ id: string; motivo: string }> = []
+      for (const p of naoPatrocinados) {
+        const boostInfo = p.boost_eligibility_info as Record<string, unknown> | undefined
+        if (boostInfo && boostInfo.eligible_to_boost === false) {
+          const reason = (boostInfo.boost_ineligibility_reason as string) || 'UNKNOWN'
+          inelegiveis.push({ id: p.id as string, motivo: humanizeBoostIneligibility(reason) })
+        } else {
+          elegíveis.push(p)
+        }
+      }
+
+      if (inelegiveis.length) {
+        console.log(`[filter_unsponsored_posts] ${inelegiveis.length} post(s) inelegível(is) para boost:`, inelegiveis)
+      }
+
       return {
-        posts: filteredPosts,
-        total: filteredPosts.length,
-        posts_pulados: posts.length - filteredPosts.length,
+        posts: elegíveis,
+        total: elegíveis.length,
+        posts_pulados: posts.length - elegíveis.length,
+        posts_inelegiveis: inelegiveis,
         instagram_account_id: instagramAccountId,
       }
     }
