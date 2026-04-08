@@ -1166,10 +1166,11 @@ async function executeMeta(
             adsetId,
             adName: (config.name as string) || `Post ${config.source_instagram_media_id}`,
             status: (config.status as string) || 'PAUSED',
+            thumbnailUrl: (postData.thumbnail_url as string) || (postData.media_url as string) || undefined,
           })
-          // Salvar post_id localmente para que filter_unsponsored_posts detecte mesmo
           return {
             success: true,
+            via_boost: result.via_boost, // true = turbinou post original; false = dark post (música licenciada etc.)
             anuncio_criado: result,
             ad_id: result.ad_id,
             creative_id: result.creative_id,

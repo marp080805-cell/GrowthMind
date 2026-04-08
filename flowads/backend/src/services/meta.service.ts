@@ -827,16 +827,14 @@ export class MetaService {
     adsetId: string
     adName: string
     status?: string
-  }): Promise<{ ad_id: string; creative_id: string }> {
-    // Meta Marketing API: to use an existing Instagram post as an ad creative,
-    // page_id is REQUIRED. instagram_actor_id is optional — Meta infers it from source_instagram_media_id.
-    // Using object_story_spec avoids "link required" error that occurs with top-level object_id alone.
+    thumbnailUrl?: string
+  }): Promise<{ ad_id: string; creative_id: string; via_boost: boolean }> {
     if (!params.pageId) {
       throw new Error('Página do Facebook não configurada. Selecione a página no bloco "Criar anúncio" ou cadastre-a no perfil do cliente.')
     }
 
-    // Cria criativo turbinando o post original do Instagram via source_instagram_media_id.
-    // Não há fallback — se a Meta rejeitar, o erro é propagado e tratado como falha no loop.
+    // Tentativa 1 (preferencial): turbinar o post original via source_instagram_media_id.
+    // Preserva o link com o post original e acumula engajamento nele.
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
@@ -844,21 +842,60 @@ export class MetaService {
       access_token: this.token,
     }
     if (params.instagramAccountId) creativeBody.instagram_user_id = params.instagramAccountId
-    const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
-    const creativeId = creativeData.id as string
 
-    const adBody: Record<string, unknown> = {
-      adset_id: params.adsetId,
-      name: params.adName,
-      creative: { creative_id: creativeId }, // object, not JSON string (Content-Type: application/json)
-      status: params.status || 'ACTIVE',
-      access_token: this.token,
-    }
     try {
-      const adData = await metaPost(`${this.accountUrl}/ads`, adBody)
-      return { ad_id: adData.id as string, creative_id: creativeId }
-    } catch (err) {
-      throw new Error(`[ads account=act_${this.adAccountId} adset=${params.adsetId} creative=${creativeId}] ${err instanceof Error ? err.message : String(err)}`)
+      const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
+      const creativeId = creativeData.id as string
+      const adData = await metaPost(`${this.accountUrl}/ads`, {
+        adset_id: params.adsetId,
+        name: params.adName,
+        creative: { creative_id: creativeId },
+        status: params.status || 'ACTIVE',
+        access_token: this.token,
+      })
+      return { ad_id: adData.id as string, creative_id: creativeId, via_boost: true }
+    } catch (err1) {
+      const msg1 = err1 instanceof Error ? err1.message : String(err1)
+
+      // Tentativa 2 (fallback): importar vídeo via advideos + dark post.
+      // Usado quando o Reel tem música licenciada, filtros AR ou outros conteúdos que
+      // bloqueiam o boost direto (erro 1815279). Cria um anúncio visualmente idêntico,
+      // mas SEM conexão com o post original — engajamento não reflete no Reel orgânico.
+      if (!msg1.includes('1815279')) throw err1 // só aplica fallback para este erro específico
+
+      console.warn(`[Meta] Boost direto bloqueado (1815279) — tentando via advideos para post ${params.postId}`)
+      try {
+        const videoUpload = await metaPost(`${this.accountUrl}/advideos`, {
+          source_instagram_media_id: params.postId,
+          name: params.adName,
+          access_token: this.token,
+        })
+        const fbVideoId = (videoUpload.video_id || videoUpload.id) as string
+        if (!fbVideoId) throw new Error('advideos não retornou video_id')
+
+        const videoData: Record<string, unknown> = { video_id: fbVideoId }
+        if (params.thumbnailUrl) videoData.image_url = params.thumbnailUrl
+        const objectStorySpec: Record<string, unknown> = { page_id: params.pageId, video_data: videoData }
+        if (params.instagramAccountId) objectStorySpec.instagram_user_id = params.instagramAccountId
+
+        const creativeData2 = await metaPost(`${this.accountUrl}/adcreatives`, {
+          name: `Creative - ${params.adName}`,
+          object_story_spec: objectStorySpec,
+          access_token: this.token,
+        })
+        const creativeId2 = creativeData2.id as string
+        const adData2 = await metaPost(`${this.accountUrl}/ads`, {
+          adset_id: params.adsetId,
+          name: params.adName,
+          creative: { creative_id: creativeId2 },
+          status: params.status || 'ACTIVE',
+          access_token: this.token,
+        })
+        return { ad_id: adData2.id as string, creative_id: creativeId2, via_boost: false }
+      } catch (err2) {
+        const msg2 = err2 instanceof Error ? err2.message : String(err2)
+        throw new Error(`[boost] ${msg1} | [advideos] ${msg2}`)
+      }
     }
   }
 
