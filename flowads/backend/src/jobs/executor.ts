@@ -1170,7 +1170,10 @@ async function executeMeta(
           })
           return {
             success: true,
-            via_boost: result.via_boost, // true = turbinou post original; false = dark post (música licenciada etc.)
+            via_boost: result.via_boost,
+            tipo_anuncio: result.via_boost
+              ? '📌 Post original turbinado'
+              : '⚠️ Anúncio independente (post tem música licenciada — engajamento não reflete no Reel original)',
             anuncio_criado: result,
             ad_id: result.ad_id,
             creative_id: result.creative_id,
