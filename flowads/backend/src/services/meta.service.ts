@@ -839,10 +839,12 @@ export class MetaService {
 
     // Turbinar o post original via source_instagram_media_id.
     // Preserva o link com o post original e acumula engajamento nele.
+    // IMPORTANTE: não usar object_id aqui — esse campo é para creatives de Page post (Facebook).
+    // Com source_instagram_media_id, object_id conflita e causa erro 1815279.
+    // O campo correto para identificar a conta Instagram é instagram_user_id.
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
-      object_id: params.pageId,
       access_token: this.token,
     }
     if (params.instagramAccountId) creativeBody.instagram_user_id = params.instagramAccountId

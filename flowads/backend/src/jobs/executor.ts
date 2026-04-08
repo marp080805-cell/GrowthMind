@@ -1134,7 +1134,7 @@ async function executeMeta(
 
       // Se vier source_instagram_media_id, cria criativo a partir de post existente do Instagram
       if (config.source_instagram_media_id) {
-        const instagramAccountId = (config.instagram_user_id as string) || (config.instagram_actor_id as string) || undefined
+        const instagramAccountId = (config.instagram_user_id as string) || (config.instagram_actor_id as string) || context.client?.instagram_account_id || undefined
         const pageId = (config.page_id as string) || context.client?.facebook_page_id || undefined
         const postData = (input && typeof input === 'object' && !Array.isArray(input))
           ? input as Record<string, unknown>
