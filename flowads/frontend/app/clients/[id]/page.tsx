@@ -334,36 +334,33 @@ export default function ClientDetailPage() {
                 </p>
               ) : (
                 automations.map((auto) => (
-                  <div key={auto.id} className="flex items-center gap-4 px-4 py-3">
+                  <div key={auto.id} className="flex items-center gap-3 px-4 py-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-text">{auto.name}</p>
-                      {auto.description && (
-                        <p className="text-xs text-text2 truncate">{auto.description}</p>
-                      )}
+                      <p className="text-sm font-semibold text-text truncate">{auto.name}</p>
+                      <p className="text-xs text-text3 truncate">
+                        {auto.last_run_at ? formatDateTime(auto.last_run_at) : (auto.description || '')}
+                      </p>
                     </div>
-                    <Badge variant={auto.is_active ? 'success' : 'default'}>
-                      {auto.is_active ? 'Ativa' : 'Pausada'}
-                    </Badge>
-                    {auto.last_run_at && (
-                      <span className="text-xs text-text3">
-                        {formatDateTime(auto.last_run_at)}
-                      </span>
-                    )}
-                    <button
-                      title="Duplicar automação"
-                      onClick={() => setDuplicatingAuto(auto)}
-                      className="p-1.5 rounded-[8px] hover:bg-surface2 text-text3 hover:text-text transition-colors"
-                    >
-                      <Copy size={14} />
-                    </button>
-                    <Link href={`/clients/${id}/automations/${auto.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-                      Editar
-                      <ChevronRight size={13} />
-                    </Link>
-                    <Toggle
-                      checked={auto.is_active}
-                      onChange={() => toggleAutomation(auto)}
-                    />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant={auto.is_active ? 'success' : 'default'}>
+                        {auto.is_active ? 'Ativa' : 'Pausada'}
+                      </Badge>
+                      <button
+                        title="Duplicar automação"
+                        onClick={() => setDuplicatingAuto(auto)}
+                        className="p-1.5 rounded-[8px] hover:bg-surface2 text-text3 hover:text-text transition-colors"
+                      >
+                        <Copy size={14} />
+                      </button>
+                      <Link href={`/clients/${id}/automations/${auto.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                        Editar
+                        <ChevronRight size={13} />
+                      </Link>
+                      <Toggle
+                        checked={auto.is_active}
+                        onChange={() => toggleAutomation(auto)}
+                      />
+                    </div>
                   </div>
                 ))
               )}
