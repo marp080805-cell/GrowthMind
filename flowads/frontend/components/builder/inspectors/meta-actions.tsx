@@ -503,8 +503,14 @@ export function FilterEligiblePostsInspector(_: InspectorFieldProps) {
         <p className="font-syne font-bold text-accent">Saída disponível</p>
         <p><code className="text-accent">{'{{posts}}'}</code> — array só com posts elegíveis para boost</p>
         <p><code className="text-accent">{'{{total}}'}</code> — quantidade de posts elegíveis</p>
-        <p><code className="text-accent">{'{{posts_inelegiveis}}'}</code> — array com id e motivo dos inelegíveis</p>
+        <p><code className="text-accent">{'{{posts_inelegiveis}}'}</code> — array com os campos abaixo por post</p>
         <p><code className="text-accent">{'{{total_inelegiveis}}'}</code> — quantidade de posts inelegíveis</p>
+        <p className="mt-1 font-syne font-bold text-accent">Dentro do loop de inelegíveis (item.*):</p>
+        <p><code className="text-accent">{'{{item.permalink}}'}</code> — link do post no Instagram</p>
+        <p><code className="text-accent">{'{{item.caption}}'}</code> — legenda do post</p>
+        <p><code className="text-accent">{'{{item.media_type}}'}</code> — IMAGE / VIDEO / CAROUSEL_ALBUM</p>
+        <p><code className="text-accent">{'{{item.motivo}}'}</code> — motivo legível (ex: "Reel com collab ativo")</p>
+        <p><code className="text-accent">{'{{item.erro_meta}}'}</code> — código bruto retornado pela Meta</p>
       </div>
     </>
   )

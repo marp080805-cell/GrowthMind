@@ -1287,12 +1287,19 @@ async function executeMeta(
       if (!posts.length) return { posts: [], total: 0, posts_inelegiveis: [], total_inelegiveis: 0, instagram_account_id: instagramAccountId }
 
       const elegíveis: Array<Record<string, unknown>> = []
-      const inelegiveis: Array<{ id: string; motivo: string }> = []
+      const inelegiveis: Array<{ id: string; permalink: string; caption: string; media_type: string; motivo: string; erro_meta: string }> = []
       for (const p of posts) {
         const boostInfo = p.boost_eligibility_info as Record<string, unknown> | undefined
         if (boostInfo && boostInfo.eligible_to_boost === false) {
           const reason = (boostInfo.boost_ineligibility_reason as string) || 'UNKNOWN'
-          inelegiveis.push({ id: p.id as string, motivo: humanizeBoostIneligibility(reason) })
+          inelegiveis.push({
+            id: p.id as string,
+            permalink: (p.permalink as string) || '',
+            caption: (p.caption as string) || '',
+            media_type: (p.media_type as string) || '',
+            motivo: humanizeBoostIneligibility(reason),
+            erro_meta: reason,
+          })
         } else {
           elegíveis.push(p)
         }
