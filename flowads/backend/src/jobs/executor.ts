@@ -1650,7 +1650,13 @@ async function executeLogic(
 
     case 'switch': {
       const { variable, cases } = config as { variable: string; cases?: Array<{ id: string; label: string; value: string }> }
-      const actual = String(variable ?? input ?? '')
+      // Se variable é uma chave simples (ex: "acao"), busca o valor no input record.
+      // Se já veio interpolado (ex: "pausar"), usa diretamente — igual ao IF node.
+      const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
+      const rawVar = String(variable ?? '')
+      const actual = (rawVar && Object.prototype.hasOwnProperty.call(inputRecord, rawVar))
+        ? String(inputRecord[rawVar])
+        : rawVar
       for (const c of (cases || [])) {
         if (c.value && actual.toLowerCase().includes(c.value.toLowerCase())) {
           return { matched_case: c.id, input }
