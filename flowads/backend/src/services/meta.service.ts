@@ -847,7 +847,25 @@ export class MetaService {
       source_instagram_media_id: params.postId,
       access_token: this.token,
     }
-    if (params.instagramAccountId) creativeBody.instagram_user_id = params.instagramAccountId
+    if (params.instagramAccountId) {
+      creativeBody.instagram_user_id = params.instagramAccountId
+      // Buscar username para construir URL do perfil Instagram.
+      // Campanhas com objetivo "tráfego para perfil" exigem call_to_action com link do perfil.
+      // O Ads Manager faz isso automaticamente — via API precisamos fazer explicitamente.
+      try {
+        const igInfo = await metaGet<{ username?: string }>(
+          `${META_API}/${params.instagramAccountId}?fields=username&access_token=${this.token}`
+        )
+        if (igInfo.username) {
+          creativeBody.call_to_action = {
+            type: 'INSTAGRAM_PROFILE',
+            value: { link: `https://www.instagram.com/${igInfo.username}/` },
+          }
+        }
+      } catch {
+        // não bloqueia — campanha de engajamento/reconhecimento não precisa de call_to_action
+      }
+    }
 
     const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
     const creativeId = creativeData.id as string
