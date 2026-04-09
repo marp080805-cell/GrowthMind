@@ -626,11 +626,12 @@ const SKIPPABLE_META_CODES = [
   '1885057', // Reel is not eligible for ads
   '2207026', // Reel not eligible for ads
   '1349152', // Post cannot be used as ad creative
-  '1815279', // Incompatibilidade técnica de vídeo no fluxo da Meta API — post não pode ser turbinado
+  '1815279', // Incompatibilidade técnica de vídeo no fluxo da Meta API
+  '2061015', // Website URL obrigatório — objetivo da campanha incompatível com boost de post existente
+  '2446383', // Objetivo da campanha requer URL de site externo — incompatível com boost de post existente
 ]
 
 const SKIPPABLE_META_PATTERNS = [
-  'invalid parameter',
   'not eligible',
   'cannot be used',
   'cannot be promoted',
@@ -644,8 +645,7 @@ const SKIPPABLE_META_PATTERNS = [
 function isSkippableMetaError(msg: string, mediaType?: string): boolean {
   const lower = msg.toLowerCase()
   if (SKIPPABLE_META_CODES.some((code) => msg.includes(code))) return true
-  // Para posts de vídeo/Reel, qualquer erro de "invalid parameter" da Meta é uma restrição da plataforma
-  if (mediaType === 'VIDEO' && SKIPPABLE_META_PATTERNS.some((p) => lower.includes(p))) return true
+  if (SKIPPABLE_META_PATTERNS.some((p) => lower.includes(p))) return true
   return false
 }
 
@@ -661,6 +661,9 @@ function humanizeBoostIneligibility(reason: string): string {
 
 function humanizeMetaSkipReason(msg: string): string {
   const lower = msg.toLowerCase()
+  if (msg.includes('2061015') || msg.includes('2446383')) {
+    return 'Objetivo da campanha incompatível com boost de post existente — use uma campanha de Engajamento ou Reconhecimento'
+  }
   if (msg.includes('2875030') || lower.includes('músicas com direitos') || lower.includes('copyright') || lower.includes('music rights')) {
     return 'Reel com música protegida por direitos autorais — não pode ser anunciado'
   }
@@ -670,8 +673,8 @@ function humanizeMetaSkipReason(msg: string): string {
   if (msg.includes('1815279')) {
     return 'Vídeo com incompatibilidade técnica no fluxo da Meta API — suba o anúncio manualmente no Gerenciador de Anúncios'
   }
-  if (lower.includes('invalid parameter') || lower.includes('not eligible') || lower.includes('cannot be') || lower.includes('not promotable')) {
-    return 'Reel com restrição da Meta (collab, template ou efeito restrito) — item pulado'
+  if (lower.includes('not eligible') || lower.includes('cannot be') || lower.includes('not promotable') || lower.includes('media cannot')) {
+    return 'Post com restrição da Meta — item pulado'
   }
   return 'Post bloqueado pela política do Meta — item pulado'
 }
