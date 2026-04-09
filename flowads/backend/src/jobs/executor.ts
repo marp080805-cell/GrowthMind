@@ -1256,15 +1256,39 @@ async function executeMeta(
 
       if (!posts.length) return { posts: [], total: 0, posts_pulados: 0, instagram_account_id: instagramAccountId }
 
-      // 1. Filtrar posts já patrocinados via Meta API
+      // Filtra apenas posts que já têm anúncio ativo via Meta API
       const metaSponsoredIds = await meta.getSponsoredInstagramPostIds()
       const naoPatrocinados = posts.filter((p) => !metaSponsoredIds.has(p.id as string))
 
-      // 2. Filtrar posts inelegíveis para promoção via boost_eligibility_info
+      return {
+        posts: naoPatrocinados,
+        total: naoPatrocinados.length,
+        posts_pulados: posts.length - naoPatrocinados.length,
+        instagram_account_id: instagramAccountId,
+      }
+    }
+
+    case 'filter_eligible_posts': {
+      // Filtra posts inelegíveis para boost com base em boost_eligibility_info
       // O campo já vem preenchido no fetch_instagram_posts — sem chamada extra à API
+      const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
+      let posts: Array<Record<string, unknown>> = []
+      const sourcePosts = config.source_posts as string | undefined
+      if (sourcePosts && sourcePosts.trim()) {
+        try { posts = JSON.parse(sourcePosts) } catch { posts = [] }
+      } else {
+        posts = (inputRecord.posts as Array<Record<string, unknown>>)
+          || ((inputRecord.input as Record<string, unknown>)?.posts as Array<Record<string, unknown>>)
+          || []
+      }
+      const instagramAccountId = (inputRecord.instagram_account_id as string)
+        || context.client?.instagram_account_id
+
+      if (!posts.length) return { posts: [], total: 0, posts_inelegiveis: [], total_inelegiveis: 0, instagram_account_id: instagramAccountId }
+
       const elegíveis: Array<Record<string, unknown>> = []
       const inelegiveis: Array<{ id: string; motivo: string }> = []
-      for (const p of naoPatrocinados) {
+      for (const p of posts) {
         const boostInfo = p.boost_eligibility_info as Record<string, unknown> | undefined
         if (boostInfo && boostInfo.eligible_to_boost === false) {
           const reason = (boostInfo.boost_ineligibility_reason as string) || 'UNKNOWN'
@@ -1275,14 +1299,14 @@ async function executeMeta(
       }
 
       if (inelegiveis.length) {
-        console.log(`[filter_unsponsored_posts] ${inelegiveis.length} post(s) inelegível(is) para boost:`, inelegiveis)
+        console.log(`[filter_eligible_posts] ${inelegiveis.length} post(s) inelegível(is) para boost:`, inelegiveis)
       }
 
       return {
         posts: elegíveis,
         total: elegíveis.length,
-        posts_pulados: posts.length - elegíveis.length,
         posts_inelegiveis: inelegiveis,
+        total_inelegiveis: inelegiveis.length,
         instagram_account_id: instagramAccountId,
       }
     }
