@@ -871,7 +871,7 @@ export class MetaService {
       // CTA type depende do destino:
       // - URL do Instagram → INSTAGRAM_PROFILE (CTA "Acessar o perfil do Instagram")
       // - Qualquer outro link → LEARN_MORE
-      const ctaType = destinationUrl.includes('instagram.com') ? 'INSTAGRAM_PROFILE' : 'LEARN_MORE'
+      const ctaType = destinationUrl.includes('instagram.com') ? 'VIEW_INSTAGRAM_PROFILE' : 'LEARN_MORE'
       creativeBody.call_to_action = {
         type: ctaType,
         value: { link: destinationUrl },
