@@ -338,14 +338,23 @@ export function BuilderCanvas({ initialNodes, initialEdges, onChange, isActive, 
         // For Switch nodes: remove edges whose sourceHandle no longer matches any case id or 'default'
         const changedNode = nds.find((n) => n.id === selectedNodeId)
         if (changedNode && (changedNode.data as { type?: string }).type === 'logic.switch') {
+          const oldCases = ((changedNode.data as { config?: { cases?: Array<{ id: string }> } }).config?.cases) || []
+          const newCases = (config.cases as Array<{ id: string }>) || []
           const validHandles = new Set([
-            ...((config.cases as Array<{ id: string }>) || []).map((c) => c.id),
+            ...newCases.map((c) => c.id),
             'default',
           ])
           setEdges((eds) => {
-            const filtered = eds.filter(
+            let filtered = eds.filter(
               (e) => e.source !== selectedNodeId || validHandles.has(e.sourceHandle ?? 'default')
             )
+            // If cases were just configured for the first time, remove stale 'default' edges
+            // (they were drawn from 'Padrão' handle before cases existed — user must reconnect)
+            if (oldCases.length === 0 && newCases.length > 0) {
+              filtered = filtered.filter(
+                (e) => e.source !== selectedNodeId || e.sourceHandle !== 'default'
+              )
+            }
             notifyChange(updated, filtered)
             return filtered
           })

@@ -35,6 +35,16 @@ Se o node após o Switch aparece como "Pulado (branch inativo)" mesmo com o inpu
 2. O `value` do case está em minúsculas (o match é lowercase)
 3. A edge saindo do Switch tem o `sourceHandle` igual ao `id` do case (não ao `label`)
 
+### Causa mais comum: edges desenhadas antes de configurar os casos
+
+**Problema:** Se o usuário desenhou as edges saindo do Switch antes de configurar os cases, essas edges ficam com `sourceHandle: 'default'` (handle "Padrão" — único disponível quando não há cases). Depois de configurar os cases, as edges continuam com `sourceHandle: 'default'`, mas o executor espera `sourceHandle: 'case_abc123'`. O executor trata 'default' como inactive quando um case específico foi matched → o node seguinte aparece como "Pulado".
+
+**Solução:** Recriar as edges após configurar os cases.
+- Delete todas as edges saindo do Switch
+- Reconecte a partir dos handles corretos (cada case tem seu handle próprio)
+
+**Fix automático (canvas.tsx):** Quando cases são configurados pela primeira vez (0 → N cases), o canvas remove automaticamente as edges com `sourceHandle: 'default'`, forçando o usuário a reconectar do handle correto.
+
 ---
 
 ## Variáveis disponíveis por node
