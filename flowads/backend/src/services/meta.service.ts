@@ -832,6 +832,7 @@ export class MetaService {
     adsetId: string
     adName: string
     status?: string
+    destinationUrl?: string // URL de destino: link do site, do perfil IG, etc.
   }): Promise<{ ad_id: string; creative_id: string }> {
     if (!params.pageId) {
       throw new Error('Página do Facebook não configurada. Selecione a página no bloco "Criar anúncio" ou cadastre-a no perfil do cliente.')
@@ -849,21 +850,27 @@ export class MetaService {
     }
     if (params.instagramAccountId) {
       creativeBody.instagram_user_id = params.instagramAccountId
-      // Buscar username para construir URL do perfil Instagram.
-      // Campanhas com objetivo "tráfego para perfil" exigem call_to_action com link do perfil.
-      // O Ads Manager faz isso automaticamente — via API precisamos fazer explicitamente.
+    }
+
+    // Resolver URL de destino para o call_to_action:
+    // 1. Se o usuário configurou um link explícito no bloco → usa esse link
+    // 2. Se não configurou → tenta buscar o perfil do Instagram automaticamente
+    // 3. Sem URL → não adiciona call_to_action (engajamento/reconhecimento não precisam)
+    let destinationUrl = params.destinationUrl || ''
+    if (!destinationUrl && params.instagramAccountId) {
       try {
         const igInfo = await metaGet<{ username?: string }>(
           `${META_API}/${params.instagramAccountId}?fields=username&access_token=${this.token}`
         )
-        if (igInfo.username) {
-          creativeBody.call_to_action = {
-            type: 'INSTAGRAM_PROFILE',
-            value: { link: `https://www.instagram.com/${igInfo.username}/` },
-          }
-        }
+        if (igInfo.username) destinationUrl = `https://www.instagram.com/${igInfo.username}/`
       } catch {
-        // não bloqueia — campanha de engajamento/reconhecimento não precisa de call_to_action
+        // não bloqueia
+      }
+    }
+    if (destinationUrl) {
+      creativeBody.call_to_action = {
+        type: 'LEARN_MORE',
+        value: { link: destinationUrl },
       }
     }
 
