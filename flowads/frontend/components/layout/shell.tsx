@@ -34,7 +34,7 @@ export function Shell({ title, breadcrumbs, actions, children }: ShellProps) {
   return (
     <div className="min-h-screen bg-bg flex">
       <Sidebar user={user} />
-      <div className="flex-1 ml-[220px] flex flex-col min-h-screen">
+      <div className="flex-1 ml-[220px] min-w-0 flex flex-col min-h-screen overflow-x-hidden">
         <Topbar title={title} breadcrumbs={breadcrumbs} actions={actions} />
         <main className="flex-1 p-7 overflow-y-auto">{children}</main>
       </div>
