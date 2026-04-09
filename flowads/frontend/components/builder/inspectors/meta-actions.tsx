@@ -488,6 +488,28 @@ export function FilterUnsponsoredPostsInspector({ config, onChange }: InspectorF
   )
 }
 
+// ─── Filtrar Posts Elegíveis para Boost ───────────────────────────────────────
+
+export function FilterEligiblePostsInspector(_: InspectorFieldProps) {
+  return (
+    <>
+      <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3 space-y-1">
+        <p className="font-syne font-bold text-accent">Como funciona</p>
+        <p>Recebe automaticamente o array <code>{'{{posts}}'}</code> do node anterior e separa os que <strong>podem</strong> ser turbinados via API dos que não podem.</p>
+        <p className="mt-1">Verifica o campo <code>boost_eligibility_info</code> que já vem no fetch de posts — sem chamada extra à API.</p>
+        <p className="mt-1">Posts inelegíveis comuns: collab, efeito restrito, template com restrições.</p>
+      </div>
+      <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3 space-y-1">
+        <p className="font-syne font-bold text-accent">Saída disponível</p>
+        <p><code className="text-accent">{'{{posts}}'}</code> — array só com posts elegíveis para boost</p>
+        <p><code className="text-accent">{'{{total}}'}</code> — quantidade de posts elegíveis</p>
+        <p><code className="text-accent">{'{{posts_inelegiveis}}'}</code> — array com id e motivo dos inelegíveis</p>
+        <p><code className="text-accent">{'{{total_inelegiveis}}'}</code> — quantidade de posts inelegíveis</p>
+      </div>
+    </>
+  )
+}
+
 export function CreateAudienceInspector({ config, onChange }: InspectorFieldProps) {
   const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
 
