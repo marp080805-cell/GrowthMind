@@ -853,29 +853,14 @@ export class MetaService {
       creativeBody.instagram_user_id = params.instagramAccountId
     }
 
-    // Resolver URL de destino para o call_to_action:
-    // 1. Se o usuário configurou um link explícito no bloco → usa esse link
-    // 2. Se não configurou → tenta buscar o perfil do Instagram automaticamente
-    // 3. Sem URL → não adiciona call_to_action (engajamento/reconhecimento não precisam)
-    let destinationUrl = params.destinationUrl || ''
-    if (!destinationUrl && params.instagramAccountId) {
-      try {
-        const igInfo = await metaGet<{ username?: string }>(
-          `${META_API}/${params.instagramAccountId}?fields=username&access_token=${this.token}`
-        )
-        if (igInfo.username) destinationUrl = `https://www.instagram.com/${igInfo.username}/`
-      } catch {
-        // não bloqueia
-      }
-    }
-    if (destinationUrl) {
-      // CTA type depende do destino:
-      // - URL do Instagram → INSTAGRAM_PROFILE (CTA "Acessar o perfil do Instagram")
-      // - Qualquer outro link → LEARN_MORE
-      const ctaType = destinationUrl.includes('instagram.com') ? 'VIEW_INSTAGRAM_PROFILE' : 'LEARN_MORE'
+    // Só adiciona call_to_action se o usuário configurou destination_url explicitamente no bloco.
+    // Sem destination_url → não envia CTA → Meta herda destino e CTA do conjunto de anúncios,
+    // igual ao comportamento do Ads Manager ao criar manualmente.
+    if (params.destinationUrl) {
+      const ctaType = params.destinationUrl.includes('instagram.com') ? 'VIEW_INSTAGRAM_PROFILE' : 'LEARN_MORE'
       creativeBody.call_to_action = {
         type: ctaType,
-        value: { link: destinationUrl },
+        value: { link: params.destinationUrl },
       }
     }
 
