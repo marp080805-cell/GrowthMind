@@ -863,20 +863,21 @@ export class MetaService {
         const adsetInfo = await metaGet<{ promoted_object?: { instagram_profile_id?: string; page_id?: string }; destination_type?: string }>(
           `${META_API}/${params.adsetId}?fields=promoted_object,destination_type&access_token=${this.token}`
         )
+        console.log(`[Meta] adset promoted_object:`, JSON.stringify(adsetInfo.promoted_object), 'destination_type:', adsetInfo.destination_type)
         const igProfileId = adsetInfo.promoted_object?.instagram_profile_id
-        const destType = adsetInfo.destination_type || ''
-        if (igProfileId && destType.includes('INSTAGRAM')) {
-          // Campanha de tráfego para perfil Instagram — busca username para montar URL
+        const destType = (adsetInfo.destination_type || '').toUpperCase()
+        // instagram_profile_id tem precedência — se existe, é campanha de perfil Instagram
+        if (igProfileId) {
           try {
             const igInfo = await metaGet<{ username?: string }>(
               `${META_API}/${igProfileId}?fields=username&access_token=${this.token}`
             )
             if (igInfo.username) destinationUrl = `https://www.instagram.com/${igInfo.username}/`
           } catch { /* usa sem CTA */ }
-        } else if (adsetInfo.promoted_object?.page_id) {
-          // Campanha de tráfego para página do Facebook
+        } else if (destType === 'FACEBOOK' && adsetInfo.promoted_object?.page_id) {
           destinationUrl = `https://www.facebook.com/${adsetInfo.promoted_object.page_id}`
         }
+        // Para outros destinos (WEBSITE, APP, etc.) não adicionamos CTA — Meta herda do adset
       } catch { /* não bloqueia criação */ }
     }
     if (destinationUrl) {
