@@ -872,11 +872,29 @@ export class MetaService {
 
         if (igProfileId || destType === 'INSTAGRAM_PROFILE') {
           // Campanha de tráfego para perfil Instagram.
-          // Meta requer VIEW_INSTAGRAM_PROFILE no criativo mas SEM value.link
-          // (com link → erro 3858615; sem CTA → erro 2061015)
-          creativeBody.call_to_action = { type: 'VIEW_INSTAGRAM_PROFILE' }
+          // Meta exige VIEW_INSTAGRAM_PROFILE + link do perfil no criativo.
+          // Sem CTA → erro 2061015; sem link → erro 2061015; com link errado → erro 3858615.
+          // Solução: buscar username do IG account e construir URL correta.
+          let igProfileUrl = ''
+          if (params.instagramAccountId) {
+            try {
+              const igInfo = await metaGet<{ username?: string }>(
+                `${META_API}/${params.instagramAccountId}?fields=username&access_token=${this.token}`
+              )
+              if (igInfo.username) {
+                igProfileUrl = `https://www.instagram.com/${igInfo.username}/`
+              }
+            } catch { /* fallback: usa igProfileId se disponível */ }
+          }
+          if (!igProfileUrl && igProfileId) {
+            // igProfileId é um numeric FB ID — não é uma URL válida, mas tentamos como fallback
+            igProfileUrl = `https://www.instagram.com/${igProfileId}/`
+          }
+          creativeBody.call_to_action = igProfileUrl
+            ? { type: 'VIEW_INSTAGRAM_PROFILE', value: { link: igProfileUrl } }
+            : { type: 'VIEW_INSTAGRAM_PROFILE' }
           skipCTA = true
-          console.log(`[Meta] Instagram profile campaign → VIEW_INSTAGRAM_PROFILE sem link`)
+          console.log(`[Meta] Instagram profile campaign → VIEW_INSTAGRAM_PROFILE link=${igProfileUrl}`)
         } else if (destType === 'FACEBOOK_PAGE') {
           // Campanha de página Facebook — Meta herda o destino do adset
           skipCTA = true
