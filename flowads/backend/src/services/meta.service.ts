@@ -866,18 +866,16 @@ export class MetaService {
         console.log(`[Meta] adset promoted_object:`, JSON.stringify(adsetInfo.promoted_object), 'destination_type:', adsetInfo.destination_type)
         const igProfileId = adsetInfo.promoted_object?.instagram_profile_id
         const destType = (adsetInfo.destination_type || '').toUpperCase()
-        // instagram_profile_id tem precedência — se existe, é campanha de perfil Instagram
-        if (igProfileId) {
-          try {
-            const igInfo = await metaGet<{ username?: string }>(
-              `${META_API}/${igProfileId}?fields=username&access_token=${this.token}`
-            )
-            if (igInfo.username) destinationUrl = `https://www.instagram.com/${igInfo.username}/`
-          } catch { /* usa sem CTA */ }
-        } else if (destType === 'FACEBOOK' && adsetInfo.promoted_object?.page_id) {
-          destinationUrl = `https://www.facebook.com/${adsetInfo.promoted_object.page_id}`
+        // Para perfil Instagram e página Facebook: não adicionar CTA no criativo.
+        // O adset já define o destino — a Meta herda automaticamente.
+        // Adicionar CTA nesses casos causa erro 3858615 (CTA incompatível com meta de desempenho).
+        // Só adicionar CTA para destinos de website/externo via destination_type WEBSITE/URL.
+        if (destType === 'WEBSITE' && adsetInfo.promoted_object?.page_id === undefined) {
+          // campanha de tráfego para site — precisa de CTA com link
+          // mas não temos o link aqui sem destination_url configurado
         }
-        // Para outros destinos (WEBSITE, APP, etc.) não adicionamos CTA — Meta herda do adset
+        // Logar o que foi detectado para diagnóstico
+        console.log(`[Meta] adset destType=${destType} igProfileId=${igProfileId} → sem CTA automático`)
       } catch { /* não bloqueia criação */ }
     }
     if (destinationUrl) {
