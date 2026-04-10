@@ -853,14 +853,37 @@ export class MetaService {
       creativeBody.instagram_user_id = params.instagramAccountId
     }
 
-    // Só adiciona call_to_action se o usuário configurou destination_url explicitamente no bloco.
-    // Sem destination_url → não envia CTA → Meta herda destino e CTA do conjunto de anúncios,
-    // igual ao comportamento do Ads Manager ao criar manualmente.
-    if (params.destinationUrl) {
-      const ctaType = params.destinationUrl.includes('instagram.com') ? 'VIEW_INSTAGRAM_PROFILE' : 'LEARN_MORE'
+    // Resolver destination_url para o call_to_action:
+    // 1. Se configurado explicitamente no node → usa
+    // 2. Se não configurado → busca o destino do adset (promoted_object) para montar o CTA correto
+    //    igual ao que o Ads Manager faz automaticamente ao selecionar um post existente
+    let destinationUrl = params.destinationUrl || ''
+    if (!destinationUrl) {
+      try {
+        const adsetInfo = await metaGet<{ promoted_object?: { instagram_profile_id?: string; page_id?: string }; destination_type?: string }>(
+          `${META_API}/${params.adsetId}?fields=promoted_object,destination_type&access_token=${this.token}`
+        )
+        const igProfileId = adsetInfo.promoted_object?.instagram_profile_id
+        const destType = adsetInfo.destination_type || ''
+        if (igProfileId && destType.includes('INSTAGRAM')) {
+          // Campanha de tráfego para perfil Instagram — busca username para montar URL
+          try {
+            const igInfo = await metaGet<{ username?: string }>(
+              `${META_API}/${igProfileId}?fields=username&access_token=${this.token}`
+            )
+            if (igInfo.username) destinationUrl = `https://www.instagram.com/${igInfo.username}/`
+          } catch { /* usa sem CTA */ }
+        } else if (adsetInfo.promoted_object?.page_id) {
+          // Campanha de tráfego para página do Facebook
+          destinationUrl = `https://www.facebook.com/${adsetInfo.promoted_object.page_id}`
+        }
+      } catch { /* não bloqueia criação */ }
+    }
+    if (destinationUrl) {
+      const ctaType = destinationUrl.includes('instagram.com') ? 'VIEW_INSTAGRAM_PROFILE' : 'LEARN_MORE'
       creativeBody.call_to_action = {
         type: ctaType,
-        value: { link: params.destinationUrl },
+        value: { link: destinationUrl },
       }
     }
 
