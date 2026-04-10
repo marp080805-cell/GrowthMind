@@ -503,15 +503,15 @@ export function FilterEligiblePostsInspector(_: InspectorFieldProps) {
         <p className="font-syne font-bold text-accent">Saída disponível</p>
         <p><code className="text-accent">{'{{posts}}'}</code> — array só com posts elegíveis para boost</p>
         <p><code className="text-accent">{'{{total}}'}</code> — quantidade de posts elegíveis</p>
-        <p><code className="text-accent">{'{{total_inelegiveis}}'}</code> — quantidade de posts inelegíveis</p>
-        <p><code className="text-accent">{'{{resumo_inelegiveis}}'}</code> — texto pronto com todos os posts inelegíveis (use direto no WhatsApp, sem loop)</p>
-        <p><code className="text-accent">{'{{posts_inelegiveis}}'}</code> — array completo (use com Loop se quiser 1 mensagem por post)</p>
-        <p className="mt-1 font-syne font-bold text-accent">Dentro de um Loop sobre posts_inelegiveis:</p>
-        <p><code className="text-accent">{'{{item.permalink}}'}</code> — link do post</p>
-        <p><code className="text-accent">{'{{item.caption}}'}</code> — legenda</p>
-        <p><code className="text-accent">{'{{item.media_type}}'}</code> — IMAGE / VIDEO / CAROUSEL_ALBUM</p>
-        <p><code className="text-accent">{'{{item.motivo}}'}</code> — motivo legível</p>
-        <p><code className="text-accent">{'{{item.erro_meta}}'}</code> — código bruto da Meta</p>
+        <p><code className="text-accent">{'{{total}}'}</code> — posts elegíveis</p>
+        <p><code className="text-accent">{'{{total_inelegiveis}}'}</code> — posts inelegíveis</p>
+        <p className="mt-1 font-syne font-bold text-accent">Dentro de loop (item individual):</p>
+        <p>Use <code className="text-accent">{'{{inelegivel_permalink}}'}</code>, <code className="text-accent">{'{{inelegivel_motivo}}'}</code>, etc. no WhatsApp após o IF</p>
+        <p><code className="text-accent">{'{{inelegivel_permalink}}'}</code> — link do post</p>
+        <p><code className="text-accent">{'{{inelegivel_caption}}'}</code> — legenda</p>
+        <p><code className="text-accent">{'{{inelegivel_media_type}}'}</code> — IMAGE / VIDEO / CAROUSEL_ALBUM</p>
+        <p><code className="text-accent">{'{{inelegivel_motivo}}'}</code> — motivo legível</p>
+        <p><code className="text-accent">{'{{inelegivel_erro_meta}}'}</code> — código bruto da Meta</p>
       </div>
     </>
   )

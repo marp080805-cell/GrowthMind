@@ -1269,18 +1269,27 @@ async function executeMeta(
     }
 
     case 'filter_eligible_posts': {
-      // Filtra posts inelegíveis para boost com base em boost_eligibility_info
-      // O campo já vem preenchido no fetch_instagram_posts — sem chamada extra à API
+      // Funciona em dois modos:
+      // 1. Dentro de loop: input é um item individual com boost_eligibility_info
+      // 2. Fora de loop: input.posts é um array de posts
       const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
+
+      // Detecta modo: item individual tem campo 'id' e 'boost_eligibility_info' diretamente
+      const isSingleItem = inputRecord.id && !Array.isArray(inputRecord.posts)
       let posts: Array<Record<string, unknown>> = []
-      const sourcePosts = config.source_posts as string | undefined
-      if (sourcePosts && sourcePosts.trim()) {
-        try { posts = JSON.parse(sourcePosts) } catch { posts = [] }
+      if (isSingleItem) {
+        posts = [inputRecord]
       } else {
-        posts = (inputRecord.posts as Array<Record<string, unknown>>)
-          || ((inputRecord.input as Record<string, unknown>)?.posts as Array<Record<string, unknown>>)
-          || []
+        const sourcePosts = config.source_posts as string | undefined
+        if (sourcePosts && sourcePosts.trim()) {
+          try { posts = JSON.parse(sourcePosts) } catch { posts = [] }
+        } else {
+          posts = (inputRecord.posts as Array<Record<string, unknown>>)
+            || ((inputRecord.input as Record<string, unknown>)?.posts as Array<Record<string, unknown>>)
+            || []
+        }
       }
+
       const instagramAccountId = (inputRecord.instagram_account_id as string)
         || context.client?.instagram_account_id
 
@@ -1309,6 +1318,8 @@ async function executeMeta(
         console.log(`[filter_eligible_posts] ${inelegiveis.length} post(s) inelegível(is) para boost:`, inelegiveis)
       }
 
+      // Expõe campos do primeiro inelegível diretamente (útil quando item individual)
+      const primeiroInelegivel = inelegiveis[0]
       const resumo_inelegiveis = inelegiveis.map((p, i) =>
         `*${i + 1}. ${p.media_type}*\n🔗 ${p.permalink}\n📝 ${p.caption ? p.caption.slice(0, 80) + (p.caption.length > 80 ? '...' : '') : '(sem legenda)'}\n❌ ${p.motivo}\n🛠️ ${p.erro_meta}`
       ).join('\n\n')
@@ -1319,6 +1330,13 @@ async function executeMeta(
         posts_inelegiveis: inelegiveis,
         total_inelegiveis: inelegiveis.length,
         resumo_inelegiveis,
+        // Campos diretos do post inelegível (modo item individual dentro de loop)
+        inelegivel_id: primeiroInelegivel?.id || '',
+        inelegivel_permalink: primeiroInelegivel?.permalink || '',
+        inelegivel_caption: primeiroInelegivel?.caption || '',
+        inelegivel_media_type: primeiroInelegivel?.media_type || '',
+        inelegivel_motivo: primeiroInelegivel?.motivo || '',
+        inelegivel_erro_meta: primeiroInelegivel?.erro_meta || '',
         instagram_account_id: instagramAccountId,
       }
     }
