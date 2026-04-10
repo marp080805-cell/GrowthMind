@@ -99,7 +99,8 @@ export interface MetaInstagramPost {
   comments_count?: number
   boost_eligibility_info?: {
     eligible_to_boost: boolean
-    boost_ineligibility_reason?: string
+    boost_ineligible_reason?: string      // campo real retornado pela Meta (texto legível)
+    boost_ineligibility_reason?: string   // campo alternativo em algumas versões da API
   }
 }
 

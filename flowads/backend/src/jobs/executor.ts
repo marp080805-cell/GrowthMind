@@ -1146,12 +1146,14 @@ async function executeMeta(
         // Verificar elegibilidade antes de tentar criar o anúncio
         const boostInfo = postData.boost_eligibility_info as Record<string, unknown> | undefined
         if (boostInfo && boostInfo.eligible_to_boost === false) {
-          const reason = (boostInfo.boost_ineligibility_reason as string) || 'UNKNOWN'
+          const reason = (boostInfo.boost_ineligible_reason as string)
+            || (boostInfo.boost_ineligibility_reason as string)
+            || 'Motivo não informado pela Meta'
           return {
             success: false,
             ad_id: '',
-            motivo: humanizeBoostIneligibility(reason),
-            erro_meta: `boost_eligibility: ${reason}`,
+            motivo: reason,
+            erro_meta: reason,
             post_id: config.source_instagram_media_id as string,
             post_permalink: (postData.permalink as string) || '',
             post_caption: (postData.caption as string) || '',
@@ -1300,20 +1302,19 @@ async function executeMeta(
       for (const p of posts) {
         const boostInfo = p.boost_eligibility_info as Record<string, unknown> | undefined
         if (boostInfo && boostInfo.eligible_to_boost === false) {
-          // Meta pode retornar o motivo em campos diferentes — tentamos todos
-          const reason = (boostInfo.boost_ineligibility_reason as string)
+          // Campo correto da Meta: boost_ineligible_reason (texto legível, já em PT/EN)
+          const motivo = (boostInfo.boost_ineligible_reason as string)
+            || (boostInfo.boost_ineligibility_reason as string)
             || (boostInfo.ineligibility_reason as string)
-            || ((boostInfo.boost_ineligibility_reasons as string[])?.[0])
-            || 'UNKNOWN'
-          const rawBoostInfo = JSON.stringify(boostInfo)
-          console.log(`[filter_eligible_posts] boost_eligibility_info raw:`, rawBoostInfo)
+            || 'Motivo não informado pela Meta'
+          console.log(`[filter_eligible_posts] post ${p.id as string} inelegível:`, motivo)
           inelegiveis.push({
             id: p.id as string,
             permalink: (p.permalink as string) || '',
             caption: (p.caption as string) || '',
             media_type: (p.media_type as string) || '',
-            motivo: humanizeBoostIneligibility(reason),
-            erro_meta: reason !== 'UNKNOWN' ? reason : rawBoostInfo,
+            motivo,
+            erro_meta: motivo,
           })
         } else {
           elegíveis.push(p)
