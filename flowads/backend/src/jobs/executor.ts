@@ -662,8 +662,11 @@ function humanizeBoostIneligibility(reason: string): string {
 
 function humanizeMetaSkipReason(msg: string): string {
   const lower = msg.toLowerCase()
-  if (msg.includes('2061015') || msg.includes('2446383')) {
-    return 'Objetivo da campanha incompatível com boost de post existente — use uma campanha de Engajamento ou Reconhecimento'
+  if (msg.includes('2061015')) {
+    return 'Campanha de tráfego para site requer URL de destino — configure a "URL de destino" no node "Criar anúncio"'
+  }
+  if (msg.includes('2446383')) {
+    return 'Objetivo da campanha requer URL de site externo — incompatível com boost de post existente'
   }
   if (msg.includes('2875030') || lower.includes('músicas com direitos') || lower.includes('copyright') || lower.includes('music rights')) {
     return 'Reel com música protegida por direitos autorais — não pode ser anunciado'
