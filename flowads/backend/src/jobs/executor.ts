@@ -629,6 +629,7 @@ const SKIPPABLE_META_CODES = [
   '1815279', // Incompatibilidade técnica de vídeo no fluxo da Meta API
   '2061015', // Website URL obrigatório — objetivo da campanha incompatível com boost de post existente
   '2446383', // Objetivo da campanha requer URL de site externo — incompatível com boost de post existente
+  '1346001', // Validation error genérico da Meta — post não pode ser turbinado
 ]
 
 const SKIPPABLE_META_PATTERNS = [
@@ -1331,7 +1332,13 @@ async function executeMeta(
         `*${i + 1}. ${p.media_type}*\n🔗 ${p.permalink}\n📝 ${p.caption ? p.caption.slice(0, 80) + (p.caption.length > 80 ? '...' : '') : '(sem legenda)'}\n❌ ${p.motivo}\n🛠️ ${p.erro_meta}`
       ).join('\n\n')
 
+      // Quando em modo item individual, expõe os campos do post elegível no top-level
+      // para que create_ad encontre permalink, caption, media_type, boost_eligibility_info, etc.
+      const primeiroElegivel = elegíveis[0]
+      const elegívelSpread = (isSingleItem && primeiroElegivel) ? primeiroElegivel : {}
+
       return {
+        ...elegívelSpread,
         posts: elegíveis,
         total: elegíveis.length,
         posts_inelegiveis: inelegiveis,
