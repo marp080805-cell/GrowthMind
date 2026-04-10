@@ -863,45 +863,45 @@ export class MetaService {
 
     if (!destinationUrl) {
       try {
-        const adsetInfo = await metaGet<{ promoted_object?: { instagram_profile_id?: string; page_id?: string }; destination_type?: string; optimization_goal?: string }>(
-          `${META_API}/${params.adsetId}?fields=promoted_object,destination_type,optimization_goal&access_token=${this.token}`
+        const adsetInfo = await metaGet<{ promoted_object?: { instagram_profile_id?: string; page_id?: string }; destination_type?: string }>(
+          `${META_API}/${params.adsetId}?fields=promoted_object,destination_type&access_token=${this.token}`
         )
         const igProfileId = adsetInfo.promoted_object?.instagram_profile_id
         const destType = (adsetInfo.destination_type || '').toUpperCase()
-        const optGoal = (adsetInfo.optimization_goal || '').toUpperCase()
-        console.log(`[Meta] adset destType=${destType} optGoal=${optGoal} igProfileId=${igProfileId}`)
+        console.log(`[Meta] adset promoted_object:`, JSON.stringify(adsetInfo.promoted_object), 'destination_type:', adsetInfo.destination_type)
 
         if (igProfileId || destType === 'INSTAGRAM_PROFILE') {
-          // Campanha de perfil Instagram.
-          // Se optimization_goal for tráfego (LINK_CLICKS/LANDING_PAGE_VIEWS):
-          //   Meta exige VIEW_INSTAGRAM_PROFILE + URL do perfil no criativo.
-          // Se for seguidores/engajamento (PAGE_LIKES, FOLLOWERS, REACH, etc.):
-          //   Meta adiciona o botão "Seguir" automaticamente — sem CTA no criativo.
-          //   Adicionar CTA nesses casos causa erro 1346001.
-          const isTrafficGoal = optGoal === 'LINK_CLICKS' || optGoal === 'LANDING_PAGE_VIEWS'
-          if (isTrafficGoal) {
-            let igProfileUrl = ''
-            if (params.instagramAccountId) {
-              try {
-                const igInfo = await metaGet<{ username?: string }>(
-                  `${META_API}/${params.instagramAccountId}?fields=username&access_token=${this.token}`
-                )
-                if (igInfo.username) igProfileUrl = `https://www.instagram.com/${igInfo.username}/`
-              } catch { /* sem username, tenta fallback */ }
-            }
-            if (!igProfileUrl && igProfileId) igProfileUrl = `https://www.instagram.com/${igProfileId}/`
-            creativeBody.call_to_action = igProfileUrl
-              ? { type: 'VIEW_INSTAGRAM_PROFILE', value: { link: igProfileUrl } }
-              : { type: 'VIEW_INSTAGRAM_PROFILE' }
-            console.log(`[Meta] Traffic → VIEW_INSTAGRAM_PROFILE link=${igProfileUrl}`)
-          } else {
-            console.log(`[Meta] Seguidores/Engajamento (${optGoal}) → sem CTA, Meta adiciona botão Seguir`)
+          // Campanha de tráfego para perfil Instagram.
+          // Meta exige VIEW_INSTAGRAM_PROFILE + link do perfil no criativo.
+          // Sem CTA → erro 2061015; sem link → erro 2061015; com link errado → erro 3858615.
+          // Solução: buscar username do IG account e construir URL correta.
+          let igProfileUrl = ''
+          if (params.instagramAccountId) {
+            try {
+              const igInfo = await metaGet<{ username?: string }>(
+                `${META_API}/${params.instagramAccountId}?fields=username&access_token=${this.token}`
+              )
+              if (igInfo.username) {
+                igProfileUrl = `https://www.instagram.com/${igInfo.username}/`
+              }
+            } catch { /* fallback: usa igProfileId se disponível */ }
           }
+          if (!igProfileUrl && igProfileId) {
+            // igProfileId é um numeric FB ID — não é uma URL válida, mas tentamos como fallback
+            igProfileUrl = `https://www.instagram.com/${igProfileId}/`
+          }
+          creativeBody.call_to_action = igProfileUrl
+            ? { type: 'VIEW_INSTAGRAM_PROFILE', value: { link: igProfileUrl } }
+            : { type: 'VIEW_INSTAGRAM_PROFILE' }
           skipCTA = true
+          console.log(`[Meta] Instagram profile campaign → VIEW_INSTAGRAM_PROFILE link=${igProfileUrl}`)
         } else if (destType === 'FACEBOOK_PAGE') {
+          // Campanha de página Facebook — Meta herda o destino do adset
           skipCTA = true
           console.log(`[Meta] Facebook page campaign → sem CTA no criativo`)
         } else {
+          // Outros destinos (WEBSITE, etc.) — sem destination_url configurado,
+          // a Meta vai retornar erro 2061015. Deixar passar para mapear o erro corretamente.
           console.log(`[Meta] Campaign destType=${destType} sem destination_url → Meta vai exigir URL`)
         }
       } catch { /* não bloqueia criação */ }
