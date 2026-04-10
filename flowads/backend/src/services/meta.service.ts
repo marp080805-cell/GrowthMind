@@ -887,6 +887,7 @@ export class MetaService {
       }
     }
 
+    console.log(`[Meta] createAdFromInstagramPost payload:`, JSON.stringify({ ...creativeBody, access_token: '[REDACTED]' }, null, 2))
     const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
     const creativeId = creativeData.id as string
     const adData = await metaPost(`${this.accountUrl}/ads`, {
