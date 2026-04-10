@@ -1309,11 +1309,16 @@ async function executeMeta(
         console.log(`[filter_eligible_posts] ${inelegiveis.length} post(s) inelegível(is) para boost:`, inelegiveis)
       }
 
+      const resumo_inelegiveis = inelegiveis.map((p, i) =>
+        `*${i + 1}. ${p.media_type}*\n🔗 ${p.permalink}\n📝 ${p.caption ? p.caption.slice(0, 80) + (p.caption.length > 80 ? '...' : '') : '(sem legenda)'}\n❌ ${p.motivo}\n🛠️ ${p.erro_meta}`
+      ).join('\n\n')
+
       return {
         posts: elegíveis,
         total: elegíveis.length,
         posts_inelegiveis: inelegiveis,
         total_inelegiveis: inelegiveis.length,
+        resumo_inelegiveis,
         instagram_account_id: instagramAccountId,
       }
     }

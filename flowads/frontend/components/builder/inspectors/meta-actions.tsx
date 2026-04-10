@@ -503,14 +503,15 @@ export function FilterEligiblePostsInspector(_: InspectorFieldProps) {
         <p className="font-syne font-bold text-accent">Saída disponível</p>
         <p><code className="text-accent">{'{{posts}}'}</code> — array só com posts elegíveis para boost</p>
         <p><code className="text-accent">{'{{total}}'}</code> — quantidade de posts elegíveis</p>
-        <p><code className="text-accent">{'{{posts_inelegiveis}}'}</code> — array com os campos abaixo por post</p>
         <p><code className="text-accent">{'{{total_inelegiveis}}'}</code> — quantidade de posts inelegíveis</p>
-        <p className="mt-1 font-syne font-bold text-accent">Dentro do loop de inelegíveis (item.*):</p>
-        <p><code className="text-accent">{'{{item.permalink}}'}</code> — link do post no Instagram</p>
-        <p><code className="text-accent">{'{{item.caption}}'}</code> — legenda do post</p>
+        <p><code className="text-accent">{'{{resumo_inelegiveis}}'}</code> — texto pronto com todos os posts inelegíveis (use direto no WhatsApp, sem loop)</p>
+        <p><code className="text-accent">{'{{posts_inelegiveis}}'}</code> — array completo (use com Loop se quiser 1 mensagem por post)</p>
+        <p className="mt-1 font-syne font-bold text-accent">Dentro de um Loop sobre posts_inelegiveis:</p>
+        <p><code className="text-accent">{'{{item.permalink}}'}</code> — link do post</p>
+        <p><code className="text-accent">{'{{item.caption}}'}</code> — legenda</p>
         <p><code className="text-accent">{'{{item.media_type}}'}</code> — IMAGE / VIDEO / CAROUSEL_ALBUM</p>
-        <p><code className="text-accent">{'{{item.motivo}}'}</code> — motivo legível (ex: "Reel com collab ativo")</p>
-        <p><code className="text-accent">{'{{item.erro_meta}}'}</code> — código bruto retornado pela Meta</p>
+        <p><code className="text-accent">{'{{item.motivo}}'}</code> — motivo legível</p>
+        <p><code className="text-accent">{'{{item.erro_meta}}'}</code> — código bruto da Meta</p>
       </div>
     </>
   )
