@@ -1300,14 +1300,20 @@ async function executeMeta(
       for (const p of posts) {
         const boostInfo = p.boost_eligibility_info as Record<string, unknown> | undefined
         if (boostInfo && boostInfo.eligible_to_boost === false) {
-          const reason = (boostInfo.boost_ineligibility_reason as string) || 'UNKNOWN'
+          // Meta pode retornar o motivo em campos diferentes — tentamos todos
+          const reason = (boostInfo.boost_ineligibility_reason as string)
+            || (boostInfo.ineligibility_reason as string)
+            || ((boostInfo.boost_ineligibility_reasons as string[])?.[0])
+            || 'UNKNOWN'
+          const rawBoostInfo = JSON.stringify(boostInfo)
+          console.log(`[filter_eligible_posts] boost_eligibility_info raw:`, rawBoostInfo)
           inelegiveis.push({
             id: p.id as string,
             permalink: (p.permalink as string) || '',
             caption: (p.caption as string) || '',
             media_type: (p.media_type as string) || '',
             motivo: humanizeBoostIneligibility(reason),
-            erro_meta: reason,
+            erro_meta: reason !== 'UNKNOWN' ? reason : rawBoostInfo,
           })
         } else {
           elegíveis.push(p)
@@ -1315,7 +1321,7 @@ async function executeMeta(
       }
 
       if (inelegiveis.length) {
-        console.log(`[filter_eligible_posts] ${inelegiveis.length} post(s) inelegível(is) para boost:`, inelegiveis)
+        console.log(`[filter_eligible_posts] ${inelegiveis.length} post(s) inelegível(is):`, JSON.stringify(inelegiveis))
       }
 
       // Expõe campos do primeiro inelegível diretamente (útil quando item individual)
