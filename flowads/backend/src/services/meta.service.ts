@@ -871,11 +871,14 @@ export class MetaService {
         console.log(`[Meta] adset promoted_object:`, JSON.stringify(adsetInfo.promoted_object), 'destination_type:', adsetInfo.destination_type)
 
         if (igProfileId || destType === 'INSTAGRAM_PROFILE') {
-          // Campanha de tráfego para perfil Instagram — sem CTA no criativo
+          // Campanha de tráfego para perfil Instagram.
+          // Meta requer VIEW_INSTAGRAM_PROFILE no criativo mas SEM value.link
+          // (com link → erro 3858615; sem CTA → erro 2061015)
+          creativeBody.call_to_action = { type: 'VIEW_INSTAGRAM_PROFILE' }
           skipCTA = true
-          console.log(`[Meta] Instagram profile campaign → sem CTA no criativo`)
+          console.log(`[Meta] Instagram profile campaign → VIEW_INSTAGRAM_PROFILE sem link`)
         } else if (destType === 'FACEBOOK_PAGE') {
-          // Campanha de tráfego para página Facebook — sem CTA no criativo
+          // Campanha de página Facebook — Meta herda o destino do adset
           skipCTA = true
           console.log(`[Meta] Facebook page campaign → sem CTA no criativo`)
         } else {
