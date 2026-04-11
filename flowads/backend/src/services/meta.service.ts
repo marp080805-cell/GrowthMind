@@ -886,20 +886,12 @@ export class MetaService {
         console.log(`[Meta] adset destType=${destType}`)
 
         if (destType === 'INSTAGRAM_PROFILE' || adsetInfo.promoted_object?.instagram_profile_id) {
-          let profileUrl = igUsername ? `https://www.instagram.com/${igUsername}/` : ''
-          if (!profileUrl && resolvedIgUserId) {
-            try {
-              const igInfo = await metaGet<{ username?: string }>(
-                `${META_API}/${resolvedIgUserId}?fields=username&access_token=${this.token}`
-              )
-              if (igInfo.username) profileUrl = `https://www.instagram.com/${igInfo.username}/`
-            } catch { /* sem username */ }
-          }
-          if (profileUrl) {
-            creativeBody.call_to_action = { type: 'VIEW_INSTAGRAM_PROFILE', value: { link: profileUrl } }
-            ctaAdded = true
-            console.log(`[Meta] CTA VIEW_INSTAGRAM_PROFILE → ${profileUrl}`)
-          }
+          // VIEW_INSTAGRAM_PROFILE sem value.link — Meta deriva o perfil do instagram_user_id no criativo.
+          // Com value.link → erro de veiculação (rejeição automatizada).
+          // Sem instagram_user_id correto → 2061015. Agora o ID está confirmado correto.
+          creativeBody.call_to_action = { type: 'VIEW_INSTAGRAM_PROFILE' }
+          ctaAdded = true
+          console.log(`[Meta] CTA VIEW_INSTAGRAM_PROFILE sem link (perfil derivado do instagram_user_id)`)
         } else if (destType === 'FACEBOOK_PAGE') {
           ctaAdded = true
           console.log(`[Meta] FACEBOOK_PAGE → sem CTA`)
