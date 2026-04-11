@@ -886,12 +886,14 @@ export class MetaService {
         console.log(`[Meta] adset destType=${destType}`)
 
         if (destType === 'INSTAGRAM_PROFILE' || adsetInfo.promoted_object?.instagram_profile_id) {
-          // VIEW_INSTAGRAM_PROFILE sem value.link — Meta deriva o perfil do instagram_user_id no criativo.
-          // Com value.link → erro de veiculação (rejeição automatizada).
-          // Sem instagram_user_id correto → 2061015. Agora o ID está confirmado correto.
-          creativeBody.call_to_action = { type: 'VIEW_INSTAGRAM_PROFILE' }
+          // VIEW_INSTAGRAM_PROFILE com URL do perfil IG vinculado à página.
+          // Sem value.link → erro 2061015 na criação. Com value.link → ad criado, aguarda diagnóstico de delivery error.
+          const igProfileUrl = igUsername ? `https://www.instagram.com/${igUsername}/` : ''
+          creativeBody.call_to_action = igProfileUrl
+            ? { type: 'VIEW_INSTAGRAM_PROFILE', value: { link: igProfileUrl } }
+            : { type: 'VIEW_INSTAGRAM_PROFILE' }
           ctaAdded = true
-          console.log(`[Meta] CTA VIEW_INSTAGRAM_PROFILE sem link (perfil derivado do instagram_user_id)`)
+          console.log(`[Meta] CTA VIEW_INSTAGRAM_PROFILE link=${igProfileUrl || '(sem link)'}`)
         } else if (destType === 'FACEBOOK_PAGE') {
           ctaAdded = true
           console.log(`[Meta] FACEBOOK_PAGE → sem CTA`)
@@ -924,18 +926,22 @@ export class MetaService {
     })
     const adId = adData.id as string
 
-    // Verificar se o anúncio foi criado com erro de veiculação
-    try {
-      const adStatus = await metaGet<{
-        effective_status?: string
-        configured_status?: string
-        issues_info?: Array<{ error_code: number; error_message: string; error_summary: string }>
-      }>(`${META_API}/${adId}?fields=effective_status,configured_status,issues_info&access_token=${this.token}`)
-      console.log(`[Meta] Ad ${adId} effective_status=${adStatus.effective_status} configured_status=${adStatus.configured_status}`)
-      if (adStatus.issues_info?.length) {
-        console.log(`[Meta] Ad ${adId} issues_info:`, JSON.stringify(adStatus.issues_info))
-      }
-    } catch { /* não bloqueia retorno */ }
+    // Verificar status do anúncio após 8s (aguarda revisão automática da Meta)
+    setTimeout(async () => {
+      try {
+        const adStatus = await metaGet<{
+          effective_status?: string
+          configured_status?: string
+          issues_info?: Array<{ error_code: number; error_message: string; error_summary: string }>
+        }>(`${META_API}/${adId}?fields=effective_status,configured_status,issues_info&access_token=${this.token}`)
+        console.log(`[Meta] Ad ${adId} [8s] effective_status=${adStatus.effective_status} configured_status=${adStatus.configured_status}`)
+        if (adStatus.issues_info?.length) {
+          console.log(`[Meta] Ad ${adId} [8s] issues_info:`, JSON.stringify(adStatus.issues_info))
+        } else {
+          console.log(`[Meta] Ad ${adId} [8s] sem issues_info — anúncio OK`)
+        }
+      } catch { /* não bloqueia retorno */ }
+    }, 8000)
 
     return { ad_id: adId, creative_id: creativeId }
   }
