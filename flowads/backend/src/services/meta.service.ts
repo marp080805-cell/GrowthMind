@@ -917,31 +917,51 @@ export class MetaService {
       )
       console.log(`[Meta] Creative ${creativeId} stored:`, JSON.stringify(creativeDetails))
     } catch { /* diagnóstico não bloqueia */ }
+    const requestedStatus = (params.status || 'ACTIVE').toUpperCase()
+
+    // Sempre criar como PAUSED primeiro — evita revisão automática imediata da Meta
+    // enquanto a mídia do post IG ainda está sendo processada internamente.
+    // Se o status desejado for ACTIVE, ativamos em background após 3 minutos.
     const adData = await metaPost(`${this.accountUrl}/ads`, {
       adset_id: params.adsetId,
       name: params.adName,
       creative: { creative_id: creativeId },
-      status: params.status || 'ACTIVE',
+      status: 'PAUSED',
       access_token: this.token,
     })
     const adId = adData.id as string
+    console.log(`[Meta] Ad ${adId} criado como PAUSED (status desejado: ${requestedStatus})`)
 
-    // Verificar status do anúncio após 8s (aguarda revisão automática da Meta)
-    setTimeout(async () => {
-      try {
-        const adStatus = await metaGet<{
-          effective_status?: string
-          configured_status?: string
-          issues_info?: Array<{ error_code: number; error_message: string; error_summary: string }>
-        }>(`${META_API}/${adId}?fields=effective_status,configured_status,issues_info&access_token=${this.token}`)
-        console.log(`[Meta] Ad ${adId} [8s] effective_status=${adStatus.effective_status} configured_status=${adStatus.configured_status}`)
-        if (adStatus.issues_info?.length) {
-          console.log(`[Meta] Ad ${adId} [8s] issues_info:`, JSON.stringify(adStatus.issues_info))
-        } else {
-          console.log(`[Meta] Ad ${adId} [8s] sem issues_info — anúncio OK`)
+    if (requestedStatus === 'ACTIVE') {
+      // Aguarda 3 minutos para a mídia ser processada pela Meta antes de ativar
+      const ACTIVATION_DELAY_MS = 3 * 60 * 1000
+      console.log(`[Meta] Ad ${adId} será ativado em 3 minutos...`)
+      setTimeout(async () => {
+        try {
+          await metaPost(`${META_API}/${adId}`, { status: 'ACTIVE', access_token: this.token })
+          console.log(`[Meta] Ad ${adId} [3min] ativado com sucesso`)
+
+          // Verificar resultado após 15s da ativação
+          setTimeout(async () => {
+            try {
+              const adStatus = await metaGet<{
+                effective_status?: string
+                configured_status?: string
+                issues_info?: Array<{ error_code: number; error_message: string; error_summary: string }>
+              }>(`${META_API}/${adId}?fields=effective_status,configured_status,issues_info&access_token=${this.token}`)
+              console.log(`[Meta] Ad ${adId} [3min15s] effective_status=${adStatus.effective_status} configured_status=${adStatus.configured_status}`)
+              if (adStatus.issues_info?.length) {
+                console.log(`[Meta] Ad ${adId} [3min15s] issues_info:`, JSON.stringify(adStatus.issues_info))
+              } else {
+                console.log(`[Meta] Ad ${adId} [3min15s] sem issues_info — anúncio OK`)
+              }
+            } catch { /* diagnóstico não bloqueia */ }
+          }, 15000)
+        } catch (err) {
+          console.error(`[Meta] Ad ${adId} [3min] ERRO ao ativar:`, err)
         }
-      } catch { /* não bloqueia retorno */ }
-    }, 8000)
+      }, ACTIVATION_DELAY_MS)
+    }
 
     return { ad_id: adId, creative_id: creativeId }
   }
