@@ -878,53 +878,11 @@ export class MetaService {
     const destinationUrl = params.destinationUrl || ''
     let skipCTA = false
 
-    if (!destinationUrl) {
-      try {
-        const adsetInfo = await metaGet<{ promoted_object?: { instagram_profile_id?: string; page_id?: string }; destination_type?: string }>(
-          `${META_API}/${params.adsetId}?fields=promoted_object,destination_type&access_token=${this.token}`
-        )
-        const igProfileId = adsetInfo.promoted_object?.instagram_profile_id
-        const destType = (adsetInfo.destination_type || '').toUpperCase()
-        console.log(`[Meta] adset promoted_object:`, JSON.stringify(adsetInfo.promoted_object), 'destination_type:', adsetInfo.destination_type)
-
-        if (igProfileId || destType === 'INSTAGRAM_PROFILE') {
-          // Campanha de tráfego para perfil Instagram.
-          // Meta exige VIEW_INSTAGRAM_PROFILE + link do perfil no criativo.
-          // Sem CTA → erro 2061015; sem link → erro 2061015; com link errado → erro 3858615.
-          // Solução: buscar username do IG account e construir URL correta.
-          let igProfileUrl = ''
-          if (params.instagramAccountId) {
-            try {
-              const igInfo = await metaGet<{ username?: string }>(
-                `${META_API}/${params.instagramAccountId}?fields=username&access_token=${this.token}`
-              )
-              if (igInfo.username) {
-                igProfileUrl = `https://www.instagram.com/${igInfo.username}/`
-              }
-            } catch { /* fallback: usa igProfileId se disponível */ }
-          }
-          if (!igProfileUrl && igProfileId) {
-            // igProfileId é um numeric FB ID — não é uma URL válida, mas tentamos como fallback
-            igProfileUrl = `https://www.instagram.com/${igProfileId}/`
-          }
-          creativeBody.call_to_action = igProfileUrl
-            ? { type: 'VIEW_INSTAGRAM_PROFILE', value: { link: igProfileUrl } }
-            : { type: 'VIEW_INSTAGRAM_PROFILE' }
-          skipCTA = true
-          console.log(`[Meta] Instagram profile campaign → VIEW_INSTAGRAM_PROFILE link=${igProfileUrl}`)
-        } else if (destType === 'FACEBOOK_PAGE') {
-          // Campanha de página Facebook — Meta herda o destino do adset
-          skipCTA = true
-          console.log(`[Meta] Facebook page campaign → sem CTA no criativo`)
-        } else {
-          // Outros destinos (WEBSITE, etc.) — sem destination_url configurado,
-          // a Meta vai retornar erro 2061015. Deixar passar para mapear o erro corretamente.
-          console.log(`[Meta] Campaign destType=${destType} sem destination_url → Meta vai exigir URL`)
-        }
-      } catch { /* não bloqueia criação */ }
-    }
-
-    if (!skipCTA && destinationUrl) {
+    // Para campanhas de perfil Instagram (INSTAGRAM_PROFILE), NÃO adicionar CTA no criativo.
+    // Tentativas anteriores: VIEW_INSTAGRAM_PROFILE sem link → 2061015; com link → erro de veiculação.
+    // Testando sem CTA nenhum para ver se a Meta aceita o criativo puro (source_instagram_media_id only).
+    // Se der 2061015 novamente, o CTA é necessário e outro campo está causando o erro de veiculação.
+    if (destinationUrl) {
       const ctaType = destinationUrl.includes('instagram.com') ? 'VIEW_INSTAGRAM_PROFILE' : 'LEARN_MORE'
       creativeBody.call_to_action = {
         type: ctaType,
@@ -935,6 +893,14 @@ export class MetaService {
     console.log(`[Meta] createAdFromInstagramPost payload:`, JSON.stringify({ ...creativeBody, access_token: '[REDACTED]' }, null, 2))
     const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
     const creativeId = creativeData.id as string
+
+    // Ler creative após criação para diagnóstico — ver exatamente o que a Meta armazenou
+    try {
+      const creativeDetails = await metaGet<Record<string, unknown>>(
+        `${META_API}/${creativeId}?fields=name,source_instagram_media_id,instagram_user_id,object_type,call_to_action,effective_object_story_id&access_token=${this.token}`
+      )
+      console.log(`[Meta] Creative ${creativeId} stored:`, JSON.stringify(creativeDetails))
+    } catch { /* diagnóstico não bloqueia */ }
     const adData = await metaPost(`${this.accountUrl}/ads`, {
       adset_id: params.adsetId,
       name: params.adName,
