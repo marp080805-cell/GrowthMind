@@ -852,17 +852,20 @@ export class MetaService {
       access_token: this.token,
     }
 
-    // Buscar Shadow IG User ID correto via página — é o que o Ads Manager usa internamente
+    // Buscar o instagram_user_id correto via instagram_business_account da página.
+    // Mais confiável que /instagram_accounts. É o mesmo ID que o Ads Manager usa internamente.
     let resolvedIgUserId = params.instagramAccountId
+    let igUsername = ''
     if (params.pageId) {
       try {
-        const igAccts = await metaGet<{ data: Array<{ id: string }> }>(
-          `${META_API}/${params.pageId}/instagram_accounts?fields=id&access_token=${this.token}`
+        const pageInfo = await metaGet<{ instagram_business_account?: { id: string; username?: string } }>(
+          `${META_API}/${params.pageId}?fields=instagram_business_account{id,username}&access_token=${this.token}`
         )
-        const shadowId = igAccts.data?.[0]?.id
-        if (shadowId) {
-          console.log(`[Meta] Shadow IG User ID via page: ${shadowId} (client id: ${params.instagramAccountId})`)
-          resolvedIgUserId = shadowId
+        const igBizAcct = pageInfo.instagram_business_account
+        if (igBizAcct?.id) {
+          console.log(`[Meta] IG via page: ${igBizAcct.id}/${igBizAcct.username} (client: ${params.instagramAccountId})`)
+          resolvedIgUserId = igBizAcct.id
+          igUsername = igBizAcct.username || ''
         }
       } catch { /* usa instagramAccountId como fallback */ }
     }
@@ -870,24 +873,43 @@ export class MetaService {
       creativeBody.instagram_user_id = resolvedIgUserId
     }
 
-    // Resolver call_to_action:
-    // - Perfil Instagram / Página Facebook: Meta herda destino do adset automaticamente.
-    //   Adicionar CTA no criativo causa erro 3858615. Enviar sem CTA.
-    // - Tráfego para site: criativo PRECISA de CTA com URL. Usuário deve configurar destination_url.
-    // - destination_url configurado explicitamente: sempre usa, qualquer tipo de campanha.
+    // CTA: VIEW_INSTAGRAM_PROFILE + URL do perfil vinculado à página do adset.
     const destinationUrl = params.destinationUrl || ''
-    let skipCTA = false
+    let ctaAdded = false
 
-    // Para campanhas de perfil Instagram (INSTAGRAM_PROFILE), NÃO adicionar CTA no criativo.
-    // Tentativas anteriores: VIEW_INSTAGRAM_PROFILE sem link → 2061015; com link → erro de veiculação.
-    // Testando sem CTA nenhum para ver se a Meta aceita o criativo puro (source_instagram_media_id only).
-    // Se der 2061015 novamente, o CTA é necessário e outro campo está causando o erro de veiculação.
-    if (destinationUrl) {
+    if (!destinationUrl) {
+      try {
+        const adsetInfo = await metaGet<{ promoted_object?: { instagram_profile_id?: string }; destination_type?: string }>(
+          `${META_API}/${params.adsetId}?fields=promoted_object,destination_type&access_token=${this.token}`
+        )
+        const destType = (adsetInfo.destination_type || '').toUpperCase()
+        console.log(`[Meta] adset destType=${destType}`)
+
+        if (destType === 'INSTAGRAM_PROFILE' || adsetInfo.promoted_object?.instagram_profile_id) {
+          let profileUrl = igUsername ? `https://www.instagram.com/${igUsername}/` : ''
+          if (!profileUrl && resolvedIgUserId) {
+            try {
+              const igInfo = await metaGet<{ username?: string }>(
+                `${META_API}/${resolvedIgUserId}?fields=username&access_token=${this.token}`
+              )
+              if (igInfo.username) profileUrl = `https://www.instagram.com/${igInfo.username}/`
+            } catch { /* sem username */ }
+          }
+          if (profileUrl) {
+            creativeBody.call_to_action = { type: 'VIEW_INSTAGRAM_PROFILE', value: { link: profileUrl } }
+            ctaAdded = true
+            console.log(`[Meta] CTA VIEW_INSTAGRAM_PROFILE → ${profileUrl}`)
+          }
+        } else if (destType === 'FACEBOOK_PAGE') {
+          ctaAdded = true
+          console.log(`[Meta] FACEBOOK_PAGE → sem CTA`)
+        }
+      } catch { /* não bloqueia */ }
+    }
+
+    if (!ctaAdded && destinationUrl) {
       const ctaType = destinationUrl.includes('instagram.com') ? 'VIEW_INSTAGRAM_PROFILE' : 'LEARN_MORE'
-      creativeBody.call_to_action = {
-        type: ctaType,
-        value: { link: destinationUrl },
-      }
+      creativeBody.call_to_action = { type: ctaType, value: { link: destinationUrl } }
     }
 
     console.log(`[Meta] createAdFromInstagramPost payload:`, JSON.stringify({ ...creativeBody, access_token: '[REDACTED]' }, null, 2))
