@@ -1174,7 +1174,7 @@ async function executeMeta(
             pageId,
             adsetId,
             adName: (config.name as string) || `Post ${config.source_instagram_media_id}`,
-            status: (config.status as string) || 'PAUSED',
+            status: (config.status as string) || 'ACTIVE',
             destinationUrl: (config.destination_url as string) || undefined,
           })
           return {
