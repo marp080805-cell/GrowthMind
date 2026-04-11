@@ -844,13 +844,30 @@ export class MetaService {
     // IMPORTANTE: não usar object_id aqui — esse campo é para creatives de Page post (Facebook).
     // Com source_instagram_media_id, object_id conflita e causa erro 1815279.
     // O campo correto para identificar a conta Instagram é instagram_user_id.
+    // IMPORTANTE: usar o Shadow IG User ID obtido via /{page_id}/instagram_accounts,
+    // não o IG Business Account ID do cliente — são IDs diferentes e o errado causa erro de veiculação.
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
       access_token: this.token,
     }
-    if (params.instagramAccountId) {
-      creativeBody.instagram_user_id = params.instagramAccountId
+
+    // Buscar Shadow IG User ID correto via página — é o que o Ads Manager usa internamente
+    let resolvedIgUserId = params.instagramAccountId
+    if (params.pageId) {
+      try {
+        const igAccts = await metaGet<{ data: Array<{ id: string }> }>(
+          `${META_API}/${params.pageId}/instagram_accounts?fields=id&access_token=${this.token}`
+        )
+        const shadowId = igAccts.data?.[0]?.id
+        if (shadowId) {
+          console.log(`[Meta] Shadow IG User ID via page: ${shadowId} (client id: ${params.instagramAccountId})`)
+          resolvedIgUserId = shadowId
+        }
+      } catch { /* usa instagramAccountId como fallback */ }
+    }
+    if (resolvedIgUserId) {
+      creativeBody.instagram_user_id = resolvedIgUserId
     }
 
     // Resolver call_to_action:
