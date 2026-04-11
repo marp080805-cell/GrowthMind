@@ -925,7 +925,22 @@ export class MetaService {
       status: params.status || 'ACTIVE',
       access_token: this.token,
     })
-    return { ad_id: adData.id as string, creative_id: creativeId }
+    const adId = adData.id as string
+
+    // Verificar se o anúncio foi criado com erro de veiculação
+    try {
+      const adStatus = await metaGet<{
+        effective_status?: string
+        configured_status?: string
+        issues_info?: Array<{ error_code: number; error_message: string; error_summary: string }>
+      }>(`${META_API}/${adId}?fields=effective_status,configured_status,issues_info&access_token=${this.token}`)
+      console.log(`[Meta] Ad ${adId} effective_status=${adStatus.effective_status} configured_status=${adStatus.configured_status}`)
+      if (adStatus.issues_info?.length) {
+        console.log(`[Meta] Ad ${adId} issues_info:`, JSON.stringify(adStatus.issues_info))
+      }
+    } catch { /* não bloqueia retorno */ }
+
+    return { ad_id: adId, creative_id: creativeId }
   }
 
   // ─── Instagram Posts ─────────────────────────────────────────────────────
