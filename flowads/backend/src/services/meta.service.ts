@@ -849,6 +849,7 @@ export class MetaService {
     const creativeBody: Record<string, unknown> = {
       name: `Creative - ${params.adName}`,
       source_instagram_media_id: params.postId,
+      actor_id: params.pageId,
       access_token: this.token,
     }
 
