@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { clientsApi, pagesApi, settingsApi, type Client, type MetaAccount, type MetaInstagramAccount } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
 
 interface ClientFormProps {
   client?: Partial<Client>
@@ -25,6 +27,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [pages, setPages] = useState<{ id: string; name: string }[]>([])
   const [loadingAccounts, setLoadingAccounts] = useState(false)
   const [manualInstagram, setManualInstagram] = useState(false)
+  const [hasOwnToken, setHasOwnToken] = useState(!!client?.meta_token)
+  const [connectingBM, setConnectingBM] = useState(false)
+  const popupRef = useRef<Window | null>(null)
 
   const [form, setForm] = useState({
     name: client?.name || '',
@@ -39,23 +44,59 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const set = (key: string, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
-  // Load Meta accounts from global settings token
-  useEffect(() => {
+  const loadAccounts = (fromClientToken = hasOwnToken) => {
     setLoadingAccounts(true)
-    settingsApi.getMetaAccounts()
+    const promise = (client?.id && fromClientToken)
+      ? clientsApi.getMetaAccounts(client.id)
+      : settingsApi.getMetaAccounts()
+    promise
       .then(({ accounts, instagramAccounts: ig }) => {
         setMetaAccounts(accounts)
         setInstagramAccounts(ig || [])
-        // Se editando cliente com ID que não está na lista → modo manual
         if (client?.instagram_account_id && !(ig || []).some(a => a.id === client.instagram_account_id)) {
           setManualInstagram(true)
         }
       })
-      .catch(() => {
-        // Meta not connected at settings level — silently fail
-      })
+      .catch(() => {})
       .finally(() => setLoadingAccounts(false))
-  }, [])
+  }
+
+  // Load Meta accounts — usa token próprio do cliente se tiver, senão token global
+  useEffect(() => { loadAccounts() }, [])
+
+  const connectBM = () => {
+    if (!client?.id) return
+    setConnectingBM(true)
+    const oauthUrl = `${API_URL}/auth/meta/connect?type=client&client_id=${client.id}`
+    popupRef.current = window.open(oauthUrl, 'meta_bm_oauth', 'width=600,height=700,left=200,top=100')
+
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'meta_connected' && e.data?.client_id === client.id) {
+        window.removeEventListener('message', handleMessage)
+        setHasOwnToken(true)
+        setConnectingBM(false)
+        loadAccounts(true)
+        success('BM separada conectada com sucesso!')
+      } else if (e.data?.type === 'meta_error') {
+        window.removeEventListener('message', handleMessage)
+        setConnectingBM(false)
+        error(e.data.error || 'Erro ao conectar BM')
+      }
+    }
+    window.addEventListener('message', handleMessage)
+  }
+
+  const disconnectBM = async () => {
+    if (!client?.id) return
+    try {
+      await clientsApi.update(client.id, { meta_token: null } as never)
+      setHasOwnToken(false)
+      loadAccounts(false)
+      success('BM separada desconectada. Usando token global.')
+    } catch {
+      error('Erro ao desconectar BM')
+    }
+  }
 
   // Load Facebook Pages — via client if editing, via settings otherwise
   useEffect(() => {
@@ -124,6 +165,43 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
           className="rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 py-2.5 text-sm focus:outline-none focus:border-accent transition-colors resize-none placeholder:text-text3"
         />
       </div>
+
+      {/* BM separada — só exibe ao editar cliente existente */}
+      {client?.id && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-text2 font-syne">Business Manager</label>
+          {hasOwnToken ? (
+            <div className="flex items-center justify-between rounded-[12px] bg-surface border border-[var(--border)] px-3 h-10">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                <span className="text-sm text-text">BM própria conectada</span>
+              </div>
+              <button
+                type="button"
+                onClick={disconnectBM}
+                className="text-xs text-text3 hover:text-red-400 transition-colors"
+              >
+                Desconectar
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-[12px] bg-surface border border-[var(--border)] px-3 h-10">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-text3 inline-block" />
+                <span className="text-sm text-text3">Usando token global (Configurações)</span>
+              </div>
+              <button
+                type="button"
+                onClick={connectBM}
+                disabled={connectingBM}
+                className="text-xs text-accent hover:underline disabled:opacity-50 transition-colors"
+              >
+                {connectingBM ? 'Conectando...' : 'Conectar BM separada'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Conta de anúncios */}
       <div className="flex flex-col gap-1.5">

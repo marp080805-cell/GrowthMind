@@ -21,7 +21,8 @@ function MetaSuccessInner() {
 
     setStatus('success')
     if (window.opener) {
-      window.opener.postMessage({ type: 'meta_connected' }, '*')
+      const clientId = searchParams.get('client_id')
+      window.opener.postMessage({ type: 'meta_connected', client_id: clientId }, '*')
       setTimeout(() => window.close(), 1500)
     }
   }, [errorMsg])

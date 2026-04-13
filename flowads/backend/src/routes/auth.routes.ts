@@ -147,7 +147,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     if (clientId !== 'new') {
       const { error: clientErr } = await supabase.from('clients').update({ meta_token: finalToken }).eq('id', clientId)
       if (clientErr) console.error('[Meta OAuth Callback] client update error:', clientErr.message)
-      return reply.redirect(`${frontendUrl}/clients?meta_connected=${clientId}`)
+      return reply.redirect(`${successUrl}?client_id=${clientId}`)
     }
 
     return reply.redirect(`${frontendUrl}/clients?meta_token=${encodeURIComponent(finalToken)}`)
