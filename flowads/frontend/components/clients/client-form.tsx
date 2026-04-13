@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { clientsApi, pagesApi, settingsApi, type Client, type MetaAccount, type MetaInstagramAccount } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
+import { Copy, Link } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
 
@@ -29,6 +30,9 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
   const [manualInstagram, setManualInstagram] = useState(false)
   const [hasOwnToken, setHasOwnToken] = useState(!!client?.meta_token)
   const [connectingBM, setConnectingBM] = useState(false)
+  const [showManualToken, setShowManualToken] = useState(false)
+  const [manualToken, setManualToken] = useState('')
+  const [savingToken, setSavingToken] = useState(false)
   const popupRef = useRef<Window | null>(null)
 
   const [form, setForm] = useState({
@@ -84,6 +88,42 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
       }
     }
     window.addEventListener('message', handleMessage)
+  }
+
+  const copyBMLink = async () => {
+    if (!client?.id) return
+    try {
+      const res = await fetch(`${API_URL}/auth/meta/connect?type=client&client_id=${client.id}&format=url`)
+      const { url } = await res.json() as { url: string }
+      await navigator.clipboard.writeText(url)
+      success('Link copiado! Cole no navegador onde o Facebook está logado.')
+    } catch {
+      error('Erro ao gerar link')
+    }
+  }
+
+  const saveManualTokenBM = async () => {
+    if (!client?.id || !manualToken.trim()) { error('Cole o token antes de salvar'); return }
+    setSavingToken(true)
+    try {
+      const res = await fetch(`${API_URL}/auth/meta/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: manualToken.trim(), type: 'client', client_id: client.id }),
+        credentials: 'include',
+      })
+      const data = await res.json() as { ok?: boolean; message?: string }
+      if (!res.ok) throw new Error(data.message || 'Erro ao salvar token')
+      setManualToken('')
+      setShowManualToken(false)
+      setHasOwnToken(true)
+      loadAccounts(true)
+      success('Token salvo com sucesso!')
+    } catch (e: unknown) {
+      error(e instanceof Error ? e.message : 'Erro ao salvar token')
+    } finally {
+      setSavingToken(false)
+    }
   }
 
   const disconnectBM = async () => {
@@ -171,33 +211,70 @@ export function ClientForm({ client, onSuccess, onCancel }: ClientFormProps) {
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-text2 font-syne">Business Manager</label>
           {hasOwnToken ? (
-            <div className="flex items-center justify-between rounded-[12px] bg-surface border border-[var(--border)] px-3 h-10">
+            <div className="flex items-center justify-between rounded-[12px] bg-green-500/10 border border-green-500/20 px-3 h-10">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
                 <span className="text-sm text-text">BM própria conectada</span>
               </div>
-              <button
-                type="button"
-                onClick={disconnectBM}
-                className="text-xs text-text3 hover:text-red-400 transition-colors"
-              >
-                Desconectar
-              </button>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={connectBM} className="text-xs text-text3 hover:text-text2 underline transition-colors">
+                  Reconectar
+                </button>
+                <button type="button" onClick={disconnectBM} className="text-xs text-red-400 hover:text-red-300 underline transition-colors">
+                  Desconectar
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="flex items-center justify-between rounded-[12px] bg-surface border border-[var(--border)] px-3 h-10">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-text3 inline-block" />
-                <span className="text-sm text-text3">Usando token global (Configurações)</span>
-              </div>
+            <div className="space-y-2">
+              <p className="text-xs text-text3">Conecte uma BM separada para usar o token desta BM em vez do token global das Configurações.</p>
               <button
                 type="button"
                 onClick={connectBM}
                 disabled={connectingBM}
-                className="text-xs text-accent hover:underline disabled:opacity-50 transition-colors"
+                className="flex items-center justify-center gap-2.5 h-10 w-full rounded-[12px] text-white text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#1877F2' }}
               >
-                {connectingBM ? 'Conectando...' : 'Conectar BM separada'}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                {connectingBM ? 'Conectando...' : 'Conectar com Facebook'}
               </button>
+              <button
+                type="button"
+                onClick={copyBMLink}
+                className="flex items-center justify-center gap-2 h-9 w-full rounded-[12px] text-text3 text-xs font-medium border border-[var(--border)] hover:text-text2 hover:border-accent transition-colors"
+              >
+                <Copy size={13} />
+                Copiar link (para colar em outro navegador)
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowManualToken(v => !v)}
+                className="flex items-center justify-center gap-2 h-9 w-full rounded-[12px] text-text3 text-xs font-medium border border-[var(--border)] hover:text-text2 hover:border-accent transition-colors"
+              >
+                <Link size={13} />
+                Inserir token manualmente (System User / Graph API Explorer)
+              </button>
+              {showManualToken && (
+                <div className="space-y-2 p-3 rounded-[12px] bg-surface border border-[var(--border)]">
+                  <p className="text-xs text-text3">
+                    Gere o token em <span className="text-accent font-medium">developers.facebook.com/tools/explorer</span> ou use um System User da BM → cole abaixo.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={manualToken}
+                      onChange={(e) => setManualToken(e.target.value)}
+                      placeholder="Cole o token aqui..."
+                      className="flex-1 h-9 rounded-[12px] bg-surface border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent transition-colors"
+                    />
+                    <Button size="sm" type="button" onClick={saveManualTokenBM} loading={savingToken}>
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
