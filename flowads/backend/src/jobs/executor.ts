@@ -800,7 +800,8 @@ async function executeMeta(
         const ageDays = ad.created_time
           ? Math.floor((Date.now() - new Date(ad.created_time).getTime()) / 86_400_000)
           : null
-        return { ...ad, metricas, age_days: ageDays }
+        const permalink = (ad.creative as { id: string; effective_instagram_permalink_url?: string } | undefined)?.effective_instagram_permalink_url || ''
+        return { ...ad, metricas, age_days: ageDays, permalink }
       }))
 
       // Attach total active count to each ad so evaluate_campaign can check min_actives
@@ -972,6 +973,7 @@ async function executeMeta(
           skip_evaluation: skipEvaluation,
           id: ad.id,
           nome: ad.name,
+          permalink: (ad as Record<string, unknown>).permalink as string || '',
           metricas,
         }
       }
