@@ -859,7 +859,6 @@ export class MetaService {
     }
 
     // Buscar o instagram_user_id correto via instagram_business_account da página.
-    // Mais confiável que /instagram_accounts. É o mesmo ID que o Ads Manager usa internamente.
     let resolvedIgUserId = params.instagramAccountId
     let igUsername = ''
     if (params.pageId) {
@@ -869,39 +868,69 @@ export class MetaService {
         )
         const igBizAcct = pageInfo.instagram_business_account
         if (igBizAcct?.id) {
-          console.log(`[Meta] IG via page: ${igBizAcct.id}/${igBizAcct.username} (client: ${params.instagramAccountId})`)
           resolvedIgUserId = igBizAcct.id
           igUsername = igBizAcct.username || ''
+          console.log(`[Meta] IG via page: ${igBizAcct.id}/${igUsername}`)
         }
-      } catch { /* usa instagramAccountId como fallback */ }
+      } catch { /* fallback para instagramAccountId */ }
     }
+
+    // Fallback: busca username diretamente na conta IG se ainda não temos
+    if (!igUsername && resolvedIgUserId) {
+      try {
+        const igInfo = await this._get<{ username?: string }>(
+          `${META_API}/${resolvedIgUserId}?fields=username&access_token=${this.token}`
+        )
+        igUsername = igInfo.username || ''
+        console.log(`[Meta] IG username via direct lookup: ${igUsername}`)
+      } catch { /* sem username */ }
+    }
+
     if (resolvedIgUserId) {
       creativeBody.instagram_user_id = resolvedIgUserId
     }
 
-    // CTA: VIEW_INSTAGRAM_PROFILE + URL do perfil vinculado à página do adset.
     const destinationUrl = params.destinationUrl || ''
     let ctaAdded = false
 
     if (!destinationUrl) {
       try {
-        const adsetInfo = await this._get<{ promoted_object?: { instagram_profile_id?: string }; destination_type?: string }>(
-          `${META_API}/${params.adsetId}?fields=promoted_object,destination_type&access_token=${this.token}`
-        )
-        const destType = (adsetInfo.destination_type || '').toUpperCase()
-        console.log(`[Meta] adset destType=${destType}`)
+        const adsetInfo = await this._get<{
+          promoted_object?: { instagram_profile_id?: string }
+          destination_type?: string
+          optimization_goal?: string
+        }>(`${META_API}/${params.adsetId}?fields=promoted_object,destination_type,optimization_goal&access_token=${this.token}`)
 
-        if (destType === 'INSTAGRAM_PROFILE' || adsetInfo.promoted_object?.instagram_profile_id) {
-          // Para campanhas de visita ao perfil do Instagram, o CTA é herdado
-          // automaticamente do adset — NÃO enviar call_to_action no creative.
-          // Enviar CTA aqui causa erro da Meta (conflito com destination_type do adset).
+
+        const destType = (adsetInfo.destination_type || '').toUpperCase()
+        const optGoal = (adsetInfo.optimization_goal || '').toUpperCase()
+        const hasIgProfilePromo = !!adsetInfo.promoted_object?.instagram_profile_id
+        console.log(`[Meta] adset destType=${destType} optGoal=${optGoal} hasIgPromo=${hasIgProfilePromo}`)
+
+        const isIgProfileCampaign =
+          destType === 'INSTAGRAM_PROFILE' ||
+          optGoal === 'VISIT_INSTAGRAM_PROFILE' ||
+          hasIgProfilePromo
+
+        if (isIgProfileCampaign) {
+          // VIEW_INSTAGRAM_PROFILE requer URL do perfil — sem URL a Meta retorna erro 2446383.
+          const igProfileUrl = igUsername
+            ? `https://www.instagram.com/${igUsername}/`
+            : (hasIgProfilePromo ? `https://www.instagram.com/` : '')
+          if (igProfileUrl) {
+            creativeBody.call_to_action = { type: 'VIEW_INSTAGRAM_PROFILE', value: { link: igProfileUrl } }
+            console.log(`[Meta] CTA VIEW_INSTAGRAM_PROFILE → ${igProfileUrl}`)
+          } else {
+            console.log(`[Meta] INSTAGRAM_PROFILE detectado mas sem username — sem CTA`)
+          }
           ctaAdded = true
-          console.log(`[Meta] INSTAGRAM_PROFILE → sem CTA no creative (herdado do adset)`)
         } else if (destType === 'FACEBOOK_PAGE') {
           ctaAdded = true
           console.log(`[Meta] FACEBOOK_PAGE → sem CTA`)
         }
-      } catch { /* não bloqueia */ }
+      } catch (e) {
+        console.log(`[Meta] falha ao consultar adset para CTA:`, e)
+      }
     }
 
     if (!ctaAdded && destinationUrl) {
