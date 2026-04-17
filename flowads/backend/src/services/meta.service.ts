@@ -1,3 +1,5 @@
+import { metaRateLimiter } from './meta-rate-limiter'
+
 const META_API = 'https://graph.facebook.com/v21.0'
 
 export interface MetaAccount {
@@ -117,24 +119,7 @@ const META_MAX_RETRIES = 5
 
 function metaSleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)) }
 
-// Monitora uso do BUC e avisa quando próximo do limite
-function checkRateLimitHeaders(res: Response) {
-  try {
-    const bucHeader = res.headers.get('X-Business-Use-Case-Usage')
-    if (bucHeader) {
-      const parsed = JSON.parse(bucHeader) as Record<string, Array<{ call_count: number; type: string; estimated_time_to_regain_access?: number }>>
-      for (const entries of Object.values(parsed)) {
-        for (const entry of entries) {
-          if (entry.call_count > 80) {
-            console.warn(`[Meta] Rate limit warning: ${entry.type} em ${entry.call_count}% — desacelerando`)
-          }
-        }
-      }
-    }
-  } catch { /* ignora header malformado */ }
-}
-
-async function metaPost(url: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function metaPost(url: string, body: Record<string, unknown>, adAccountId?: string): Promise<Record<string, unknown>> {
   // Meta Graph API is form-encoded by design; complex fields are JSON strings
   const formData = new URLSearchParams()
   for (const [key, value] of Object.entries(body)) {
@@ -147,6 +132,9 @@ async function metaPost(url: string, body: Record<string, unknown>): Promise<Rec
   }
 
   for (let attempt = 0; attempt <= META_MAX_RETRIES; attempt++) {
+    // Throttle proativo: aguarda token antes de cada tentativa
+    if (adAccountId) await metaRateLimiter.acquire(adAccountId)
+
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -154,7 +142,8 @@ async function metaPost(url: string, body: Record<string, unknown>): Promise<Rec
     })
     const data = await res.json() as Record<string, unknown> & { error?: { message?: string; code?: number; error_subcode?: number; error_user_msg?: string; error_user_title?: string; error_data?: { estimated_time_to_regain_access?: number } } }
 
-    checkRateLimitHeaders(res)
+    // Atualiza taxa conforme uso real do BUC reportado pela Meta
+    if (adAccountId) metaRateLimiter.updateFromResponse(adAccountId, res)
 
     if (!res.ok || data.error) {
       const e = data.error
@@ -182,12 +171,16 @@ async function metaPost(url: string, body: Record<string, unknown>): Promise<Rec
   throw new Error('Meta API: número máximo de tentativas excedido')
 }
 
-async function metaGet<T>(url: string): Promise<T> {
+async function metaGet<T>(url: string, adAccountId?: string): Promise<T> {
   for (let attempt = 0; attempt <= META_MAX_RETRIES; attempt++) {
+    // Throttle proativo: aguarda token antes de cada tentativa
+    if (adAccountId) await metaRateLimiter.acquire(adAccountId)
+
     const res = await fetch(url)
     const data = await res.json() as T & { error?: { message?: string; code?: number; error_data?: { estimated_time_to_regain_access?: number } } }
 
-    checkRateLimitHeaders(res)
+    // Atualiza taxa conforme uso real do BUC reportado pela Meta
+    if (adAccountId) metaRateLimiter.updateFromResponse(adAccountId, res)
 
     const errorCode = (data as { error?: { code?: number } }).error?.code ?? 0
     if (!res.ok || (data as Record<string, unknown>).error) {
@@ -215,11 +208,11 @@ interface MetaPagedResponse<T> {
 }
 
 // Busca todas as páginas de paginação automática do Meta
-async function metaGetAll<T>(url: string): Promise<T[]> {
+async function metaGetAll<T>(url: string, adAccountId?: string): Promise<T[]> {
   const results: T[] = []
   let nextUrl: string | null = url
   while (nextUrl) {
-    const page: MetaPagedResponse<T> = await metaGet<MetaPagedResponse<T>>(nextUrl)
+    const page: MetaPagedResponse<T> = await metaGet<MetaPagedResponse<T>>(nextUrl, adAccountId)
     for (const item of page.data || []) results.push(item)
     nextUrl = page.paging?.next || null
   }
@@ -230,6 +223,17 @@ export class MetaService {
   constructor(private token: string, private adAccountId: string) {
     // Normalize: strip leading 'act_' to avoid act_act_ duplication
     this.adAccountId = adAccountId.replace(/^act_/, '')
+  }
+
+  // Wrappers com rate limiting automático por conta de anúncios
+  private _post(url: string, body: Record<string, unknown>) {
+    return metaPost(url, body, this.adAccountId)
+  }
+  private _get<T>(url: string) {
+    return metaGet<T>(url, this.adAccountId)
+  }
+  private _getAll<T>(url: string) {
+    return metaGetAll<T>(url, this.adAccountId)
   }
 
   private get accountUrl() {
@@ -244,7 +248,7 @@ export class MetaService {
   // ─── Validation ──────────────────────────────────────────────────────────
 
   async validateToken(): Promise<{ valid: boolean; accounts: MetaAccount[] }> {
-    const accounts = await metaGetAll<MetaAccount>(
+    const accounts = await this._getAll<MetaAccount>(
       `${META_API}/me/adaccounts?fields=id,name,currency&limit=200&access_token=${this.token}`
     )
     return { valid: true, accounts }
@@ -258,7 +262,7 @@ export class MetaService {
       access_token: this.token,
     })
     if (status) params.set('filtering', JSON.stringify([{ field: 'campaign.delivery_status', operator: 'IN', value: [status] }]))
-    const data = await metaGet<{ data?: MetaCampaign[] }>(`${this.accountUrl}/campaigns?${params}`)
+    const data = await this._get<{ data?: MetaCampaign[] }>(`${this.accountUrl}/campaigns?${params}`)
     return data.data || []
   }
 
@@ -283,7 +287,7 @@ export class MetaService {
     if (params.lifetime_budget) body.lifetime_budget = Math.round(params.lifetime_budget * 100)
     if (params.start_time) body.start_time = params.start_time
     if (params.stop_time) body.stop_time = params.stop_time
-    const data = await metaPost(`${this.accountUrl}/campaigns`, body)
+    const data = await this._post(`${this.accountUrl}/campaigns`, body)
     return { id: data.id as string, name: params.name }
   }
 
@@ -300,13 +304,13 @@ export class MetaService {
     if (params.daily_budget) body.daily_budget = Math.round(params.daily_budget * 100)
     if (params.lifetime_budget) body.lifetime_budget = Math.round(params.lifetime_budget * 100)
     if (params.stop_time) body.stop_time = params.stop_time
-    await metaPost(`${META_API}/${campaignId}`, body)
+    await this._post(`${META_API}/${campaignId}`, body)
   }
 
   async duplicateCampaign(campaignId: string, newName?: string): Promise<{ id: string }> {
     const body: Record<string, unknown> = { access_token: this.token }
     if (newName) body.rename_options = { rename_strategy: 'CUSTOM_RENAME', rename_prefix: newName }
-    const data = await metaPost(`${META_API}/${campaignId}/copies`, body)
+    const data = await this._post(`${META_API}/${campaignId}/copies`, body)
     const copies = (data.copies as { id: string }[] | undefined)
     return { id: copies?.[0]?.id || data.id as string }
   }
@@ -321,7 +325,7 @@ export class MetaService {
       fields: 'id,name,status,campaign_id,daily_budget,lifetime_budget,targeting,optimization_goal,billing_event,bid_amount,start_time,end_time',
       access_token: this.token,
     })
-    const data = await metaGet<{ data?: MetaAdSet[] }>(`${url}?${params}`)
+    const data = await this._get<{ data?: MetaAdSet[] }>(`${url}?${params}`)
     return data.data || []
   }
 
@@ -352,7 +356,7 @@ export class MetaService {
     if (params.bid_amount) body.bid_amount = Math.round(params.bid_amount * 100)
     if (params.start_time) body.start_time = params.start_time
     if (params.end_time) body.end_time = params.end_time
-    const data = await metaPost(`${this.accountUrl}/adsets`, body)
+    const data = await this._post(`${this.accountUrl}/adsets`, body)
     return { id: data.id as string, name: params.name }
   }
 
@@ -369,7 +373,7 @@ export class MetaService {
     if (params.daily_budget) body.daily_budget = Math.round(params.daily_budget * 100)
     if (params.targeting) body.targeting = params.targeting
     if (params.end_time) body.end_time = params.end_time
-    await metaPost(`${META_API}/${adSetId}`, body)
+    await this._post(`${META_API}/${adSetId}`, body)
   }
 
   // ─── Ads ─────────────────────────────────────────────────────────────────
@@ -386,7 +390,7 @@ export class MetaService {
     if (statusFilter && statusFilter !== 'ALL') {
       params.set('filtering', JSON.stringify([{ field: 'effective_status', operator: 'IN', value: [statusFilter] }]))
     }
-    const data = await metaGet<{ data?: MetaAd[] }>(`${url}?${params}`)
+    const data = await this._get<{ data?: MetaAd[] }>(`${url}?${params}`)
     return data.data || []
   }
 
@@ -448,14 +452,14 @@ export class MetaService {
       }
       let creativeData: Record<string, unknown>
       try {
-        creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
+        creativeData = await this._post(`${this.accountUrl}/adcreatives`, creativeBody)
       } catch (err) {
         const errMsg = (err as Error).message
         // Se o erro for sobre instagram_user_id inválido, tenta sem ele
         if (params.instagram_user_id && (errMsg.includes('instagram_user_id') || errMsg.includes('instagram_actor_id'))) {
           console.warn(`[Meta] instagram_user_id ${params.instagram_user_id} rejeitado, tentando sem ele`)
           delete objectStorySpec.instagram_user_id
-          creativeData = await metaPost(`${this.accountUrl}/adcreatives`, { ...creativeBody, object_story_spec: objectStorySpec })
+          creativeData = await this._post(`${this.accountUrl}/adcreatives`, { ...creativeBody, object_story_spec: objectStorySpec })
         } else {
           const body = JSON.stringify({ page_id: params.page_id, video_id: params.video_id, image_hash: params.image_hash, thumbnail_hash: params.thumbnail_hash, account: this.adAccountId, object_story_spec: objectStorySpec })
           throw new Error(`${errMsg} | DEBUG: ${body}`)
@@ -471,7 +475,7 @@ export class MetaService {
       status: params.status || 'PAUSED',
       access_token: this.token,
     }
-    const data = await metaPost(`${this.accountUrl}/ads`, adBody)
+    const data = await this._post(`${this.accountUrl}/ads`, adBody)
     return { id: data.id as string, name: params.name }
   }
 
@@ -484,17 +488,17 @@ export class MetaService {
     if (params.name) body.name = params.name
     if (params.status) body.status = params.status
     if (params.creative_id) body.creative = { creative_id: params.creative_id }
-    await metaPost(`${META_API}/${adId}`, body)
+    await this._post(`${META_API}/${adId}`, body)
   }
 
   // ─── Status & Budget ─────────────────────────────────────────────────────
 
   async pauseObject(objectId: string): Promise<void> {
-    await metaPost(`${META_API}/${objectId}`, { status: 'PAUSED', access_token: this.token })
+    await this._post(`${META_API}/${objectId}`, { status: 'PAUSED', access_token: this.token })
   }
 
   async activateObject(objectId: string): Promise<void> {
-    await metaPost(`${META_API}/${objectId}`, { status: 'ACTIVE', access_token: this.token })
+    await this._post(`${META_API}/${objectId}`, { status: 'ACTIVE', access_token: this.token })
   }
 
   async deleteObject(objectId: string): Promise<void> {
@@ -509,7 +513,7 @@ export class MetaService {
     const body: Record<string, unknown> = { access_token: this.token }
     if (params.daily_budget !== undefined) body.daily_budget = Math.round(params.daily_budget * 100)
     if (params.lifetime_budget !== undefined) body.lifetime_budget = Math.round(params.lifetime_budget * 100)
-    await metaPost(`${META_API}/${objectId}`, body)
+    await this._post(`${META_API}/${objectId}`, body)
   }
 
   // ─── Metrics ─────────────────────────────────────────────────────────────
@@ -548,7 +552,7 @@ export class MetaService {
     type ActionEntry = { action_type: string; value: string }
     type InsightRow = Record<string, string | ActionEntry[] | undefined>
 
-    const data = await metaGet<{ data?: InsightRow[] }>(`${target}?${params}`)
+    const data = await this._get<{ data?: InsightRow[] }>(`${target}?${params}`)
     const row: InsightRow = data.data?.[0] || {}
 
     const findAction = (field: ActionEntry[] | undefined, type: string): number =>
@@ -635,8 +639,8 @@ export class MetaService {
 
     // Fetch insights + ad metadata (created_time, status) in parallel
     const [insightsData, adsData] = await Promise.all([
-      metaGet<{ data?: InsightRow[] }>(`${META_API}/${adsetId}/insights?${params}`),
-      metaGet<{ data?: { id: string; created_time: string; status: string }[] }>(
+      this._get<{ data?: InsightRow[] }>(`${META_API}/${adsetId}/insights?${params}`),
+      this._get<{ data?: { id: string; created_time: string; status: string }[] }>(
         `${META_API}/${adsetId}/ads?fields=id,created_time,status&limit=500&access_token=${this.token}`
       ),
     ])
@@ -734,7 +738,7 @@ export class MetaService {
       date_preset: 'last_30d',
       access_token: this.token,
     })
-    const data = await metaGet<{ data?: Record<string, unknown>[] }>(`${target}?${params}`)
+    const data = await this._get<{ data?: Record<string, unknown>[] }>(`${target}?${params}`)
     return data.data || []
   }
 
@@ -776,7 +780,7 @@ export class MetaService {
       status: 'ACTIVE',
       access_token: this.token,
     }
-    const adData = await metaPost(`${this.accountUrl}/ads`, adBody)
+    const adData = await this._post(`${this.accountUrl}/ads`, adBody)
 
     return { campaign_id: campaign.id, adset_id: adSet.id, ad_id: adData.id as string }
   }
@@ -802,7 +806,7 @@ export class MetaService {
         limit: '500',
         access_token: this.token,
       })
-      const ads = await metaGetAll<{ creative?: { source_instagram_media_id?: string; effective_instagram_media_id?: string } }>(
+      const ads = await this._getAll<{ creative?: { source_instagram_media_id?: string; effective_instagram_media_id?: string } }>(
         `${this.accountUrl}/ads?${params}`
       )
       const ids = new Set<string>()
@@ -860,7 +864,7 @@ export class MetaService {
     let igUsername = ''
     if (params.pageId) {
       try {
-        const pageInfo = await metaGet<{ instagram_business_account?: { id: string; username?: string } }>(
+        const pageInfo = await this._get<{ instagram_business_account?: { id: string; username?: string } }>(
           `${META_API}/${params.pageId}?fields=instagram_business_account{id,username}&access_token=${this.token}`
         )
         const igBizAcct = pageInfo.instagram_business_account
@@ -881,7 +885,7 @@ export class MetaService {
 
     if (!destinationUrl) {
       try {
-        const adsetInfo = await metaGet<{ promoted_object?: { instagram_profile_id?: string }; destination_type?: string }>(
+        const adsetInfo = await this._get<{ promoted_object?: { instagram_profile_id?: string }; destination_type?: string }>(
           `${META_API}/${params.adsetId}?fields=promoted_object,destination_type&access_token=${this.token}`
         )
         const destType = (adsetInfo.destination_type || '').toUpperCase()
@@ -909,12 +913,12 @@ export class MetaService {
     }
 
     console.log(`[Meta] createAdFromInstagramPost payload:`, JSON.stringify({ ...creativeBody, access_token: '[REDACTED]' }, null, 2))
-    const creativeData = await metaPost(`${this.accountUrl}/adcreatives`, creativeBody)
+    const creativeData = await this._post(`${this.accountUrl}/adcreatives`, creativeBody)
     const creativeId = creativeData.id as string
 
     // Ler creative após criação para diagnóstico — ver exatamente o que a Meta armazenou
     try {
-      const creativeDetails = await metaGet<Record<string, unknown>>(
+      const creativeDetails = await this._get<Record<string, unknown>>(
         `${META_API}/${creativeId}?fields=name,source_instagram_media_id,instagram_user_id,object_type,call_to_action,effective_object_story_id&access_token=${this.token}`
       )
       console.log(`[Meta] Creative ${creativeId} stored:`, JSON.stringify(creativeDetails))
@@ -924,7 +928,7 @@ export class MetaService {
     // Sempre criar como PAUSED primeiro — evita revisão automática imediata da Meta
     // enquanto a mídia do post IG ainda está sendo processada internamente.
     // Se o status desejado for ACTIVE, ativamos em background após 3 minutos.
-    const adData = await metaPost(`${this.accountUrl}/ads`, {
+    const adData = await this._post(`${this.accountUrl}/ads`, {
       adset_id: params.adsetId,
       name: params.adName,
       creative: { creative_id: creativeId },
@@ -940,13 +944,13 @@ export class MetaService {
       console.log(`[Meta] Ad ${adId} será ativado em 3 minutos...`)
       setTimeout(async () => {
         try {
-          await metaPost(`${META_API}/${adId}`, { status: 'ACTIVE', access_token: this.token })
+          await this._post(`${META_API}/${adId}`, { status: 'ACTIVE', access_token: this.token })
           console.log(`[Meta] Ad ${adId} [3min] ativado com sucesso`)
 
           // Verificar resultado após 15s da ativação
           setTimeout(async () => {
             try {
-              const adStatus = await metaGet<{
+              const adStatus = await this._get<{
                 effective_status?: string
                 configured_status?: string
                 issues_info?: Array<{ error_code: number; error_message: string; error_summary: string }>
@@ -1014,7 +1018,7 @@ export class MetaService {
     const maxFetch = hasDateFilter ? 500 : Math.min(limit * 3, 200)
 
     while (nextUrl && posts.length < maxFetch) {
-      const page: { data?: MetaInstagramPost[]; paging?: { next?: string } } = await metaGet<{ data?: MetaInstagramPost[]; paging?: { next?: string } }>(nextUrl)
+      const page: { data?: MetaInstagramPost[]; paging?: { next?: string } } = await this._get<{ data?: MetaInstagramPost[]; paging?: { next?: string } }>(nextUrl)
       const batch = page.data || []
 
       for (const p of batch) {
@@ -1056,7 +1060,7 @@ export class MetaService {
   }
 
   async getFacebookPages(): Promise<{ id: string; name: string }[]> {
-    const data = await metaGet<{ data?: { id: string; name: string }[] }>(
+    const data = await this._get<{ data?: { id: string; name: string }[] }>(
       `${META_API}/me/accounts?fields=id,name&limit=200&access_token=${this.token}`
     )
     return data.data || []
@@ -1072,7 +1076,7 @@ export class MetaService {
 
     // Tentativa 1: via Páginas do Facebook linkadas ao token
     try {
-      const pages = await metaGetAll<{ instagram_business_account?: MetaInstagramAccount }>(
+      const pages = await this._getAll<{ instagram_business_account?: MetaInstagramAccount }>(
         `${META_API}/me/accounts?fields=id,name,instagram_business_account{id,name,username}&limit=200&access_token=${this.token}`
       )
       for (const page of pages) {
@@ -1082,23 +1086,23 @@ export class MetaService {
 
     // Tentativa 2: via Business Managers (requer business_management)
     try {
-      const bms = await metaGetAll<{ id: string }>(
+      const bms = await this._getAll<{ id: string }>(
         `${META_API}/me/businesses?fields=id&limit=200&access_token=${this.token}`
       )
 
       const fetchIgFromBusiness = async (bizId: string) => {
         await Promise.allSettled([
-          metaGetAll<MetaInstagramAccount>(
+          this._getAll<MetaInstagramAccount>(
             `${META_API}/${bizId}/owned_instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
           ).then(list => list.forEach(add)),
-          metaGetAll<MetaInstagramAccount>(
+          this._getAll<MetaInstagramAccount>(
             `${META_API}/${bizId}/instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
           ).then(list => list.forEach(add)),
           // Páginas do negócio com Instagram vinculado
-          metaGetAll<{ instagram_business_account?: MetaInstagramAccount }>(
+          this._getAll<{ instagram_business_account?: MetaInstagramAccount }>(
             `${META_API}/${bizId}/owned_pages?fields=id,instagram_business_account{id,name,username}&limit=200&access_token=${this.token}`
           ).then(pages => pages.forEach(p => p.instagram_business_account && add(p.instagram_business_account))),
-          metaGetAll<{ instagram_business_account?: MetaInstagramAccount }>(
+          this._getAll<{ instagram_business_account?: MetaInstagramAccount }>(
             `${META_API}/${bizId}/client_pages?fields=id,instagram_business_account{id,name,username}&limit=200&access_token=${this.token}`
           ).then(pages => pages.forEach(p => p.instagram_business_account && add(p.instagram_business_account))),
         ])
@@ -1110,7 +1114,7 @@ export class MetaService {
 
         // Busca nos sub-negócios (owned_businesses) do BM — ex: "Toca do Caboclo" dentro do BM principal
         try {
-          const subBizList = await metaGetAll<{ id: string }>(
+          const subBizList = await this._getAll<{ id: string }>(
             `${META_API}/${bm.id}/owned_businesses?fields=id&limit=200&access_token=${this.token}`
           )
           await Promise.allSettled(subBizList.map(sub => fetchIgFromBusiness(sub.id)))
@@ -1118,7 +1122,7 @@ export class MetaService {
 
         // Busca nos negócios clientes do BM
         try {
-          const clientBizList = await metaGetAll<{ id: string }>(
+          const clientBizList = await this._getAll<{ id: string }>(
             `${META_API}/${bm.id}/client_businesses?fields=id&limit=200&access_token=${this.token}`
           )
           await Promise.allSettled(clientBizList.map(sub => fetchIgFromBusiness(sub.id)))
@@ -1134,7 +1138,7 @@ export class MetaService {
         await Promise.allSettled(
           chunk.map(rawId => {
             const actId = rawId.startsWith('act_') ? rawId : `act_${rawId}`
-            return metaGetAll<MetaInstagramAccount>(
+            return this._getAll<MetaInstagramAccount>(
               `${META_API}/${actId}/instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
             ).then(list => list.forEach(add))
           })
@@ -1144,7 +1148,7 @@ export class MetaService {
 
     // Tentativa 4: endpoint direto do usuário
     try {
-      const direct = await metaGetAll<MetaInstagramAccount>(
+      const direct = await this._getAll<MetaInstagramAccount>(
         `${META_API}/me/instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
       )
       direct.forEach(add)
@@ -1154,7 +1158,7 @@ export class MetaService {
     // (/{bm_id}/instagram_accounts só retorna tudo para admins;
     //  para employees, somente as contas assignadas aparecem aqui)
     try {
-      const assigned = await metaGetAll<MetaInstagramAccount>(
+      const assigned = await this._getAll<MetaInstagramAccount>(
         `${META_API}/me/assigned_instagram_accounts?fields=id,name,username&limit=200&access_token=${this.token}`
       )
       assigned.forEach(add)
@@ -1170,7 +1174,7 @@ export class MetaService {
       fields: 'id,name,subtype,approximate_count,description',
       access_token: this.token,
     })
-    const data = await metaGet<{ data?: MetaAudience[] }>(`${this.accountUrl}/customaudiences?${params}`)
+    const data = await this._get<{ data?: MetaAudience[] }>(`${this.accountUrl}/customaudiences?${params}`)
     return data.data || []
   }
 
@@ -1191,7 +1195,7 @@ export class MetaService {
     if (params.pixel_id) body.pixel_id = params.pixel_id
     if (params.rule) body.rule = params.rule
     if (params.lookalike_spec) body.lookalike_spec = params.lookalike_spec
-    const data = await metaPost(`${this.accountUrl}/customaudiences`, body)
+    const data = await this._post(`${this.accountUrl}/customaudiences`, body)
     return { id: data.id as string, name: params.name }
   }
 
@@ -1199,7 +1203,7 @@ export class MetaService {
 
   async uploadAdImage(bytes: Buffer): Promise<{ hash: string }> {
     const base64 = bytes.toString('base64')
-    const res = await metaPost(`${this.accountUrl}/adimages`, {
+    const res = await this._post(`${this.accountUrl}/adimages`, {
       bytes: base64,
       access_token: this.token,
     })
