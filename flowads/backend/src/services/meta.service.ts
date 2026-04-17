@@ -980,8 +980,8 @@ export class MetaService {
 
     if (requestedStatus === 'ACTIVE') {
       const { scheduleAdActivation } = await import('../jobs/ad-activation')
-      scheduleAdActivation(adId, this.token, 15 * 60 * 1000)
-      console.log(`[Meta] Ad ${adId} agendado para ativação em 15min via BullMQ`)
+      scheduleAdActivation(adId, this.token, 5 * 60 * 1000)
+      console.log(`[Meta] Ad ${adId} agendado para ativação em 5min via BullMQ`)
     }
 
     return { ad_id: adId, creative_id: creativeId }

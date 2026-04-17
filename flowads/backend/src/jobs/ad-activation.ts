@@ -26,7 +26,7 @@ interface AdActivationJobData {
 
 let adActivationQueue: Queue | null = null
 
-export function scheduleAdActivation(adId: string, token: string, delayMs = 15 * 60 * 1000) {
+export function scheduleAdActivation(adId: string, token: string, delayMs = 5 * 60 * 1000) {
   if (!adActivationQueue) {
     console.warn(`[AdActivation] Queue não inicializada — usando setTimeout fallback para ad ${adId}`)
     setTimeout(() => activateAd(adId, token, 'setTimeout-fallback'), delayMs)
@@ -35,7 +35,7 @@ export function scheduleAdActivation(adId: string, token: string, delayMs = 15 *
 
   adActivationQueue.add(
     'activate',
-    { adId, token, attemptLabel: '15min' } satisfies AdActivationJobData,
+    { adId, token, attemptLabel: '5min' } satisfies AdActivationJobData,
     {
       delay: delayMs,
       attempts: 3,
