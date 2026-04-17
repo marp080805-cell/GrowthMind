@@ -907,15 +907,17 @@ export class MetaService {
         const hasIgProfilePromo = !!adsetInfo.promoted_object?.instagram_profile_id
         console.log(`[Meta] adset destType=${destType} optGoal=${optGoal} hasIgPromo=${hasIgProfilePromo}`)
 
-        const isIgProfileCampaign =
-          destType === 'INSTAGRAM_PROFILE' ||
-          optGoal === 'VISIT_INSTAGRAM_PROFILE' ||
-          hasIgProfilePromo
+        const needsVisitProfileCta = optGoal === 'VISIT_INSTAGRAM_PROFILE'
+        const isIgProfileDestination =
+          destType === 'INSTAGRAM_PROFILE' || hasIgProfilePromo
+        console.log(`[Meta] needsVisitProfileCta=${needsVisitProfileCta} isIgProfileDest=${isIgProfileDestination}`)
 
-        if (isIgProfileCampaign) {
+        if (needsVisitProfileCta) {
+          // Único caso que precisa de CTA no criativo: campanha de tráfego para visitar perfil.
+          // Para seguidores, engajamento e outros com destination=INSTAGRAM_PROFILE o CTA é herdado
+          // do adset — enviar VIEW_INSTAGRAM_PROFILE no criativo causa HARD_ERROR 1346001.
           let resolvedUsername = igUsername
 
-          // Fallback: busca username via promoted_object.instagram_profile_id
           if (!resolvedUsername && hasIgProfilePromo) {
             const promoId = adsetInfo.promoted_object!.instagram_profile_id!
             try {
@@ -933,12 +935,12 @@ export class MetaService {
             console.log(`[Meta] CTA VIEW_INSTAGRAM_PROFILE → ${igProfileUrl}`)
             ctaAdded = true
           } else {
-            // Não seta ctaAdded — permite que destinationUrl (campo do node) seja o fallback
-            console.log(`[Meta] INSTAGRAM_PROFILE detectado mas sem username — aguardando destinationUrl do config`)
+            console.log(`[Meta] VISIT_INSTAGRAM_PROFILE sem username — aguardando destinationUrl do config`)
           }
-        } else if (destType === 'FACEBOOK_PAGE') {
+        } else if (isIgProfileDestination || destType === 'FACEBOOK_PAGE') {
+          // Campanha de seguidores/engajamento com destino IG/FB: CTA herdado do adset, sem CTA no criativo
           ctaAdded = true
-          console.log(`[Meta] FACEBOOK_PAGE → sem CTA`)
+          console.log(`[Meta] ${destType} não-VISIT → sem CTA no criativo (herdado do adset)`)
         }
       } catch (e) {
         console.log(`[Meta] falha ao consultar adset para CTA:`, e)
