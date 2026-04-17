@@ -21,14 +21,14 @@ function parseRedisConnection(url: string) {
 export let automationQueue: Queue
 let schedulerWorker: Worker
 
-// Espalha execuções agendadas no mesmo horário em até 5 minutos
-// Determinístico por automationId — sempre o mesmo delay entre restarts
-function staggerDelay(automationId: string): number {
+// Espalha execuções agendadas no mesmo horário em até 9 minutos
+// Determinístico por automationId — sempre o mesmo offset entre restarts
+function staggerMinutes(automationId: string): number {
   let hash = 0
   for (let i = 0; i < automationId.length; i++) {
     hash = (hash * 31 + automationId.charCodeAt(i)) >>> 0
   }
-  return (hash % 300) * 1000 // 0 a 299 segundos
+  return hash % 10 // 0 a 9 minutos
 }
 
 export function initQueue() {
@@ -96,7 +96,7 @@ export async function scheduleAutomation(
     }
   }
 
-  const cron = buildCron(triggerConfig)
+  const cron = buildCron(triggerConfig, staggerMinutes(automationId))
   if (!cron) return
 
   const tz = process.env.SCHEDULER_TIMEZONE || 'America/Sao_Paulo'
@@ -105,10 +105,8 @@ export async function scheduleAutomation(
     { automationId, payload: null },
     {
       repeat: { pattern: cron, tz },
-      jobId: automationId,
       removeOnComplete: true,
       removeOnFail: 100,
-      delay: staggerDelay(automationId), // espalha clientes no mesmo horário em até 5 min
     }
   )
   console.log(`[Scheduler] Scheduled automation ${automationId} with cron: ${cron} (tz: ${tz})`)
@@ -129,26 +127,29 @@ export async function unscheduleAutomation(automationId: string) {
   }
 }
 
-function buildCron(config: Record<string, unknown>): string | null {
+function buildCron(config: Record<string, unknown>, stagger = 0): string | null {
   const { frequency, time, days, day_of_month, cron } = config as Record<string, unknown>
 
   if (cron) return cron as string
 
   const [hour, minute] = ((time as string) || '08:00').split(':').map(Number)
+  const totalMinutes = minute + stagger
+  const m = totalMinutes % 60
+  const h = (hour + Math.floor(totalMinutes / 60)) % 24
 
   switch (frequency) {
     case 'daily':
-      return `${minute} ${hour} * * *`
+      return `${m} ${h} * * *`
     case 'weekly': {
       const dayNums = ((days as string[]) || ['mon']).map((d) => {
         const map: Record<string, number> = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 }
         return map[d] ?? 1
       })
-      return `${minute} ${hour} * * ${dayNums.join(',')}`
+      return `${m} ${h} * * ${dayNums.join(',')}`
     }
     case 'monthly':
-      return `${minute} ${hour} ${day_of_month || 1} * *`
+      return `${m} ${h} ${day_of_month || 1} * *`
     default:
-      return `${minute} ${hour} * * *`
+      return `${m} ${h} * * *`
   }
 }
