@@ -10,6 +10,7 @@ import { settingsRoutes, dashboardRoutes } from './routes/settings.routes'
 import { webhooksRoutes } from './routes/webhooks.routes'
 import { jarvisRoutes } from './routes/jarvis.routes'
 import { initQueue, loadScheduledAutomations } from './jobs/scheduler'
+import { initAdActivationWorker } from './jobs/ad-activation'
 
 const fastify = Fastify({
   logger: {
@@ -53,9 +54,10 @@ async function start() {
   // Health check
   fastify.get('/health', async () => ({ ok: true, timestamp: new Date().toISOString() }))
 
-  // Initialize job queue
+  // Initialize job queues
   try {
     initQueue()
+    initAdActivationWorker()
     await loadScheduledAutomations()
     fastify.log.info('BullMQ scheduler initialized')
   } catch (err) {
