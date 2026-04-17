@@ -70,23 +70,43 @@ async function activateAd(adId: string, token: string, label: string) {
 
   console.log(`[AdActivation] Ad ${adId} [${label}] ativado com sucesso`)
 
-  // Checar status 30s após ativação
-  setTimeout(async () => {
-    try {
-      const statusRes = await fetch(
-        `${META_API}/${adId}?fields=effective_status,configured_status,issues_info&access_token=${token}`
-      )
-      const status = await statusRes.json() as {
-        effective_status?: string
-        configured_status?: string
-        issues_info?: Array<{ error_code: number; error_message: string }>
-      }
-      console.log(`[AdActivation] Ad ${adId} status 30s após ativação: effective=${status.effective_status}`)
-      if (status.issues_info?.length) {
-        console.warn(`[AdActivation] Ad ${adId} tem issues:`, JSON.stringify(status.issues_info))
-      }
-    } catch { /* diagnóstico não bloqueia */ }
-  }, 30_000)
+  // Checar status 30s após ativação — se WITH_ISSUES, reativar (equivale ao clique manual)
+  setTimeout(() => checkAndReactivate(adId, token, label, 1), 30_000)
+}
+
+async function checkAndReactivate(adId: string, token: string, label: string, attempt: number) {
+  try {
+    const statusRes = await fetch(
+      `${META_API}/${adId}?fields=effective_status,issues_info&access_token=${token}`
+    )
+    const status = await statusRes.json() as {
+      effective_status?: string
+      issues_info?: Array<{ error_code: number; error_message: string }>
+    }
+    console.log(`[AdActivation] Ad ${adId} [${label}] check#${attempt}: effective=${status.effective_status}`)
+
+    if (status.effective_status === 'WITH_ISSUES' && attempt <= 2) {
+      // WITH_ISSUES: reativar após 60s — mesmo efeito do clique manual no Ads Manager
+      console.log(`[AdActivation] Ad ${adId} WITH_ISSUES → reativando em 60s (tentativa ${attempt})`)
+      setTimeout(async () => {
+        try {
+          await fetch(`${META_API}/${adId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'ACTIVE', access_token: token }),
+          })
+          console.log(`[AdActivation] Ad ${adId} reativado (tentativa ${attempt})`)
+          setTimeout(() => checkAndReactivate(adId, token, label, attempt + 1), 30_000)
+        } catch (e) {
+          console.error(`[AdActivation] Ad ${adId} falha na reativação ${attempt}:`, e)
+        }
+      }, 60_000)
+    } else if (status.issues_info?.length) {
+      console.warn(`[AdActivation] Ad ${adId} issues persistentes após ${attempt} tentativa(s):`, JSON.stringify(status.issues_info))
+    } else {
+      console.log(`[AdActivation] Ad ${adId} OK — effective=${status.effective_status}`)
+    }
+  } catch { /* diagnóstico não bloqueia */ }
 }
 
 export function initAdActivationWorker() {
