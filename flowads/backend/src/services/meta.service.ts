@@ -965,30 +965,31 @@ export class MetaService {
     } catch { /* diagnóstico não bloqueia */ }
     const requestedStatus = (params.status || 'ACTIVE').toUpperCase()
 
-    // Criar como PAUSED e recriar como ACTIVE após 5 min via BullMQ.
-    // A transição PAUSED→ACTIVE via Graph API dispara validação mais restrita que causa
-    // WITH_ISSUES 1346001. Recriar o ad diretamente como ACTIVE usa o path "create-and-publish"
-    // — o mesmo que o Ads Manager usa internamente — contornando essa validação.
+    if (requestedStatus === 'ACTIVE') {
+      // Não criar ad como PAUSED — agendar criação direta como ACTIVE após 5 min.
+      // A transição PAUSED→ACTIVE via Graph API dispara validação mais restrita que causa
+      // WITH_ISSUES 1346001. Criar diretamente como ACTIVE usa o path "create-and-publish",
+      // que não acumula esse estado de erro.
+      const { scheduleAdActivation } = await import('../jobs/ad-activation')
+      scheduleAdActivation(
+        this.token,
+        { creativeId, adsetId: params.adsetId, adName: params.adName, adAccountId: this.adAccountId },
+        5 * 60 * 1000,
+      )
+      console.log(`[Meta] Creative ${creativeId} agendado para virar ad ACTIVE em 5min via BullMQ`)
+      return { ad_id: '', creative_id: creativeId }
+    }
+
+    // Para status PAUSED ou outros, criar imediatamente
     const adData = await this._post(`${this.accountUrl}/ads`, {
       adset_id: params.adsetId,
       name: params.adName,
       creative: { creative_id: creativeId },
-      status: 'PAUSED',
+      status: requestedStatus,
       access_token: this.token,
     })
     const adId = adData.id as string
-    console.log(`[Meta] Ad ${adId} criado como PAUSED (status desejado: ${requestedStatus})`)
-
-    if (requestedStatus === 'ACTIVE') {
-      const { scheduleAdActivation } = await import('../jobs/ad-activation')
-      scheduleAdActivation(adId, this.token, 5 * 60 * 1000, {
-        creativeId,
-        adsetId: params.adsetId,
-        adName: params.adName,
-        adAccountId: this.adAccountId,
-      })
-      console.log(`[Meta] Ad ${adId} agendado para recriação como ACTIVE em 5min via BullMQ`)
-    }
+    console.log(`[Meta] Ad ${adId} criado como ${requestedStatus}`)
 
     return { ad_id: adId, creative_id: creativeId }
   }
