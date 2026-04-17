@@ -973,7 +973,7 @@ async function executeMeta(
           skip_evaluation: skipEvaluation,
           id: ad.id,
           nome: ad.name,
-          permalink: (ad as Record<string, unknown>).permalink as string || '',
+          permalink: (ad as unknown as Record<string, unknown>).permalink as string || '',
           metricas,
         }
       }
