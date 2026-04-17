@@ -384,9 +384,19 @@ export function CreateAdInspector({ config, onChange }: InspectorFieldProps) {
               />
             )}
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-syne font-semibold text-text3">URL DE DESTINO (opcional)</label>
+            <VariableAutocomplete
+              value={(config.destination_url as string) || ''}
+              onChange={(v) => set('destination_url', v)}
+              placeholder="Ex: https://www.instagram.com/amadopoke/"
+              rows={1}
+            />
+            <p className="text-[10px] text-text3">Necessário para campanhas de "Visitar perfil do Instagram". O sistema tenta detectar automaticamente — preencha aqui se der erro de CTA.</p>
+          </div>
           <div className="bg-blue-500/5 rounded-[8px] p-2.5 border border-blue-500/10 text-[10px] text-text3">
             <p className="font-syne font-bold text-blue-400 mb-1">Como funciona</p>
-            <p>Cria um anúncio promovendo um post existente do Instagram. Requer o ID da Página do Facebook vinculada à conta Instagram (campo <code>object_id</code> da API Meta).</p>
+            <p>Cria um anúncio promovendo um post existente do Instagram. Requer o ID da Página do Facebook vinculada à conta Instagram.</p>
           </div>
         </>
       ) : config.creative_type === 'uploaded' ? (

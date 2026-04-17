@@ -913,17 +913,29 @@ export class MetaService {
           hasIgProfilePromo
 
         if (isIgProfileCampaign) {
-          // VIEW_INSTAGRAM_PROFILE requer URL do perfil — sem URL a Meta retorna erro 2446383.
-          const igProfileUrl = igUsername
-            ? `https://www.instagram.com/${igUsername}/`
-            : (hasIgProfilePromo ? `https://www.instagram.com/` : '')
-          if (igProfileUrl) {
+          let resolvedUsername = igUsername
+
+          // Fallback: busca username via promoted_object.instagram_profile_id
+          if (!resolvedUsername && hasIgProfilePromo) {
+            const promoId = adsetInfo.promoted_object!.instagram_profile_id!
+            try {
+              const promoInfo = await this._get<{ username?: string }>(
+                `${META_API}/${promoId}?fields=username&access_token=${this.token}`
+              )
+              resolvedUsername = promoInfo.username || ''
+              console.log(`[Meta] username via promoted_object: ${resolvedUsername}`)
+            } catch { /* sem username */ }
+          }
+
+          if (resolvedUsername) {
+            const igProfileUrl = `https://www.instagram.com/${resolvedUsername}/`
             creativeBody.call_to_action = { type: 'VIEW_INSTAGRAM_PROFILE', value: { link: igProfileUrl } }
             console.log(`[Meta] CTA VIEW_INSTAGRAM_PROFILE → ${igProfileUrl}`)
+            ctaAdded = true
           } else {
-            console.log(`[Meta] INSTAGRAM_PROFILE detectado mas sem username — sem CTA`)
+            // Não seta ctaAdded — permite que destinationUrl (campo do node) seja o fallback
+            console.log(`[Meta] INSTAGRAM_PROFILE detectado mas sem username — aguardando destinationUrl do config`)
           }
-          ctaAdded = true
         } else if (destType === 'FACEBOOK_PAGE') {
           ctaAdded = true
           console.log(`[Meta] FACEBOOK_PAGE → sem CTA`)
