@@ -19,94 +19,104 @@ function parseRedisConnection(url: string) {
 }
 
 interface AdActivationJobData {
-  adId: string
+  adId: string       // ID do ad PAUSED criado inicialmente (para deletar)
   token: string
   attemptLabel: string
+  creativeId: string // ID do creative já criado (reutilizado no novo ad ACTIVE)
+  adsetId: string
+  adName: string
+  adAccountId: string
 }
 
 let adActivationQueue: Queue | null = null
 
-export function scheduleAdActivation(adId: string, token: string, delayMs = 5 * 60 * 1000) {
+export function scheduleAdActivation(
+  adId: string,
+  token: string,
+  delayMs = 5 * 60 * 1000,
+  meta?: { creativeId: string; adsetId: string; adName: string; adAccountId: string }
+) {
   if (!adActivationQueue) {
     console.warn(`[AdActivation] Queue não inicializada — usando setTimeout fallback para ad ${adId}`)
-    setTimeout(() => activateAd(adId, token, 'setTimeout-fallback'), delayMs)
+    if (meta) {
+      setTimeout(() => recreateAdAsActive(adId, token, meta, 'setTimeout-fallback'), delayMs)
+    }
     return
   }
 
-  adActivationQueue.add(
-    'activate',
-    { adId, token, attemptLabel: '5min' } satisfies AdActivationJobData,
-    {
-      delay: delayMs,
-      attempts: 3,
-      backoff: { type: 'fixed', delay: 15 * 60 * 1000 }, // retry a cada 15min se falhar
-      removeOnComplete: 100,
-      removeOnFail: 200,
-    }
-  ).then(() => {
-    console.log(`[AdActivation] Job agendado: ad ${adId} ativado em ${delayMs / 60000}min`)
+  const jobData: AdActivationJobData = {
+    adId,
+    token,
+    attemptLabel: '5min',
+    creativeId: meta?.creativeId ?? '',
+    adsetId: meta?.adsetId ?? '',
+    adName: meta?.adName ?? '',
+    adAccountId: meta?.adAccountId ?? '',
+  }
+
+  adActivationQueue.add('activate', jobData, {
+    delay: delayMs,
+    attempts: 3,
+    backoff: { type: 'fixed', delay: 15 * 60 * 1000 },
+    removeOnComplete: 100,
+    removeOnFail: 200,
+  }).then(() => {
+    console.log(`[AdActivation] Job agendado: ad ${adId} recriado como ACTIVE em ${delayMs / 60000}min`)
   }).catch((err) => {
     console.error(`[AdActivation] Erro ao agendar job para ad ${adId}:`, err)
-    // Fallback para setTimeout se o BullMQ falhar
-    setTimeout(() => activateAd(adId, token, 'setTimeout-fallback'), delayMs)
+    if (meta) setTimeout(() => recreateAdAsActive(adId, token, meta, 'setTimeout-fallback'), delayMs)
   })
 }
 
-async function activateAd(adId: string, token: string, label: string) {
-  console.log(`[AdActivation] Tentando ativar ad ${adId} [${label}]...`)
-  const res = await fetch(`${META_API}/${adId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'ACTIVE', access_token: token }),
+// Deleta o ad PAUSED e recria diretamente como ACTIVE usando o mesmo creative.
+// Isso evita a transição PAUSED→ACTIVE via Graph API, que dispara validação
+// mais restrita do que o path interno do Ads Manager (addraft_publish_statuses).
+async function recreateAdAsActive(
+  pausedAdId: string,
+  token: string,
+  meta: { creativeId: string; adsetId: string; adName: string; adAccountId: string },
+  label: string
+) {
+  console.log(`[AdActivation] Recriando ad ${pausedAdId} como ACTIVE [${label}]...`)
+
+  // Deletar o ad PAUSED (best-effort — pode já ter sido deletado em retries)
+  try {
+    const delRes = await fetch(`${META_API}/${pausedAdId}?access_token=${token}`, { method: 'DELETE' })
+    const delData = await delRes.json() as Record<string, unknown>
+    if (delRes.ok || delData.success) {
+      console.log(`[AdActivation] Ad PAUSED ${pausedAdId} deletado`)
+    } else {
+      console.warn(`[AdActivation] Delete de ${pausedAdId} retornou:`, JSON.stringify(delData))
+    }
+  } catch (e) {
+    console.warn(`[AdActivation] Falha ao deletar ad ${pausedAdId} (ignorando):`, e)
+  }
+
+  // Criar novo ad diretamente como ACTIVE — path "create-and-publish", sem transição de estado
+  const formData = new URLSearchParams({
+    adset_id: meta.adsetId,
+    name: meta.adName,
+    creative: JSON.stringify({ creative_id: meta.creativeId }),
+    status: 'ACTIVE',
+    access_token: token,
   })
 
-  const data = await res.json() as Record<string, unknown>
+  const createRes = await fetch(`${META_API}/act_${meta.adAccountId}/ads`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: formData.toString(),
+  })
 
-  if (!res.ok) {
-    const errMsg = JSON.stringify(data)
-    console.error(`[AdActivation] Falha ao ativar ad ${adId} [${label}]:`, errMsg)
+  const createData = await createRes.json() as Record<string, unknown> & { error?: { message?: string; code?: number } }
+
+  if (!createRes.ok || createData.error) {
+    const errMsg = createData.error?.message || JSON.stringify(createData)
+    console.error(`[AdActivation] Falha ao criar ad ACTIVE [${label}]:`, errMsg)
     throw new Error(errMsg)
   }
 
-  console.log(`[AdActivation] Ad ${adId} [${label}] ativado com sucesso`)
-
-  // Checar status 30s após ativação — se WITH_ISSUES, reativar (equivale ao clique manual)
-  setTimeout(() => checkAndReactivate(adId, token, label, 1), 30_000)
-}
-
-async function checkAndReactivate(adId: string, token: string, label: string, attempt: number) {
-  try {
-    const statusRes = await fetch(
-      `${META_API}/${adId}?fields=effective_status,issues_info&access_token=${token}`
-    )
-    const status = await statusRes.json() as {
-      effective_status?: string
-      issues_info?: Array<{ error_code: number; error_message: string }>
-    }
-    console.log(`[AdActivation] Ad ${adId} [${label}] check#${attempt}: effective=${status.effective_status}`)
-
-    if (status.effective_status === 'WITH_ISSUES' && attempt <= 2) {
-      // WITH_ISSUES: reativar após 60s — mesmo efeito do clique manual no Ads Manager
-      console.log(`[AdActivation] Ad ${adId} WITH_ISSUES → reativando em 60s (tentativa ${attempt})`)
-      setTimeout(async () => {
-        try {
-          await fetch(`${META_API}/${adId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'ACTIVE', access_token: token }),
-          })
-          console.log(`[AdActivation] Ad ${adId} reativado (tentativa ${attempt})`)
-          setTimeout(() => checkAndReactivate(adId, token, label, attempt + 1), 30_000)
-        } catch (e) {
-          console.error(`[AdActivation] Ad ${adId} falha na reativação ${attempt}:`, e)
-        }
-      }, 60_000)
-    } else if (status.issues_info?.length) {
-      console.warn(`[AdActivation] Ad ${adId} issues persistentes após ${attempt} tentativa(s):`, JSON.stringify(status.issues_info))
-    } else {
-      console.log(`[AdActivation] Ad ${adId} OK — effective=${status.effective_status}`)
-    }
-  } catch { /* diagnóstico não bloqueia */ }
+  const newAdId = createData.id as string
+  console.log(`[AdActivation] Ad ACTIVE criado: ${newAdId} (substituiu PAUSED ${pausedAdId}) [${label}]`)
 }
 
 export function initAdActivationWorker() {
@@ -117,8 +127,9 @@ export function initAdActivationWorker() {
   const worker = new Worker<AdActivationJobData>(
     'ad-activations',
     async (job) => {
-      const { adId, token, attemptLabel } = job.data
-      await activateAd(adId, token, `${attemptLabel}-attempt${job.attemptsMade + 1}`)
+      const { adId, token, attemptLabel, creativeId, adsetId, adName, adAccountId } = job.data
+      const label = `${attemptLabel}-attempt${job.attemptsMade + 1}`
+      await recreateAdAsActive(adId, token, { creativeId, adsetId, adName, adAccountId }, label)
     },
     {
       connection,

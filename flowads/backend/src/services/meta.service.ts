@@ -965,9 +965,10 @@ export class MetaService {
     } catch { /* diagnóstico não bloqueia */ }
     const requestedStatus = (params.status || 'ACTIVE').toUpperCase()
 
-    // Criar como PAUSED — a Meta processa criativos de posts IG em 5–15 min.
-    // Ativar antes desse tempo causa erro #1346001. Usamos BullMQ (persistente)
-    // para agendar a ativação após 15 minutos, com retry automático se falhar.
+    // Criar como PAUSED e recriar como ACTIVE após 5 min via BullMQ.
+    // A transição PAUSED→ACTIVE via Graph API dispara validação mais restrita que causa
+    // WITH_ISSUES 1346001. Recriar o ad diretamente como ACTIVE usa o path "create-and-publish"
+    // — o mesmo que o Ads Manager usa internamente — contornando essa validação.
     const adData = await this._post(`${this.accountUrl}/ads`, {
       adset_id: params.adsetId,
       name: params.adName,
@@ -980,8 +981,13 @@ export class MetaService {
 
     if (requestedStatus === 'ACTIVE') {
       const { scheduleAdActivation } = await import('../jobs/ad-activation')
-      scheduleAdActivation(adId, this.token, 5 * 60 * 1000)
-      console.log(`[Meta] Ad ${adId} agendado para ativação em 5min via BullMQ`)
+      scheduleAdActivation(adId, this.token, 5 * 60 * 1000, {
+        creativeId,
+        adsetId: params.adsetId,
+        adName: params.adName,
+        adAccountId: this.adAccountId,
+      })
+      console.log(`[Meta] Ad ${adId} agendado para recriação como ACTIVE em 5min via BullMQ`)
     }
 
     return { ad_id: adId, creative_id: creativeId }
