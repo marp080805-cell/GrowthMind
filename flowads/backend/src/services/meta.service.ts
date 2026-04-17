@@ -892,14 +892,11 @@ export class MetaService {
         console.log(`[Meta] adset destType=${destType}`)
 
         if (destType === 'INSTAGRAM_PROFILE' || adsetInfo.promoted_object?.instagram_profile_id) {
-          // VIEW_INSTAGRAM_PROFILE com URL do perfil IG vinculado à página.
-          // Sem value.link → erro 2061015 na criação. Com value.link → ad criado, aguarda diagnóstico de delivery error.
-          const igProfileUrl = igUsername ? `https://www.instagram.com/${igUsername}/` : ''
-          creativeBody.call_to_action = igProfileUrl
-            ? { type: 'VIEW_INSTAGRAM_PROFILE', value: { link: igProfileUrl } }
-            : { type: 'VIEW_INSTAGRAM_PROFILE' }
+          // Para campanhas de visita ao perfil do Instagram, o CTA é herdado
+          // automaticamente do adset — NÃO enviar call_to_action no creative.
+          // Enviar CTA aqui causa erro da Meta (conflito com destination_type do adset).
           ctaAdded = true
-          console.log(`[Meta] CTA VIEW_INSTAGRAM_PROFILE link=${igProfileUrl || '(sem link)'}`)
+          console.log(`[Meta] INSTAGRAM_PROFILE → sem CTA no creative (herdado do adset)`)
         } else if (destType === 'FACEBOOK_PAGE') {
           ctaAdded = true
           console.log(`[Meta] FACEBOOK_PAGE → sem CTA`)
