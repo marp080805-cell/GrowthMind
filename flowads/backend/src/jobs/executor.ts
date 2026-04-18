@@ -14,8 +14,11 @@ function interpolate(template: string, vars: Record<string, unknown>): string {
     let val: unknown = vars
     for (const k of keys) {
       const arrayMatch = k.match(/^\[(\d+)\]$/)
+      const keyWithIndex = k.match(/^([^\[]+)\[(\d+)\]$/)
       if (arrayMatch) {
         val = (val as unknown[])?.[parseInt(arrayMatch[1])]
+      } else if (keyWithIndex) {
+        val = ((val as Record<string, unknown>)?.[keyWithIndex[1]] as unknown[])?.[parseInt(keyWithIndex[2])]
       } else {
         val = (val as Record<string, unknown>)?.[k]
       }
