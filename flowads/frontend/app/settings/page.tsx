@@ -170,6 +170,36 @@ function SettingsPageInner() {
     }
   }
 
+  const openTickTickOAuth = async () => {
+    if (!settings?.ticktick_client_id || !settings?.ticktick_client_secret) {
+      error('Salve o Client ID e Client Secret antes de conectar')
+      return
+    }
+    await handleSave()
+    const popup = window.open(
+      `${API_URL}/ticktick/connect`,
+      'ticktick_oauth',
+      'width=600,height=700,scrollbars=yes,resizable=yes'
+    )
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'ticktick_connected') {
+        window.removeEventListener('message', onMessage)
+        popup?.close()
+        settingsApi.get().then(setSettings).catch(() => {})
+        if (e.data.ok) success('TickTick conectado com sucesso!')
+        else error(e.data.message || 'Falha ao conectar TickTick')
+      }
+    }
+    window.addEventListener('message', onMessage)
+    const interval = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(interval)
+        window.removeEventListener('message', onMessage)
+        settingsApi.get().then(setSettings).catch(() => {})
+      }
+    }, 1000)
+  }
+
   const otherIntegrations = [
     {
       id: 'whatsapp',
@@ -199,12 +229,6 @@ function SettingsPageInner() {
       title: 'Notion',
       icon: '📄',
       fields: [{ key: 'notion_token', label: 'Integration Token', type: 'password' }],
-    },
-    {
-      id: 'ticktick',
-      title: 'TickTick',
-      icon: '✓',
-      fields: [{ key: 'ticktick_token', label: 'Access Token', type: 'password' }],
     },
   ]
 
@@ -402,6 +426,95 @@ function SettingsPageInner() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* TickTick OAuth */}
+        <div className="bg-surface border border-[var(--border)] rounded-lg p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">✓</span>
+              <h3 className="font-syne font-semibold text-text">TickTick</h3>
+              {settings.ticktick_token && <CheckCircle size={15} className="text-green-500" />}
+            </div>
+            {settings.ticktick_token && (
+              <button
+                onClick={async () => {
+                  if (!confirm('Desconectar TickTick? O token será removido.')) return
+                  try {
+                    const updated = await settingsApi.update({ ticktick_token: '', ticktick_refresh_token: '' } as Partial<Settings>)
+                    setSettings(updated)
+                    success('TickTick desconectado.')
+                  } catch { error('Erro ao desconectar') }
+                }}
+                className="text-xs text-red-400 hover:text-red-300 underline transition-colors"
+              >
+                Desconectar
+              </button>
+            )}
+          </div>
+
+          {settings.ticktick_token ? (
+            <div className="flex items-center justify-between p-3 rounded-[12px] bg-green-500/10 border border-green-500/20">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={15} className="text-green-500" />
+                <span className="text-sm text-text2">TickTick conectado</span>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={openTickTickOAuth} className="text-xs text-text3 hover:text-text2 underline transition-colors">
+                  Reconectar
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`${API_URL}/ticktick/refresh`, { method: 'POST' })
+                      const data = await res.json() as { ok?: boolean; message?: string }
+                      if (data.ok) { success(data.message || 'Token renovado!'); settingsApi.get().then(setSettings).catch(() => {}) }
+                      else error(data.message || 'Falha ao renovar')
+                    } catch { error('Erro ao renovar token') }
+                  }}
+                  className="text-xs text-text3 hover:text-text2 underline transition-colors"
+                >
+                  Renovar token
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-text3">
+                Insira as credenciais do seu app TickTick e clique em Conectar para autorizar.
+                Crie o app em <span className="text-accent font-medium">developer.ticktick.com</span>.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-text2 font-syne">Client ID</label>
+                  <input
+                    type="text"
+                    value={settings.ticktick_client_id || ''}
+                    onChange={(e) => set('ticktick_client_id', e.target.value)}
+                    placeholder="pCUKP5jhG7..."
+                    className="h-9 rounded-[12px] bg-bg3 border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent transition-colors"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-text2 font-syne">Client Secret</label>
+                  <input
+                    type="password"
+                    value={settings.ticktick_client_secret || ''}
+                    onChange={(e) => set('ticktick_client_secret', e.target.value)}
+                    placeholder="••••••••"
+                    className="h-9 rounded-[12px] bg-bg3 border border-[var(--border)] text-text px-3 text-sm focus:outline-none focus:border-accent transition-colors"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={openTickTickOAuth}
+                disabled={!settings.ticktick_client_id || !settings.ticktick_client_secret}
+                className="flex items-center justify-center gap-2 h-10 w-full rounded-[12px] bg-[#4772fa] text-white text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Conectar com TickTick
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Notion + Drive OAuth placeholders */}

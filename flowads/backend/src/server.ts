@@ -7,6 +7,7 @@ import { automationsRoutes } from './routes/automations.routes'
 import { presetsRoutes } from './routes/presets.routes'
 import { usersRoutes } from './routes/users.routes'
 import { settingsRoutes, dashboardRoutes } from './routes/settings.routes'
+import { ticktickRoutes } from './routes/ticktick.routes'
 import { webhooksRoutes } from './routes/webhooks.routes'
 import { jarvisRoutes } from './routes/jarvis.routes'
 import { initQueue, initCronDispatcher } from './jobs/scheduler'
@@ -50,6 +51,7 @@ async function start() {
   await fastify.register(dashboardRoutes)
   await fastify.register(webhooksRoutes)
   await fastify.register(jarvisRoutes)
+  await fastify.register(ticktickRoutes)
 
   // Health check
   fastify.get('/health', async () => ({ ok: true, timestamp: new Date().toISOString() }))
