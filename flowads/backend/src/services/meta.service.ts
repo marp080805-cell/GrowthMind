@@ -963,21 +963,19 @@ export class MetaService {
       )
       console.log(`[Meta] Creative ${creativeId} stored:`, JSON.stringify(creativeDetails))
     } catch { /* diagnóstico não bloqueia */ }
-    const requestedStatus = (params.status || 'ACTIVE').toUpperCase()
-
-    // Criar o ad diretamente com o status desejado — sem PAUSED intermediário.
-    // source_instagram_media_id referencia um post já existente, não há mídia nova
-    // para processar. O path "create-and-publish" (status=ACTIVE direto) evita a
-    // validação restrita que a transição PAUSED→ACTIVE dispara (WITH_ISSUES 1346001).
+    // Sempre criar como PAUSED — ativação via API causa WITH_ISSUES 1346001 nesse tipo de campanha.
+    // O Ads Manager usa endpoint interno (addraft_publish_statuses) que não está exposto na API pública.
+    // Workaround: criar PAUSED + notificar usuário via WhatsApp para ativar manualmente (leva ~5s).
+    // Ver investigação completa em: flowads/docs/instagram-post-ad-1346001.md
     const adData = await this._post(`${this.accountUrl}/ads`, {
       adset_id: params.adsetId,
       name: params.adName,
       creative: { creative_id: creativeId },
-      status: requestedStatus,
+      status: 'PAUSED',
       access_token: this.token,
     })
     const adId = adData.id as string
-    console.log(`[Meta] Ad ${adId} criado como ${requestedStatus}`)
+    console.log(`[Meta] Ad ${adId} criado como PAUSED (ativação manual necessária — erro 1346001)`)
 
     return { ad_id: adId, creative_id: creativeId }
   }

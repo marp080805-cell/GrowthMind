@@ -150,10 +150,10 @@ export async function executeAutomation(
 
     // Build template vars
     const templateVars: Record<string, unknown> = {
-      hoje: new Date().toLocaleDateString('pt-BR'),
+      hoje: new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
       semana_atual: `semana de ${getWeekRange()}`,
-      mes_atual: new Date().toLocaleDateString('pt-BR', { month: 'long' }),
-      data_formatada: new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
+      mes_atual: new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', month: 'long' }),
+      data_formatada: new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'long', year: 'numeric' }),
       cliente: client ? {
         nome: client.name,
         tipo_negocio: client.business_type,
