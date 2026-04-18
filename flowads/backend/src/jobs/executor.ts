@@ -407,6 +407,7 @@ export async function executeAutomation(
 
           // Execute each batch through the body
           let batchIndex = 0
+          const loopResults: unknown[] = []
           for (let i = 0; i < items.length; i += batchSize) {
             batchIndex++
             const batch = items.slice(i, i + batchSize)
@@ -519,11 +520,12 @@ export async function executeAutomation(
                 break // stop remaining body nodes for this item, continue with next item
               }
             }
+            loopResults.push(iterLastOutput)
             await updateLog('running')
           }
 
           // After loop, expose summary to "done" branch
-          lastOutput = { total: items.length, batches: totalBatches, batch_size: batchSize, completed: items.length }
+          lastOutput = { total: items.length, batches: totalBatches, batch_size: batchSize, completed: items.length, loop_results: loopResults }
           templateVars.input = lastOutput
           templateVars.loop_total = items.length
 
