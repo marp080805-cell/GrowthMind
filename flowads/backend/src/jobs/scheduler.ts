@@ -147,7 +147,7 @@ export async function initCronDispatcher() {
         if (!matches) continue
 
         // jobId único por automação + minuto exato — garante idempotência
-        const jobId = `${auto.id}:${now.hour}:${now.minute}:${new Date().toDateString()}`
+        const jobId = `${auto.id}_${now.hour}_${now.minute}_${now.dayOfMonth}_${new Date().getMonth()}`
 
         await automationQueue.add(
           auto.id,
