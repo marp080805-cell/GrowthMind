@@ -5,7 +5,7 @@ import { BLOCKS_BY_CATEGORY, CATEGORY_LABELS, CATEGORY_COLORS, type Category } f
 import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const CATEGORIES: Category[] = ['triggers', 'meta', 'ai', 'whatsapp', 'notion', 'drive', 'logic', 'utils']
+const CATEGORIES: Category[] = ['triggers', 'meta', 'ai', 'whatsapp', 'notion', 'drive', 'ticktick', 'logic', 'utils']
 
 export function BlockPalette() {
   const [search, setSearch] = useState('')
