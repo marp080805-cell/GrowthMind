@@ -159,6 +159,9 @@ export async function executeAutomation(
     // Build template vars
     const templateVars: Record<string, unknown> = {
       hoje: new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+      amanha: (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) })(),
+      'amanhã': (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) })(),
+      amanha_iso: (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) })(),
       semana_atual: `semana de ${getWeekRange()}`,
       mes_atual: new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', month: 'long' }),
       data_formatada: new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'long', year: 'numeric' }),
@@ -538,6 +541,7 @@ export async function executeAutomation(
           lastOutput = { total: items.length, batches: totalBatches, batch_size: batchSize, completed: items.length, loop_results: loopResults, loop_results_ads: loopResultsAds, ads_criados: adsCreated.length }
           templateVars.input = lastOutput
           templateVars.loop_total = items.length
+          Object.assign(templateVars, flattenOutput(lastOutput as Record<string, unknown>))
 
           // Update Loop node log entry to show iteration count (like n8n)
           let loopLogIdx = -1
@@ -2198,6 +2202,9 @@ export async function executeSingleNode(
 
   const baseTemplateVars: Record<string, unknown> = {
     hoje: new Date().toLocaleDateString('pt-BR'),
+    amanha: (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toLocaleDateString('pt-BR') })(),
+    'amanhã': (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toLocaleDateString('pt-BR') })(),
+    amanha_iso: (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) })(),
     semana_atual: `semana de ${getWeekRange()}`,
     mes_atual: new Date().toLocaleDateString('pt-BR', { month: 'long' }),
     data_formatada: new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
