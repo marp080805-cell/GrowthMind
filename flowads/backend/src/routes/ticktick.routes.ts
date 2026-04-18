@@ -64,7 +64,7 @@ export async function ticktickRoutes(fastify: FastifyInstance) {
 
       if (!tokenRes.ok) {
         const err = await tokenRes.text()
-        fastify.log.error('TickTick token exchange failed:', err)
+        fastify.log.error({ err }, 'TickTick token exchange failed')
         return reply.type('text/html').send(closePopupHtml(false, 'Falha ao obter token do TickTick'))
       }
 
@@ -81,7 +81,7 @@ export async function ticktickRoutes(fastify: FastifyInstance) {
 
       return reply.type('text/html').send(closePopupHtml(true, ''))
     } catch (err) {
-      fastify.log.error('TickTick OAuth error:', err)
+      fastify.log.error({ err }, 'TickTick OAuth error')
       return reply.type('text/html').send(closePopupHtml(false, 'Erro interno ao processar autorização'))
     }
   })
@@ -108,7 +108,7 @@ export async function ticktickRoutes(fastify: FastifyInstance) {
 
     if (!tokenRes.ok) {
       const err = await tokenRes.text()
-      fastify.log.error('TickTick refresh failed:', err)
+      fastify.log.error({ err }, 'TickTick refresh failed')
       return reply.status(400).send({ message: 'Falha ao renovar token. Reconecte o TickTick.' })
     }
 
