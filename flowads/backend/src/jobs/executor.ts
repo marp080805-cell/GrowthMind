@@ -706,6 +706,8 @@ async function executeNode(
       return executeNotion(action, config, input, context)
     case 'drive':
       return executeDrive(action, config, input, context)
+    case 'ticktick':
+      return executeTickTick(action, config, input, context)
     default:
       return input
   }
@@ -2082,6 +2084,53 @@ async function executeDrive(
       const data = await res.json() as Record<string, unknown>
       if (!res.ok) throw new Error('Erro ao criar pasta no Drive')
       return { folder_id: data.id, name: data.name, criado: true }
+    }
+
+    default:
+      return input
+  }
+}
+
+// ─── TICKTICK ─────────────────────────────────────────────────────────────────
+
+async function executeTickTick(
+  action: string,
+  config: Record<string, unknown>,
+  input: Record<string, unknown>,
+  context: ExecutionContext
+): Promise<Record<string, unknown>> {
+  const { data: settings } = await supabase.from('settings').select('ticktick_token').single()
+  const token = settings?.ticktick_token
+  if (!token) throw new Error('Token TickTick não configurado nas configurações')
+
+  switch (action) {
+    case 'create_task': {
+      const title = interpolate(config.title as string || 'Tarefa', input, context)
+      const content = interpolate(config.content as string || '', input, context)
+      const dueDate = config.due_date ? interpolate(config.due_date as string, input, context) : undefined
+      const projectId = config.project_id ? interpolate(config.project_id as string, input, context) : undefined
+      const priority = (config.priority as number) ?? 0
+
+      const body: Record<string, unknown> = { title, content, priority }
+      if (dueDate) body.dueDate = `${dueDate}T00:00:00.000+0000`
+      if (projectId) body.projectId = projectId
+
+      const res = await fetch('https://api.ticktick.com/open/v1/task', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        throw new Error(`Erro ao criar tarefa no TickTick: ${err}`)
+      }
+      const data = await res.json() as Record<string, unknown>
+      const taskId = data.id as string
+      const taskUrl = `https://ticktick.com/webapp/#p/inbox/tasks/${taskId}`
+      return { ...input, task_id: taskId, task_url: taskUrl }
     }
 
     default:

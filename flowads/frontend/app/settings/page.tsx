@@ -194,6 +194,18 @@ function SettingsPageInner() {
       icon: '🧠',
       fields: [{ key: 'anthropic_key', label: 'API Key', type: 'password' }],
     },
+    {
+      id: 'notion',
+      title: 'Notion',
+      icon: '📄',
+      fields: [{ key: 'notion_token', label: 'Integration Token', type: 'password' }],
+    },
+    {
+      id: 'ticktick',
+      title: 'TickTick',
+      icon: '✓',
+      fields: [{ key: 'ticktick_token', label: 'Access Token', type: 'password' }],
+    },
   ]
 
   return (

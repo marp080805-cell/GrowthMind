@@ -19,6 +19,7 @@ export type Category =
   | 'whatsapp'
   | 'notion'
   | 'drive'
+  | 'ticktick'
   | 'logic'
   | 'utils'
 
@@ -29,6 +30,7 @@ export const CATEGORY_COLORS: Record<Category, string> = {
   whatsapp: '#22c97a',
   notion: '#8892a4',
   drive: '#22d4e0',
+  ticktick: '#4772fa',
   logic: '#ffd166',
   utils: '#505870',
 }
@@ -40,6 +42,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   whatsapp: 'WHATSAPP',
   notion: 'NOTION',
   drive: 'GOOGLE DRIVE',
+  ticktick: 'TICKTICK',
   logic: 'LÓGICA',
   utils: 'UTILITÁRIOS',
 }
@@ -116,6 +119,9 @@ export const BLOCKS: BlockDefinition[] = [
   { type: 'logic.filter', label: 'Filtrar lista', description: 'Filtra array por condição', icon: '🗂️', category: 'logic', color: CATEGORY_COLORS.logic, handles: { inputs: ['default'], outputs: ['default'] } },
   { type: 'logic.transform', label: 'Transformar dados', description: 'Manipula JSON, formata texto, cálculos', icon: '🧮', category: 'logic', color: CATEGORY_COLORS.logic, handles: { inputs: ['default'], outputs: ['default'] } },
   { type: 'logic.stop', label: 'Parar fluxo', description: 'Encerra execução imediatamente', icon: '🛑', category: 'logic', color: CATEGORY_COLORS.logic, handles: { inputs: ['default'], outputs: [] } },
+
+  // TICKTICK
+  { type: 'ticktick.create_task', label: 'Criar tarefa', description: 'Adiciona tarefa ao TickTick com título, descrição e data', icon: '✓', category: 'ticktick', color: CATEGORY_COLORS.ticktick, handles: { inputs: ['default'], outputs: ['default'] } },
 
   // UTILS
   { type: 'util.note', label: 'Nota', description: 'Comentário visual no canvas', icon: '📝', category: 'utils', color: CATEGORY_COLORS.utils, handles: { inputs: [], outputs: [] } },

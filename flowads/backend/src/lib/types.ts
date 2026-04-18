@@ -138,6 +138,7 @@ export interface Settings {
   anthropic_key?: string
   notion_token?: string
   drive_token?: string
+  ticktick_token?: string
   available_models: AIModel[]
   updated_at: string
 }

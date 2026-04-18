@@ -93,6 +93,14 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
           const { instanceName } = await wa.checkConnection()
           return { ok: true, message: `WhatsApp conectado! Instância: ${instanceName}` }
         }
+        case 'ticktick': {
+          if (!settings?.ticktick_token) throw new Error('Token TickTick não configurado')
+          const res = await fetch('https://api.ticktick.com/open/v1/project', {
+            headers: { Authorization: `Bearer ${settings.ticktick_token as string}` },
+          })
+          if (!res.ok) throw new Error('Token TickTick inválido ou sem permissão')
+          return { ok: true, message: 'TickTick conectado com sucesso!' }
+        }
         default:
           return { ok: false, message: 'Serviço desconhecido' }
       }

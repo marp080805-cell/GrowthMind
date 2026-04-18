@@ -81,6 +81,9 @@ import {
   DriveCreateFolderInspector,
 } from './inspectors/drive'
 
+// TickTick
+import { TickTickCreateTaskInspector } from './inspectors/ticktick'
+
 // Fallback
 import { GenericInspector } from './inspectors/generic'
 
@@ -181,6 +184,9 @@ const INSPECTOR_MAP: Record<string, React.ComponentType<InspectorFieldProps>> = 
   'drive.download_file': DriveDownloadFileInspector,
   'drive.upload_file': DriveUploadFileInspector,
   'drive.create_folder': DriveCreateFolderInspector,
+
+  // TickTick
+  'ticktick.create_task': TickTickCreateTaskInspector,
 }
 
 export interface InspectorFieldProps {
