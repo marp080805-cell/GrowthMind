@@ -1,8 +1,10 @@
 import { Queue, Worker } from 'bullmq'
+import cron from 'node-cron'
 import { supabase } from '../lib/supabase'
 import { executeAutomation } from './executor'
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+const TZ = process.env.SCHEDULER_TIMEZONE || 'America/Sao_Paulo'
 
 function parseRedisConnection(url: string) {
   try {
@@ -21,14 +23,13 @@ function parseRedisConnection(url: string) {
 export let automationQueue: Queue
 let schedulerWorker: Worker
 
-// Espalha execuções agendadas no mesmo horário em até 9 minutos
-// Determinístico por automationId — sempre o mesmo offset entre restarts
-function staggerMinutes(automationId: string): number {
+// Escalona execuções do mesmo minuto em até 59s — determinístico por automationId
+function staggerSeconds(automationId: string): number {
   let hash = 0
   for (let i = 0; i < automationId.length; i++) {
     hash = (hash * 31 + automationId.charCodeAt(i)) >>> 0
   }
-  return hash % 10 // 0 a 9 minutos
+  return hash % 60
 }
 
 export function initQueue() {
@@ -40,116 +41,108 @@ export function initQueue() {
     'automations',
     async (job) => {
       const { automationId, payload } = job.data
-      console.log(`[Scheduler] Executing automation ${automationId}`)
+      console.log(`[Scheduler] Executando automação ${automationId}`)
       await executeAutomation(automationId, payload)
     },
     {
       connection,
       lockDuration: 600_000,  // 10 min — suporta uploads longos
-      concurrency: 4,         // 4 automações simultâneas (~1/3 da VPS KVM2)
+      concurrency: 4,
       limiter: {
-        max: 8,               // máx 8 jobs iniciados por janela
-        duration: 10_000,     // janela de 10 segundos
+        max: 8,
+        duration: 10_000,
       },
     }
   )
 
   schedulerWorker.on('failed', (job, err) => {
-    console.error(`[Scheduler] Job ${job?.id} failed:`, err.message)
+    console.error(`[Scheduler] Job ${job?.id} falhou:`, err.message)
   })
 
   return automationQueue
 }
 
-export async function loadScheduledAutomations() {
-  const { data: automations } = await supabase
-    .from('automations')
-    .select('*, automation_nodes(*)')
-    .eq('is_active', true)
-
-  if (!automations) return
-
-  for (const auto of automations) {
-    const nodes = (auto.automation_nodes || []) as Array<{ type: string; config: Record<string, unknown> }>
-    const triggerNode = nodes.find((n) => n.type === 'trigger.schedule')
-    if (!triggerNode) continue
-
-    await scheduleAutomation(auto.id, triggerNode.config)
-  }
-
-  console.log(`[Scheduler] Loaded ${automations.length} scheduled automations`)
+// Retorna a hora atual no fuso do scheduler como objeto Date
+function nowInTZ(): Date {
+  const str = new Date().toLocaleString('en-US', { timeZone: TZ })
+  return new Date(str)
 }
 
-export async function scheduleAutomation(
-  automationId: string,
-  triggerConfig: Record<string, unknown>
-) {
-  if (!automationQueue) {
-    console.warn(`[Scheduler] Queue not initialized, skipping schedule for ${automationId}`)
-    return
-  }
-  // Remove ALL existing repeatable jobs for this automation (by name match)
-  const repeatableJobs = await automationQueue.getRepeatableJobs()
-  for (const job of repeatableJobs) {
-    if (job.name === automationId) {
-      await automationQueue.removeRepeatableByKey(job.key)
-    }
+// Verifica se o trigger config corresponde ao horário atual
+function shouldRunAt(config: Record<string, unknown>, now: Date): boolean {
+  const { frequency, time, days, day_of_month } = config as {
+    frequency?: string
+    time?: string
+    days?: string[]
+    day_of_month?: number
   }
 
-  const cron = buildCron(triggerConfig, staggerMinutes(automationId))
-  if (!cron) return
-
-  const tz = process.env.SCHEDULER_TIMEZONE || 'America/Sao_Paulo'
-  await automationQueue.add(
-    automationId,
-    { automationId, payload: null },
-    {
-      repeat: { pattern: cron, tz },
-      removeOnComplete: true,
-      removeOnFail: 100,
-    }
-  )
-  console.log(`[Scheduler] Scheduled automation ${automationId} with cron: ${cron} (tz: ${tz})`)
-}
-
-export async function unscheduleAutomation(automationId: string) {
-  if (!automationQueue) return
-  try {
-    const repeatableJobs = await automationQueue.getRepeatableJobs()
-    for (const job of repeatableJobs) {
-      if (job.name === automationId) {
-        await automationQueue.removeRepeatableByKey(job.key)
-      }
-    }
-    console.log(`[Scheduler] Unscheduled automation ${automationId}`)
-  } catch (err) {
-    console.warn(`[Scheduler] Could not unschedule ${automationId}:`, err)
-  }
-}
-
-function buildCron(config: Record<string, unknown>, stagger = 0): string | null {
-  const { frequency, time, days, day_of_month, cron } = config as Record<string, unknown>
-
-  if (cron) return cron as string
-
-  const [hour, minute] = ((time as string) || '08:00').split(':').map(Number)
-  const totalMinutes = minute + stagger
-  const m = totalMinutes % 60
-  const h = (hour + Math.floor(totalMinutes / 60)) % 24
+  const [hour, minute] = (time || '08:00').split(':').map(Number)
+  if (now.getHours() !== hour || now.getMinutes() !== minute) return false
 
   switch (frequency) {
-    case 'daily':
-      return `${m} ${h} * * *`
     case 'weekly': {
-      const dayNums = ((days as string[]) || ['mon']).map((d) => {
-        const map: Record<string, number> = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 }
-        return map[d] ?? 1
-      })
-      return `${m} ${h} * * ${dayNums.join(',')}`
+      const dayMap: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
+      return (days || ['mon']).some(d => dayMap[d] === now.getDay())
     }
     case 'monthly':
-      return `${m} ${h} ${day_of_month || 1} * *`
+      return now.getDate() === (day_of_month || 1)
+    case 'daily':
     default:
-      return `${m} ${h} * * *`
+      return true
   }
+}
+
+export async function initCronDispatcher() {
+  // Remove jobs repetíveis legados do esquema anterior (BullMQ repeat)
+  try {
+    const legacy = await automationQueue.getRepeatableJobs()
+    for (const job of legacy) await automationQueue.removeRepeatableByKey(job.key)
+    if (legacy.length > 0) console.log(`[CronDispatcher] ${legacy.length} jobs repetíveis legados removidos`)
+  } catch { /* ignora — Redis pode não ter jobs anteriores */ }
+
+  // A cada minuto: consulta Supabase e despacha as automações que vencem agora
+  cron.schedule('* * * * *', async () => {
+    const now = nowInTZ()
+    const label = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`
+
+    try {
+      const { data: automations } = await supabase
+        .from('automations')
+        .select('id, automation_nodes(*)')
+        .eq('is_active', true)
+
+      if (!automations?.length) return
+
+      let dispatched = 0
+      for (const auto of automations) {
+        const nodes = (auto.automation_nodes || []) as Array<{ type: string; config: Record<string, unknown> }>
+        const trigger = nodes.find(n => n.type === 'trigger.schedule')
+        if (!trigger || !shouldRunAt(trigger.config, now)) continue
+
+        // jobId único por automação + minuto exato — garante idempotência
+        const jobId = `${auto.id}:${now.getFullYear()}-${now.getMonth()}-${now.getDate()}:${now.getHours()}:${now.getMinutes()}`
+
+        await automationQueue.add(
+          auto.id,
+          { automationId: auto.id, payload: null },
+          {
+            jobId,
+            delay: staggerSeconds(auto.id) * 1000, // espalha até 59s dentro do minuto
+            removeOnComplete: true,
+            removeOnFail: 100,
+          }
+        )
+        dispatched++
+      }
+
+      if (dispatched > 0) {
+        console.log(`[CronDispatcher] ${label} — ${dispatched} automação(ões) despachada(s)`)
+      }
+    } catch (err) {
+      console.error('[CronDispatcher] Erro ao verificar automações:', err)
+    }
+  }, { timezone: TZ })
+
+  console.log(`[CronDispatcher] Iniciado — verificando a cada minuto (tz: ${TZ})`)
 }

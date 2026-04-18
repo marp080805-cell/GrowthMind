@@ -9,7 +9,7 @@ import { usersRoutes } from './routes/users.routes'
 import { settingsRoutes, dashboardRoutes } from './routes/settings.routes'
 import { webhooksRoutes } from './routes/webhooks.routes'
 import { jarvisRoutes } from './routes/jarvis.routes'
-import { initQueue, loadScheduledAutomations } from './jobs/scheduler'
+import { initQueue, initCronDispatcher } from './jobs/scheduler'
 import { initAdActivationWorker } from './jobs/ad-activation'
 
 const fastify = Fastify({
@@ -58,8 +58,8 @@ async function start() {
   try {
     initQueue()
     initAdActivationWorker()
-    await loadScheduledAutomations()
-    fastify.log.info('BullMQ scheduler initialized')
+    await initCronDispatcher()
+    fastify.log.info('CronDispatcher iniciado')
   } catch (err) {
     fastify.log.warn('BullMQ initialization failed (Redis may not be available):', err)
   }

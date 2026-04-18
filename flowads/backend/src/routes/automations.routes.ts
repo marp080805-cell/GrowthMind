@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { supabase } from '../lib/supabase'
 import { executeAutomation, executeSingleNode } from '../jobs/executor'
-import { scheduleAutomation, unscheduleAutomation } from '../jobs/scheduler'
+
 
 export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
   // List ALL automations across all clients (for /automacoes global page)
@@ -151,23 +151,11 @@ export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
-    // Reschedule if automation is active and has a trigger.schedule node
-    if (nodes !== undefined) {
-      const { data: auto } = await supabase.from('automations').select('is_active').eq('id', id).single()
-      if (auto?.is_active) {
-        const triggerNode = nodes.find((n) => n.type === 'trigger.schedule')
-        if (triggerNode) {
-          await scheduleAutomation(id, triggerNode.config as Record<string, unknown>)
-        }
-      }
-    }
-
     return { ok: true }
   })
 
   fastify.delete('/automations/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
-    await unscheduleAutomation(id)
 
     try {
       // 1. Get execution log IDs for this automation
@@ -221,19 +209,6 @@ export const automationsRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (updateError || !data) {
       return reply.status(500).send({ message: 'Erro ao atualizar automação' })
-    }
-
-    // Schedule/unschedule - don't let scheduler errors break the toggle
-    try {
-      if (newState) {
-        const nodes = (current.automation_nodes || []) as Array<{ type: string; config: Record<string, unknown> }>
-        const triggerNode = nodes.find((n) => n.type === 'trigger.schedule')
-        if (triggerNode) await scheduleAutomation(id, triggerNode.config)
-      } else {
-        await unscheduleAutomation(id)
-      }
-    } catch (err) {
-      fastify.log.warn('Scheduler error during toggle (non-fatal):', err)
     }
 
     return data
