@@ -2096,19 +2096,21 @@ async function executeDrive(
 async function executeTickTick(
   action: string,
   config: Record<string, unknown>,
-  input: Record<string, unknown>,
+  input: unknown,
   context: ExecutionContext
-): Promise<Record<string, unknown>> {
+): Promise<unknown> {
   const { data: settings } = await supabase.from('settings').select('ticktick_token').single()
   const token = settings?.ticktick_token
   if (!token) throw new Error('Token TickTick não configurado nas configurações')
 
+  const vars = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
+
   switch (action) {
     case 'create_task': {
-      const title = interpolate(config.title as string || 'Tarefa', input, context)
-      const content = interpolate(config.content as string || '', input, context)
-      const dueDate = config.due_date ? interpolate(config.due_date as string, input, context) : undefined
-      const projectId = config.project_id ? interpolate(config.project_id as string, input, context) : undefined
+      const title = interpolate(config.title as string || 'Tarefa', vars)
+      const content = interpolate(config.content as string || '', vars)
+      const dueDate = config.due_date ? interpolate(config.due_date as string, vars) : undefined
+      const projectId = config.project_id ? interpolate(config.project_id as string, vars) : undefined
       const priority = (config.priority as number) ?? 0
 
       const body: Record<string, unknown> = { title, content, priority }
@@ -2130,7 +2132,7 @@ async function executeTickTick(
       const data = await res.json() as Record<string, unknown>
       const taskId = data.id as string
       const taskUrl = `https://ticktick.com/webapp/#p/inbox/tasks/${taskId}`
-      return { ...input, task_id: taskId, task_url: taskUrl }
+      return { ...vars, task_id: taskId, task_url: taskUrl }
     }
 
     default:
