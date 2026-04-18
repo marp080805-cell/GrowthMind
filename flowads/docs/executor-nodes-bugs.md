@@ -80,3 +80,58 @@ Saída no modo single-ad (dentro de loop):
 | Variável | Configuração |
 |----------|-------------|
 | `ad_id` | `{{id}}` — ID do anúncio vindo do Avaliar campanha |
+
+---
+
+### Loop — variáveis disponíveis no handle "Fim" (done branch)
+
+Após o loop terminar, as seguintes variáveis ficam disponíveis para os nodes conectados no handle **Fim**:
+
+| Variável | Tipo | Descrição |
+|----------|------|-----------|
+| `total` | number | Total de itens processados |
+| `completed` | number | Igual ao total (items processados) |
+| `loop_total` | number | Igual ao total |
+| `loop_results` | array | Array com o output final de cada iteração |
+| `loop_results_ads` | string | Texto pré-formatado com links dos ads criados (ad_id). Só inclui iterações onde `ad_id` estava presente no output. Pronto para usar no TickTick/WhatsApp. |
+| `ads_criados` | number | Quantidade de iterações que geraram um ad_id |
+
+**Exemplo de uso no TickTick:**
+```
+Título: Ativar anúncios — {{hoje}}
+Descrição:
+{{ads_criados}} anúncio(s) criados em {{hoje}} para ativar manualmente:
+
+{{loop_results_ads}}
+```
+
+**Como `loop_results_ads` é construído:**
+Filtra `loop_results` por itens com `ad_id` presente, formata cada um como:
+`• AD {ad_id} — https://adsmanager.facebook.com/adsmanager/manage/ads?selected_ad_ids={ad_id}`
+
+---
+
+## Fastify — fastify.log.error usa (obj, msg), não (msg, obj)
+
+**Contexto:** Adicionar logs de erro nas rotas Fastify.
+
+**Problema:** `fastify.log.error('mensagem:', err)` causa TS2769 — nenhum overload aceita string + valor extra.
+
+**Causa:** Fastify usa Pino como logger. A assinatura do Pino é `log.error(obj, msg)` — o objeto de contexto vem primeiro.
+
+**Solução:**
+```typescript
+// ❌ Errado
+fastify.log.error('TickTick error:', err)
+
+// ✅ Correto
+fastify.log.error({ err }, 'TickTick error')
+```
+
+---
+
+## interpolate — arrays agora formatam como lista
+
+A função `interpolate` do executor foi atualizada. Quando uma variável resolve para um array, cada item é exibido em uma linha separada (stringify por item). Antes retornava `[object Object]` ou `JSON.stringify` do array inteiro.
+
+**Uso:** `{{loop_results}}` em qualquer campo de texto retorna um item por linha.
