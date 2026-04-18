@@ -70,7 +70,7 @@ function getNowInTZ() {
     minute: 'numeric',
     weekday: 'short',
     day: 'numeric',
-    hour12: false,
+    hourCycle: 'h23',
   }).formatToParts(new Date())
 
   const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0'
