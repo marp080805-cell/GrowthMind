@@ -62,14 +62,30 @@ export function initQueue() {
   return automationQueue
 }
 
-// Retorna a hora atual no fuso do scheduler como objeto Date
-function nowInTZ(): Date {
-  const str = new Date().toLocaleString('en-US', { timeZone: TZ })
-  return new Date(str)
+// Extrai hora/minuto/dia atuais no fuso configurado via Intl (confiável em qualquer SO)
+function getNowInTZ() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TZ,
+    hour: 'numeric',
+    minute: 'numeric',
+    weekday: 'short',
+    day: 'numeric',
+    hour12: false,
+  }).formatToParts(new Date())
+
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0'
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+  return {
+    hour: parseInt(get('hour')),
+    minute: parseInt(get('minute')),
+    dayOfWeek: weekdays.indexOf(get('weekday')),
+    dayOfMonth: parseInt(get('day')),
+  }
 }
 
 // Verifica se o trigger config corresponde ao horário atual
-function shouldRunAt(config: Record<string, unknown>, now: Date): boolean {
+function shouldRunAt(config: Record<string, unknown>, now: ReturnType<typeof getNowInTZ>): boolean {
   const { frequency, time, days, day_of_month } = config as {
     frequency?: string
     time?: string
@@ -78,15 +94,15 @@ function shouldRunAt(config: Record<string, unknown>, now: Date): boolean {
   }
 
   const [hour, minute] = (time || '08:00').split(':').map(Number)
-  if (now.getHours() !== hour || now.getMinutes() !== minute) return false
+  if (now.hour !== hour || now.minute !== minute) return false
 
   switch (frequency) {
     case 'weekly': {
       const dayMap: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
-      return (days || ['mon']).some(d => dayMap[d] === now.getDay())
+      return (days || ['mon']).some(d => dayMap[d] === now.dayOfWeek)
     }
     case 'monthly':
-      return now.getDate() === (day_of_month || 1)
+      return now.dayOfMonth === (day_of_month || 1)
     case 'daily':
     default:
       return true
@@ -103,32 +119,42 @@ export async function initCronDispatcher() {
 
   // A cada minuto: consulta Supabase e despacha as automações que vencem agora
   cron.schedule('* * * * *', async () => {
-    const now = nowInTZ()
-    const label = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`
+    const now = getNowInTZ()
+    const label = `${String(now.hour).padStart(2, '0')}:${String(now.minute).padStart(2, '0')} (${TZ})`
+
+    console.log(`[CronDispatcher] tick ${label}`)
 
     try {
-      const { data: automations } = await supabase
+      const { data: automations, error } = await supabase
         .from('automations')
         .select('id, automation_nodes(*)')
         .eq('is_active', true)
 
-      if (!automations?.length) return
+      if (error) { console.error('[CronDispatcher] Erro Supabase:', error.message); return }
+      if (!automations?.length) { console.log('[CronDispatcher] Nenhuma automação ativa'); return }
+
+      console.log(`[CronDispatcher] ${automations.length} automação(ões) ativa(s) verificada(s)`)
 
       let dispatched = 0
       for (const auto of automations) {
         const nodes = (auto.automation_nodes || []) as Array<{ type: string; config: Record<string, unknown> }>
         const trigger = nodes.find(n => n.type === 'trigger.schedule')
-        if (!trigger || !shouldRunAt(trigger.config, now)) continue
+        if (!trigger) continue
+
+        const config = trigger.config as { time?: string; frequency?: string }
+        const matches = shouldRunAt(trigger.config, now)
+        console.log(`[CronDispatcher] automação ${auto.id} — trigger ${config.time} — match: ${matches}`)
+        if (!matches) continue
 
         // jobId único por automação + minuto exato — garante idempotência
-        const jobId = `${auto.id}:${now.getFullYear()}-${now.getMonth()}-${now.getDate()}:${now.getHours()}:${now.getMinutes()}`
+        const jobId = `${auto.id}:${now.hour}:${now.minute}:${new Date().toDateString()}`
 
         await automationQueue.add(
           auto.id,
           { automationId: auto.id, payload: null },
           {
             jobId,
-            delay: staggerSeconds(auto.id) * 1000, // espalha até 59s dentro do minuto
+            delay: staggerSeconds(auto.id) * 1000,
             removeOnComplete: true,
             removeOnFail: 100,
           }
