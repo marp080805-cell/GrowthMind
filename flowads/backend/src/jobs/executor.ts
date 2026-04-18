@@ -24,6 +24,11 @@ function interpolate(template: string, vars: Record<string, unknown>): string {
       }
     }
     if (val === undefined || val === null) return ''
+    if (Array.isArray(val)) {
+      return val.map(item =>
+        item && typeof item === 'object' ? JSON.stringify(item) : String(item)
+      ).join('\n')
+    }
     if (typeof val === 'object') return JSON.stringify(val)
     return String(val)
   })
@@ -525,7 +530,12 @@ export async function executeAutomation(
           }
 
           // After loop, expose summary to "done" branch
-          lastOutput = { total: items.length, batches: totalBatches, batch_size: batchSize, completed: items.length, loop_results: loopResults }
+          const adsCreated = loopResults
+            .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object' && !!(r as Record<string, unknown>).ad_id)
+          const loopResultsAds = adsCreated.length > 0
+            ? adsCreated.map(r => `• AD ${r.ad_id} — https://adsmanager.facebook.com/adsmanager/manage/ads?selected_ad_ids=${r.ad_id}`).join('\n')
+            : 'Nenhum anúncio criado nesta execução.'
+          lastOutput = { total: items.length, batches: totalBatches, batch_size: batchSize, completed: items.length, loop_results: loopResults, loop_results_ads: loopResultsAds, ads_criados: adsCreated.length }
           templateVars.input = lastOutput
           templateVars.loop_total = items.length
 
