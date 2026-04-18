@@ -21,11 +21,11 @@ Quando o Notion dispara um webhook (via automação interna do Notion), o payloa
     "is_locked": false,
     "created_by": { "id": "...", "object": "user" },
     "properties": {
-      "Nome":           { "type": "title",     "title": [{ "plain_text": "Nome do anúncio" }] },
-      "Ad ID":          { "type": "rich_text", "rich_text": [{ "plain_text": "act_123456" }] },
-      "Status":         { "type": "select",    "select": { "name": "Publicar" } },
-      "Titulo":         { "type": "title",     "title": [{ "plain_text": "Título do anúncio" }] },
-      "Criativo":       { "type": "files",     "files": [{ "type": "external", "external": { "url": "https://drive.google.com/file/d/..." } }] },
+      "Nome":           { "type": "title",     "title": [{ "plain_text": "teste nome", "text": { "content": "teste nome" } }] },
+      "Ad ID":          { "type": "rich_text", "rich_text": [] },
+      "Status":         { "type": "status",    "status": { "name": "Pendente", "color": "default" } },
+      "Título":         { "type": "rich_text", "rich_text": [{ "plain_text": "teste título", "text": { "content": "teste título" } }] },
+      "Criativo":       { "type": "url",       "url": "https://drive.google.com/file/d/..." },
       "Publicar":       { "type": "checkbox",  "checkbox": true },
       "Publicado em":   { "type": "date",      "date": { "start": "2026-04-18" } },
       "Texto principal":{ "type": "rich_text", "rich_text": [{ "plain_text": "Texto do anúncio" }] }
@@ -41,16 +41,19 @@ Quando o Notion dispara um webhook (via automação interna do Notion), o payloa
 
 ## Caminhos para usar nos nodes
 
-| Campo Notion       | Variável no node                                                  |
-|--------------------|-------------------------------------------------------------------|
-| Nome/Título        | `{{data.properties.Titulo.title[0].plain_text}}`                 |
-| Texto principal    | `{{data.properties.Texto principal.rich_text[0].plain_text}}`    |
-| Criativo (Drive)   | `{{data.properties.Criativo.files[0].external.url}}`             |
-| Criativo (Notion)  | `{{data.properties.Criativo.files[0].file.url}}`                 |
-| Status (select)    | `{{data.properties.Status.select.name}}`                         |
-| Ad ID              | `{{data.properties.Ad ID.rich_text[0].plain_text}}`              |
-| Publicado em       | `{{data.properties.Publicado em.date.start}}`                    |
-| ID da página       | `{{data.id}}`                                                     |
+| Campo Notion       | Tipo Notion | Variável no node                                                  |
+|--------------------|-------------|-------------------------------------------------------------------|
+| Nome               | title       | `{{data.properties.Nome.title[0].plain_text}}`                   |
+| Título             | rich_text   | `{{data.properties.Título.rich_text[0].plain_text}}`             |
+| Texto principal    | rich_text   | `{{data.properties.Texto principal.rich_text[0].plain_text}}`    |
+| Criativo (url)     | url         | `{{data.properties.Criativo.url}}`  ← tipo URL direto            |
+| Criativo (files)   | files       | `{{data.properties.Criativo.files[0].external.url}}` ou `.file.url` |
+| Status             | status      | `{{data.properties.Status.status.name}}`                         |
+| Ad ID              | rich_text   | `{{data.properties.Ad ID.rich_text[0].plain_text}}`              |
+| Publicado em       | date        | `{{data.properties.Publicado em.date.start}}`                    |
+| ID da página       | —           | `{{data.id}}`                                                     |
+
+> **Atenção:** o tipo da propriedade no Notion determina o caminho. Propriedade do tipo `url` tem o link em `.url` direto. Propriedade do tipo `files` tem o link em `.files[0].external.url` (link externo) ou `.files[0].file.url` (arquivo no Notion).
 
 ## Bug corrigido — interpolação com `key[n]`
 
