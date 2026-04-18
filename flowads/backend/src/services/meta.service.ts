@@ -965,24 +965,10 @@ export class MetaService {
     } catch { /* diagnóstico não bloqueia */ }
     const requestedStatus = (params.status || 'ACTIVE').toUpperCase()
 
-    if (requestedStatus === 'ACTIVE') {
-      // Não criar ad como PAUSED — agendar criação direta como ACTIVE após 5 min.
-      // A transição PAUSED→ACTIVE via Graph API dispara validação mais restrita que causa
-      // WITH_ISSUES 1346001. Criar diretamente como ACTIVE usa o path "create-and-publish",
-      // que não acumula esse estado de erro.
-      const { scheduleAdActivation } = await import('../jobs/ad-activation')
-      scheduleAdActivation(
-        this.token,
-        { creativeId, adsetId: params.adsetId, adName: params.adName, adAccountId: this.adAccountId },
-        5 * 60 * 1000,
-      )
-      console.log(`[Meta] Creative ${creativeId} agendado para virar ad ACTIVE em 5min via BullMQ`)
-      // ad_id recebe o creative_id como placeholder não-vazio — o ad real será criado em 5min pelo BullMQ.
-      // O executor/fluxo não fica bloqueado esperando o ad_id definitivo.
-      return { ad_id: creativeId, creative_id: creativeId }
-    }
-
-    // Para status PAUSED ou outros, criar imediatamente
+    // Criar o ad diretamente com o status desejado — sem PAUSED intermediário.
+    // source_instagram_media_id referencia um post já existente, não há mídia nova
+    // para processar. O path "create-and-publish" (status=ACTIVE direto) evita a
+    // validação restrita que a transição PAUSED→ACTIVE dispara (WITH_ISSUES 1346001).
     const adData = await this._post(`${this.accountUrl}/ads`, {
       adset_id: params.adsetId,
       name: params.adName,
