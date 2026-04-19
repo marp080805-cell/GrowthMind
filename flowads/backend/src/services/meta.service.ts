@@ -383,7 +383,7 @@ export class MetaService {
       ? `${this.accountUrl}/ads`
       : `${META_API}/${parentId}/ads`
     const params = new URLSearchParams({
-      fields: 'id,name,status,adset_id,campaign_id,creative{id,effective_instagram_permalink_url},created_time',
+      fields: 'id,name,status,adset_id,campaign_id,creative{id},created_time',
       access_token: this.token,
       limit: '500',
     })
