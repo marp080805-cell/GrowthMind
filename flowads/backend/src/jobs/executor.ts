@@ -1803,18 +1803,19 @@ async function executeLogic(
     }
 
     case 'loop': {
-      const listPath = config.list as string
+      const listConfig = config.list
       let list: unknown[] = []
-      if (Array.isArray(input)) {
-        // Input itself is the array (e.g. connected directly to filter output)
+      if (Array.isArray(listConfig)) {
+        // Already resolved to array by interpolateConfig (pure {{var}} template)
+        list = listConfig
+      } else if (Array.isArray(input)) {
         list = input
-      } else if (listPath) {
-        // After interpolation, {{posts}} becomes a JSON string — try JSON.parse first
+      } else if (listConfig) {
+        const listPath = listConfig as string
         try {
           const parsed = JSON.parse(listPath)
           if (Array.isArray(parsed)) { list = parsed }
         } catch {
-          // Fallback: path traversal from input
           if (input && typeof input === 'object') {
             const keys = listPath.replace(/\{\{|\}\}/g, '').trim().split('.')
             let val: unknown = input
