@@ -1286,8 +1286,10 @@ async function executeMeta(
       // source_posts: user can specify {{posts}} from any previous node; after interpolation it becomes a JSON string
       // Falls back to input.posts or input.input.posts (when preceded by logic.if which wraps input)
       let posts: Array<Record<string, unknown>> = []
-      const sourcePosts = config.source_posts as string | undefined
-      if (sourcePosts && sourcePosts.trim()) {
+      const sourcePosts = config.source_posts
+      if (Array.isArray(sourcePosts)) {
+        posts = sourcePosts as Array<Record<string, unknown>>
+      } else if (sourcePosts && typeof sourcePosts === 'string' && sourcePosts.trim()) {
         try { posts = JSON.parse(sourcePosts) } catch { posts = [] }
       } else {
         posts = (inputRecord.posts as Array<Record<string, unknown>>)
@@ -1324,8 +1326,10 @@ async function executeMeta(
       if (isSingleItem) {
         posts = [inputRecord]
       } else {
-        const sourcePosts = config.source_posts as string | undefined
-        if (sourcePosts && sourcePosts.trim()) {
+        const sourcePosts = config.source_posts
+        if (Array.isArray(sourcePosts)) {
+          posts = sourcePosts as Array<Record<string, unknown>>
+        } else if (sourcePosts && typeof sourcePosts === 'string' && sourcePosts.trim()) {
           try { posts = JSON.parse(sourcePosts) } catch { posts = [] }
         } else {
           posts = (inputRecord.posts as Array<Record<string, unknown>>)
