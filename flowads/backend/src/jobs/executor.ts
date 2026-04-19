@@ -1810,8 +1810,8 @@ async function executeLogic(
         list = listConfig
       } else if (Array.isArray(input)) {
         list = input
-      } else if (listConfig) {
-        const listPath = listConfig as string
+      } else if (listConfig && typeof listConfig === 'string') {
+        const listPath = listConfig
         try {
           const parsed = JSON.parse(listPath)
           if (Array.isArray(parsed)) { list = parsed }
