@@ -838,7 +838,8 @@ async function executeMeta(
         const ageDays = ad.created_time
           ? Math.floor((Date.now() - new Date(ad.created_time).getTime()) / 86_400_000)
           : null
-        return { ...ad, metricas, age_days: ageDays }
+        const permalink = `https://adsmanager.facebook.com/adsmanager/manage/ads?selected_ad_ids=${ad.id}`
+        return { ...ad, metricas, age_days: ageDays, permalink }
       }))
 
       const totalAtivos = enriched.length
