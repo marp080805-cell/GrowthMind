@@ -797,38 +797,37 @@ async function executeMeta(
       const inputRecord = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
       const period = (config.period as string) ?? '7d'
       const source = (config.source as string) || 'fetch'
+      const metricsLevel = (config.metrics_level as string) || 'per_ad'
+      const datePreset = periodMap[period] || period
 
-      // Decide where ads come from
+      // ── AGGREGATED MODE: return single metrics object for the whole adset/campaign ──
+      if (metricsLevel === 'aggregated') {
+        const parentId = (config.parent_id as string) || null
+        const metricas = await meta.getMetrics(parentId, datePreset, [])
+        return { metricas }
+      }
+
+      // ── PER-AD MODE: enrich each individual ad with its own metrics ──
       let baseAds: import('../services/meta.service').MetaAd[]
       if (source === 'input') {
-        // Use ads from previous node output
         baseAds = (inputRecord.anuncios as import('../services/meta.service').MetaAd[]) || []
       } else {
-        // Fetch ads using config: level + parent_id + status_filter
         const level = (config.level as 'campaign' | 'adset' | 'account') || 'account'
         const parentId = config.parent_id as string | undefined
         const statusFilter = (config.status_filter as string) || 'ACTIVE'
         baseAds = await meta.getAds(parentId, level, statusFilter)
       }
 
-      // Fetch individual metrics for each ad in parallel
       const enriched = await Promise.all(baseAds.map(async (ad) => {
-        const metricas = await meta.getMetrics(
-          ad.id,
-          periodMap[period] || period,
-          ['impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend', 'purchase_roas', 'frequency', 'inline_link_clicks', 'actions', 'cost_per_action_type', 'action_values']
-        )
+        const metricas = await meta.getMetrics(ad.id, datePreset, [])
         const ageDays = ad.created_time
           ? Math.floor((Date.now() - new Date(ad.created_time).getTime()) / 86_400_000)
           : null
-        const permalink = (ad.creative as { id: string; effective_instagram_permalink_url?: string } | undefined)?.effective_instagram_permalink_url || ''
-        return { ...ad, metricas, age_days: ageDays, permalink }
+        return { ...ad, metricas, age_days: ageDays }
       }))
 
-      // Attach total active count to each ad so evaluate_campaign can check min_actives
       const totalAtivos = enriched.length
       const enrichedWithTotal = enriched.map(ad => ({ ...ad, _total_ativos: totalAtivos }))
-
       return { anuncios: enrichedWithTotal, total: totalAtivos }
     }
 

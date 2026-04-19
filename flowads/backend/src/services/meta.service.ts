@@ -40,7 +40,7 @@ export interface MetaAd {
   status: string
   adset_id: string
   campaign_id: string
-  creative?: { id: string; effective_instagram_permalink_url?: string }
+  creative?: { id: string }
   created_time?: string
   permalink?: string
 }
@@ -73,9 +73,18 @@ export interface MetaMetrics {
   custo_conversa?: number
   custo_adicao?: number       // custo por adição ao carrinho
   custo_thruplay?: number
+  // Cliques únicos
+  cliques_unicos?: number
+  cliques_link_unicos?: number
+  cliques_externos?: number
+  custo_clique_unico?: number
   // Qualidade / vídeo
   cliques_link?: number
   hook_rate?: number          // visualizacoes_video / impressoes * 100
+  video_p25?: number          // % assistido 25%
+  video_p50?: number          // % assistido 50%
+  video_p75?: number          // % assistido 75%
+  video_p100?: number         // % assistido 100%
   // Retorno
   receita?: number            // purchase_value total
   periodo: string
@@ -531,8 +540,12 @@ export class MetaService {
     const apiFields = [
       'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'spend',
       'purchase_roas', 'frequency', 'inline_link_clicks',
+      'unique_clicks', 'unique_inline_link_clicks', 'outbound_clicks',
+      'cost_per_unique_click',
       'actions', 'cost_per_action_type', 'action_values',
       'video_thruplay_watched_actions',
+      'video_p25_watched_actions', 'video_p50_watched_actions',
+      'video_p75_watched_actions', 'video_p100_watched_actions',
     ]
 
     const params = new URLSearchParams({
@@ -566,6 +579,11 @@ export class MetaService {
     const purchaseRoas = row.purchase_roas as ActionEntry[] | undefined
     const actionValues = row.action_values as ActionEntry[] | undefined
     const thruplayField = row.video_thruplay_watched_actions as ActionEntry[] | undefined
+    const videoP25Field = row.video_p25_watched_actions as ActionEntry[] | undefined
+    const videoP50Field = row.video_p50_watched_actions as ActionEntry[] | undefined
+    const videoP75Field = row.video_p75_watched_actions as ActionEntry[] | undefined
+    const videoP100Field = row.video_p100_watched_actions as ActionEntry[] | undefined
+    const outboundClicksField = row.outbound_clicks as ActionEntry[] | undefined
 
     const impressoes = parseInt(row.impressions as string || '0')
     const gasto = parseFloat(row.spend as string || '0')
@@ -608,8 +626,19 @@ export class MetaService {
         || findAction(cpa, 'messaging_conversation_started_7d'),
       custo_adicao: findAction(cpa, 'offsite_conversion.fb_pixel_add_to_cart') || findAction(cpa, 'add_to_cart'),
       custo_thruplay: thruplayCount > 0 ? gasto / thruplayCount : 0,
+      // Cliques únicos
+      cliques_unicos: parseInt(row.unique_clicks as string || '0'),
+      cliques_link_unicos: parseInt(row.unique_inline_link_clicks as string || '0'),
+      cliques_externos: sumActions(outboundClicksField),
+      custo_clique_unico: parseFloat(row.cost_per_unique_click as string || '0'),
+      // Qualidade / vídeo
       cliques_link: parseInt(row.inline_link_clicks as string || '0'),
       hook_rate: impressoes > 0 ? (videoViews / impressoes) * 100 : 0,
+      video_p25: sumActions(videoP25Field),
+      video_p50: sumActions(videoP50Field),
+      video_p75: sumActions(videoP75Field),
+      video_p100: sumActions(videoP100Field),
+      // Retorno
       receita: findAction(actionValues, 'omni_purchase') || findAction(actionValues, 'purchase'),
       periodo: datePreset,
     }

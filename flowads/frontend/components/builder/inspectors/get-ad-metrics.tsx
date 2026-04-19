@@ -20,6 +20,7 @@ export function GetAdMetricsInspector({ config, onChange }: InspectorFieldProps)
 
   const source = (config.source as string) || 'fetch'
   const level = (config.level as string) || 'account'
+  const metricsLevel = (config.metrics_level as string) || 'per_ad'
 
   useEffect(() => {
     if (clientId) campaignsApi.list(clientId).then(setCampaigns).catch(() => {})
@@ -169,6 +170,32 @@ export function GetAdMetricsInspector({ config, onChange }: InspectorFieldProps)
         </>
       )}
 
+      {/* Como vêm as métricas */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">COMO VÊM AS MÉTRICAS</label>
+        <div className="flex gap-1.5">
+          {[
+            { key: 'per_ad', label: 'Por anúncio' },
+            { key: 'aggregated', label: 'Do conjunto todo' },
+          ].map(opt => (
+            <button
+              key={opt.key}
+              onClick={() => set('metrics_level', opt.key)}
+              className={`flex-1 h-8 rounded-[8px] text-xs font-syne font-semibold border transition-all ${
+                metricsLevel === opt.key ? 'bg-accent text-white border-accent' : 'bg-bg2 text-text3 border-[var(--border)] hover:border-accent/50'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-text3/70 leading-relaxed">
+          {metricsLevel === 'per_ad'
+            ? 'Retorna um array de anúncios — cada um com suas métricas individuais.'
+            : 'Retorna métricas agregadas de todo o conjunto/campanha em um único objeto.'}
+        </p>
+      </div>
+
       {/* Período */}
       <div className="flex flex-col gap-1.5">
         <label className="text-[10px] font-syne font-semibold text-text3">PERÍODO DE ANÁLISE</label>
@@ -185,8 +212,17 @@ export function GetAdMetricsInspector({ config, onChange }: InspectorFieldProps)
 
       <div className="bg-accent/5 rounded-[8px] p-2.5 border border-accent/10 text-[10px] text-text3">
         <p className="font-syne font-bold text-accent mb-1">Saída</p>
-        <p><code className="text-accent">{'{{anuncios}}'}</code> — array com métricas em cada item</p>
-        <p className="mt-1 text-text3/80"><code className="text-text2">ctr, cpc, cpm, roas, frequencia, gasto, age_days</code></p>
+        {metricsLevel === 'per_ad' ? (
+          <>
+            <p><code className="text-accent">{'{{anuncios}}'}</code> — array, cada item é um anúncio com métricas</p>
+            <p className="mt-1 text-text3/80"><code className="text-text2">ctr, cpc, cpm, roas, frequencia, gasto, age_days, cliques_unicos, hook_rate, video_p25/50/75/100...</code></p>
+          </>
+        ) : (
+          <>
+            <p><code className="text-accent">{'{{metricas}}'}</code> — objeto único com métricas do conjunto todo</p>
+            <p className="mt-1 text-text3/80"><code className="text-text2">metricas.ctr, metricas.cpc, metricas.gasto, metricas.roas, metricas.frequencia...</code></p>
+          </>
+        )}
       </div>
     </>
   )
