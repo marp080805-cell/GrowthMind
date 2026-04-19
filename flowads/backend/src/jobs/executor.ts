@@ -34,11 +34,26 @@ function interpolate(template: string, vars: Record<string, unknown>): string {
   })
 }
 
+function resolvePureVar(template: string, vars: Record<string, unknown>): unknown | undefined {
+  const m = template.match(/^\{\{([^}]+)\}\}$/)
+  if (!m) return undefined
+  const keys = m[1].trim().split('.')
+  let val: unknown = vars
+  for (const k of keys) val = (val as Record<string, unknown>)?.[k]
+  return val
+}
+
 function interpolateConfig(config: Record<string, unknown>, vars: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(config)) {
     if (typeof v === 'string') {
-      result[k] = interpolate(v, vars)
+      // Preserve original type when the entire value is a single {{var}} template
+      const raw = resolvePureVar(v, vars)
+      if (raw !== undefined && raw !== null && typeof raw !== 'string' && typeof raw !== 'number' && typeof raw !== 'boolean') {
+        result[k] = raw
+      } else {
+        result[k] = interpolate(v, vars)
+      }
     } else if (Array.isArray(v)) {
       result[k] = v.map(item =>
         typeof item === 'string' ? interpolate(item, vars)

@@ -21,6 +21,7 @@ export function GetAdMetricsInspector({ config, onChange }: InspectorFieldProps)
   const source = (config.source as string) || 'fetch'
   const level = (config.level as string) || 'account'
   const metricsLevel = (config.metrics_level as string) || 'per_ad'
+  const aggregatedLabel = level === 'campaign' ? 'Da campanha toda' : level === 'account' ? 'Da conta toda' : 'Do conjunto todo'
 
   useEffect(() => {
     if (clientId) campaignsApi.list(clientId).then(setCampaigns).catch(() => {})
@@ -176,7 +177,7 @@ export function GetAdMetricsInspector({ config, onChange }: InspectorFieldProps)
         <div className="flex gap-1.5">
           {[
             { key: 'per_ad', label: 'Por anúncio' },
-            { key: 'aggregated', label: 'Do conjunto todo' },
+            { key: 'aggregated', label: aggregatedLabel },
           ].map(opt => (
             <button
               key={opt.key}
@@ -192,7 +193,7 @@ export function GetAdMetricsInspector({ config, onChange }: InspectorFieldProps)
         <p className="text-[10px] text-text3/70 leading-relaxed">
           {metricsLevel === 'per_ad'
             ? 'Retorna um array de anúncios — cada um com suas métricas individuais.'
-            : 'Retorna métricas agregadas de todo o conjunto/campanha em um único objeto.'}
+            : `Retorna métricas agregadas ${level === 'campaign' ? 'da campanha' : level === 'account' ? 'da conta' : 'do conjunto'} em um único objeto.`}
         </p>
       </div>
 
