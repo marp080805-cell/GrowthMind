@@ -46,6 +46,17 @@ export function LoopInspector({ config, onChange }: InspectorFieldProps) {
           className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
         />
       </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-syne font-semibold text-text3">DELAY ENTRE ITENS (SEGUNDOS)</label>
+        <input
+          type="number"
+          min={0}
+          value={(config.delay_between_items as number) ?? 0}
+          onChange={(e) => set('delay_between_items', Math.max(0, parseInt(e.target.value) || 0))}
+          className="h-8 rounded-[8px] bg-surface border border-[var(--border)] text-text px-2.5 text-xs focus:outline-none focus:border-accent"
+        />
+        <p className="text-[10px] text-text3">0 = sem delay. Recomendado: 30–60s para criação de anúncios na Meta.</p>
+      </div>
     </>
   )
 }

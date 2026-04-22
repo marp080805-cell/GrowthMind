@@ -545,6 +545,12 @@ export async function executeAutomation(
             }
             loopResults.push(iterLastOutput)
             await updateLog('running')
+
+            // Delay entre iterações para evitar rajadas na API
+            const delayBetween = interpolatedConfig.delay_between_items as number | undefined
+            if (delayBetween && delayBetween > 0 && i + batchSize < items.length) {
+              await new Promise(resolve => setTimeout(resolve, delayBetween * 1000))
+            }
           }
 
           // After loop, expose summary to "done" branch
