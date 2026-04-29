@@ -875,26 +875,23 @@ async function enqueueAndWaitForMetaOperation(
     throw new Error(`Operação bloqueada: ${validation.reason}`)
   }
 
-  // Serializar por account: 1 operação por vez + delay humanizado
-  const lockKey = adAccountId || clientId
-  return await withAccountLock(lockKey, async () => {
-    const delay = META_ACTION_DELAYS[action] || 3000
-    await new Promise(r => setTimeout(r, delay))
+  // Delay humanizado entre operações (serialização já garantida pelo withAccountLock externo)
+  const delay = META_ACTION_DELAYS[action] || 3000
+  await new Promise(r => setTimeout(r, delay))
 
-    // Buscar token do cliente
-    const { data: clientRow } = await supabase.from('clients').select('meta_token').eq('id', clientId).single()
-    let token = clientRow?.meta_token
-    if (!token) {
-      const { data: settingsRow } = await supabase.from('settings').select('meta_token').single()
-      token = settingsRow?.meta_token
-    }
-    if (!token) throw new Error('Token Meta não configurado')
+  // Buscar token do cliente
+  const { data: clientRow } = await supabase.from('clients').select('meta_token').eq('id', clientId).single()
+  let token = clientRow?.meta_token
+  if (!token) {
+    const { data: settingsRow } = await supabase.from('settings').select('meta_token').single()
+    token = settingsRow?.meta_token
+  }
+  if (!token) throw new Error('Token Meta não configurado')
 
-    console.log(`[Executor] Executando ${action} para conta ${adAccountId}`)
-    const result = await runMetaWrite(action, payload, token, adAccountId)
-    console.log(`[Executor] ✓ ${action} concluído`)
-    return result
-  })
+  console.log(`[Executor] Executando ${action} para conta ${adAccountId}`)
+  const result = await runMetaWrite(action, payload, token, adAccountId)
+  console.log(`[Executor] ✓ ${action} concluído`)
+  return result
 }
 
 async function runMetaWrite(action: string, payload: Record<string, unknown>, token: string, adAccountId: string): Promise<unknown> {
