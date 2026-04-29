@@ -2,6 +2,10 @@ import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '../lib/supabase'
 import { MetaService } from './meta.service'
 import { WhatsAppService } from './whatsapp.service'
+import { queueManager } from '../jobs/account-queue-manager'
+import { Redis } from 'ioredis'
+
+const redisResults = new Redis(process.env.REDIS_URL || 'redis://localhost:6379')
 
 const SESSION_ID = '00000000-0000-0000-0000-000000000001'
 const HISTORY_LIMIT = 30
@@ -442,20 +446,28 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       }
       const client = await getClientById(client_id)
       if (!client) throw new Error('Cliente não encontrado')
-      const meta = buildMetaService(client)
-      const results = []
+
+      // Enfileirar cada pausa
       for (const id of object_ids) {
-        await meta.pauseObject(id)
-        results.push({ id, paused: true })
+        await queueManager.enqueueMetaOperation({
+          automationId: '',
+          clientId: client_id,
+          adAccountId: client.ad_account_id || '',
+          action: 'pause_ad',
+          payload: { object_id: id },
+          timestamp: Date.now(),
+          retries: 0,
+        })
       }
+
       await supabase.from('jarvis_action_log').insert({
         client_id, client_name: client.name,
         action_type: 'pause_ads',
         action_params: { object_ids, object_type, reason },
         success: true,
-        result: { paused: results.length },
+        result: { paused: object_ids.length },
       })
-      return { success: true, paused: results.length, message: `${results.length} ${object_type}(s) pausado(s).` }
+      return { success: true, paused: object_ids.length, message: `${object_ids.length} ${object_type}(s) pausado(s).` }
     }
 
     case 'activate_ads': {
@@ -464,10 +476,20 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       }
       const client = await getClientById(client_id)
       if (!client) throw new Error('Cliente não encontrado')
-      const meta = buildMetaService(client)
+
+      // Enfileirar cada ativação
       for (const id of object_ids) {
-        await meta.activateObject(id)
+        await queueManager.enqueueMetaOperation({
+          automationId: '',
+          clientId: client_id,
+          adAccountId: client.ad_account_id || '',
+          action: 'activate_ad',
+          payload: { object_id: id },
+          timestamp: Date.now(),
+          retries: 0,
+        })
       }
+
       await supabase.from('jarvis_action_log').insert({
         client_id, client_name: client.name,
         action_type: 'activate_ads',
@@ -484,8 +506,17 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       }
       const client = await getClientById(client_id)
       if (!client) throw new Error('Cliente não encontrado')
-      const meta = buildMetaService(client)
-      await meta.updateBudget(object_id, { daily_budget: new_budget })
+
+      // Enfileirar ajuste de orçamento
+      await queueManager.enqueueMetaOperation({
+        automationId: '',
+        clientId: client_id,
+        adAccountId: client.ad_account_id || '',
+        action: 'adjust_budget',
+        payload: { object_id, daily_budget: new_budget },
+        timestamp: Date.now(),
+        retries: 0,
+      })
       await supabase.from('jarvis_action_log').insert({
         client_id, client_name: client.name,
         action_type: 'adjust_budget',
