@@ -60,6 +60,7 @@ export function createAccountWorker(adAccountId: string): Worker {
 
 /**
  * Processar um job Meta
+ * Armazena resultado em Redis para que executor possa recuperar
  */
 async function processMetaJob(job: Job<MetaQueueJob>, adAccountId: string): Promise<{ success: boolean; result?: unknown; error?: string }> {
   const { automationId, clientId, action, payload, retries } = job.data
@@ -100,10 +101,20 @@ async function processMetaJob(job: Job<MetaQueueJob>, adAccountId: string): Prom
     // 6. Log sucesso
     console.log(`[Queue Worker] ✓ ${action} succeeded for ${clientId}`)
 
-    return { success: true, result }
+    const response = { success: true, result }
+
+    // 7. Armazenar resultado em Redis para executor recuperar
+    await job.updateProgress({ status: 'completed', data: response })
+
+    return response
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     console.error(`[Queue Worker] ✗ ${action} failed: ${errMsg}`)
+
+    const response = { success: false, error: errMsg }
+
+    // Armazenar erro também
+    await job.updateProgress({ status: 'error', data: response })
 
     // Verificar se é erro de conta restringida
     if (errMsg.includes('1346001') || errMsg.includes('restricted')) {
