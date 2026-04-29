@@ -16,8 +16,8 @@ const clientExecutionTracker = new Map<string, { hour: number; count: number }>(
 // 1. RATE LIMITING POR CLIENTE
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MAX_ADS_PER_CLIENT_PER_HOUR = 10 // máximo 10 anúncios/hora por cliente
-const MAX_ADS_PER_ACCOUNT_PER_HOUR = 30 // máximo 30 anúncios/hora por ad account inteira
+const MAX_ADS_PER_CLIENT_PER_HOUR = 5 // máximo 5 anúncios/hora por cliente (Meta limite ~5-8)
+const MAX_ADS_PER_ACCOUNT_PER_HOUR = 8 // máximo 8 anúncios/hora por ad account inteira (seguro)
 
 export async function checkClientRateLimit(clientId: string, adAccountId: string): Promise<{ allowed: boolean; reason?: string }> {
   const now = new Date()

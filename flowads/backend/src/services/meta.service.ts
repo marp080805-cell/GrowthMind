@@ -128,6 +128,37 @@ const META_MAX_RETRIES = 5
 
 function metaSleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)) }
 
+// Validação de URLs para anúncios (contra políticas Meta)
+async function validateAdUrl(url: string): Promise<{ valid: boolean; reason?: string }> {
+  try {
+    const urlObj = new URL(url)
+
+    // 1. HTTPS obrigatório
+    if (urlObj.protocol !== 'https:') {
+      return { valid: false, reason: 'URL deve usar HTTPS' }
+    }
+
+    // 2. Bloquear encurtadores conhecidos (Meta proíbe)
+    const blockedHosts = new Set([
+      'bit.ly', 'tinyurl.com', 'short.link', 'ow.ly', 'buff.ly',
+      'goo.gl', 'tiny.cc', 'url.shortener', 'shortened.link'
+    ])
+    if (blockedHosts.has(urlObj.hostname) || blockedHosts.has(urlObj.hostname.replace('www.', ''))) {
+      return { valid: false, reason: 'URLs encurtadas não são permitidas pela Meta' }
+    }
+
+    // 3. Validar que landing page é acessível (GET 200-399 status)
+    const response = await fetch(url, { method: 'HEAD', timeout: 5000 })
+    if (!response.ok && response.status < 400) {
+      return { valid: false, reason: `Landing page retornou status ${response.status}` }
+    }
+
+    return { valid: true }
+  } catch (err) {
+    return { valid: false, reason: `URL inválida ou inacessível: ${err instanceof Error ? err.message : String(err)}` }
+  }
+}
+
 async function metaPost(url: string, body: Record<string, unknown>, adAccountId?: string): Promise<Record<string, unknown>> {
   // Meta Graph API is form-encoded by design; complex fields are JSON strings
   const formData = new URLSearchParams()

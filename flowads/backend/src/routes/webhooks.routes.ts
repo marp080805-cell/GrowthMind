@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { executeAutomation } from '../jobs/executor'
 
 export const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
-  // Public webhook endpoint - no auth required
+  // Webhook endpoint - requer autenticação obrigatória (proteção contra abuso)
   fastify.post('/webhooks/:nodeId', async (req, reply) => {
     const { nodeId } = req.params as { nodeId: string }
     const payload = req.body
@@ -18,12 +18,27 @@ export const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (!node) return reply.status(404).send({ message: 'Webhook not found' })
 
-    // Validate secret if configured
+    // Validar autenticação: exigir secret OU bearer token
     const secret = (node.config as Record<string, unknown>)?.secret
+    const bearerToken = req.headers.authorization?.replace('Bearer ', '')
+
+    if (!secret && !bearerToken) {
+      return reply.status(401).send({ message: 'Autenticação obrigatória: configure x-webhook-secret ou use Authorization Bearer token' })
+    }
+
+    // Se tem secret configurado, validar
     if (secret) {
       const providedSecret = req.headers['x-webhook-secret']
       if (providedSecret !== secret) {
-        return reply.status(401).send({ message: 'Invalid secret' })
+        return reply.status(401).send({ message: 'x-webhook-secret inválido' })
+      }
+    }
+
+    // Se tem bearer token, validar contra Supabase
+    if (bearerToken) {
+      const { data: { user }, error } = await supabase.auth.getUser(bearerToken)
+      if (error || !user) {
+        return reply.status(401).send({ message: 'Bearer token inválido ou expirado' })
       }
     }
 
@@ -58,6 +73,28 @@ export const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
       .single()
 
     if (!node) return reply.status(404).send({ message: 'Webhook not found' })
+
+    // Validar autenticação (mesmo como POST)
+    const secret = (node.config as Record<string, unknown>)?.secret
+    const bearerToken = req.headers.authorization?.replace('Bearer ', '')
+
+    if (!secret && !bearerToken) {
+      return reply.status(401).send({ message: 'Autenticação obrigatória: configure x-webhook-secret ou use Authorization Bearer token' })
+    }
+
+    if (secret) {
+      const providedSecret = req.headers['x-webhook-secret']
+      if (providedSecret !== secret) {
+        return reply.status(401).send({ message: 'x-webhook-secret inválido' })
+      }
+    }
+
+    if (bearerToken) {
+      const { data: { user }, error } = await supabase.auth.getUser(bearerToken)
+      if (error || !user) {
+        return reply.status(401).send({ message: 'Bearer token inválido ou expirado' })
+      }
+    }
 
     const { data: automation } = await supabase
       .from('automations')

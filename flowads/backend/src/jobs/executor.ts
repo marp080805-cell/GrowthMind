@@ -1280,6 +1280,21 @@ async function executeMeta(
 
       // Pega video_id e image_hash da saída do node anterior (Upload criativo) automaticamente
       const prevOutput = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
+      const linkUrl = config.link_url as string | undefined
+
+      // Validar URL do anúncio (proteção contra políticas Meta)
+      if (linkUrl) {
+        try {
+          const urlObj = new URL(linkUrl)
+          if (urlObj.protocol !== 'https:') throw new Error('URL deve usar HTTPS')
+          const blockedHosts = ['bit.ly', 'tinyurl.com', 'short.link', 'ow.ly', 'buff.ly', 'goo.gl']
+          const host = urlObj.hostname.replace('www.', '')
+          if (blockedHosts.includes(host)) throw new Error('URLs encurtadas não são permitidas pela Meta')
+        } catch (err) {
+          throw new Error(`URL inválida: ${err instanceof Error ? err.message : String(err)}`)
+        }
+      }
+
       const result = await meta.createAd({
         adset_id: config.adset_id as string,
         name: config.name as string,
@@ -1292,7 +1307,7 @@ async function executeMeta(
         image_hash: (prevOutput.image_hash as string) || ((config.image_hash as string || '').trim().includes(' ') ? undefined : config.image_hash as string) || undefined,
         video_id: (prevOutput.video_id as string) || ((config.video_id as string || '').trim().includes(' ') ? undefined : config.video_id as string) || undefined,
         thumbnail_hash: (prevOutput.thumbnail_hash as string) || (config.thumbnail_hash as string) || undefined,
-        link_url: config.link_url as string | undefined,
+        link_url: linkUrl,
         call_to_action: config.call_to_action as string | undefined,
         page_id: (config.page_id as string) || context.client?.facebook_page_id || undefined,
         // Só passa instagram_user_id se explicitamente configurado no bloco (substitui instagram_actor_id desde API v22.0)

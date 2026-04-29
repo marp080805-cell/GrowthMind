@@ -23,13 +23,17 @@ function parseRedisConnection(url: string) {
 export let automationQueue: Queue
 let schedulerWorker: Worker
 
-// Escalona execuções do mesmo minuto em até 59s — determinístico por automationId
+// Escalona execuções do mesmo minuto com stagger aleatório para evitar padrão detectável
 function staggerSeconds(automationId: string): number {
+  // Determinístico: hash do automationId para distribuição consistente
   let hash = 0
   for (let i = 0; i < automationId.length; i++) {
     hash = (hash * 31 + automationId.charCodeAt(i)) >>> 0
   }
-  return hash % 60
+  const baseDelay = hash % 30  // 0-30s base
+  // Aleatório: adicionar 30-90s para variar timing e evitar padrão
+  const randomDelay = 30 + Math.random() * 60  // 30-90s
+  return Math.round(baseDelay + randomDelay) * 1000  // Converter para ms
 }
 
 export function initQueue() {
