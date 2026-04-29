@@ -53,10 +53,10 @@ export class AccountQueueManager {
 
     // Enfileirar com prioridade e delay
     const bullJob = await queue.add(
-      `${job.action}:${job.clientId}`,
+      `${job.action}-${job.clientId}`,
       job,
       {
-        jobId: `${job.automationId}:${Date.now()}`,
+        jobId: `${job.automationId}-${Date.now()}`,
         delay: 0, // Worker controla delay
         attempts: 3,
         backoff: {
