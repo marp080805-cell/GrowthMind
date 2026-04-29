@@ -1377,20 +1377,30 @@ async function executeMeta(
           }
         }
 
+        if (!context.client?.id) {
+          throw new Error('Cliente não identificado - não é possível enfilar operação')
+        }
+
         try {
-          const result = await meta.createAdFromInstagramPost({
-            postId: config.source_instagram_media_id as string,
-            instagramAccountId,
-            pageId,
-            adsetId,
-            adName: (config.name as string) || `Post ${config.source_instagram_media_id}`,
-            status: (config.status as string) || 'PAUSED',
-            destinationUrl: (config.destination_url as string) || undefined,
-          })
+          const result = await enqueueAndWaitForMetaOperation(
+            '',
+            context.client.id,
+            context.client.ad_account_id || '',
+            'create_ad',
+            {
+              adset_id: adsetId,
+              name: (config.name as string) || `Post ${config.source_instagram_media_id}`,
+              source_instagram_media_id: config.source_instagram_media_id,
+              instagram_user_id: instagramAccountId,
+              page_id: pageId,
+              destination_url: config.destination_url,
+              status: (config.status as string) || 'PAUSED',
+            }
+          )
           return {
             success: true,
-            ad_id: result.ad_id,
-            creative_id: result.creative_id,
+            ad_id: (result as any)?.ad_id,
+            creative_id: (result as any)?.creative_id,
             post_permalink: (postData.permalink as string) || '',
             post_caption: (postData.caption as string) || '',
             post_media_type: (postData.media_type as string) || '',

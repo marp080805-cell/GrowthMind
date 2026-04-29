@@ -158,7 +158,21 @@ async function executeMetaAction(
         payload.daily_budget as number | undefined
       )
 
-    case 'create_ad':
+    case 'create_ad': {
+      // Suporte para criar ad a partir de Instagram post
+      if (payload.source_instagram_media_id) {
+        return await meta.createAdFromInstagramPost({
+          postId: payload.source_instagram_media_id as string,
+          instagramAccountId: payload.instagram_user_id as string | undefined,
+          pageId: payload.page_id as string | undefined,
+          adsetId: payload.adset_id as string,
+          adName: payload.name as string,
+          status: (payload.status as string) || 'PAUSED',
+          destinationUrl: payload.destination_url as string | undefined,
+        })
+      }
+
+      // Ad regular com criativo
       return await meta.createAd({
         adset_id: payload.adset_id as string,
         name: payload.name as string,
@@ -175,6 +189,7 @@ async function executeMetaAction(
         instagram_user_id: payload.instagram_user_id as string | undefined,
         status: (payload.status as string) || 'PAUSED',
       })
+    }
 
     case 'edit_campaign':
       return await meta.editCampaign(
