@@ -156,7 +156,7 @@ export async function checkAdAccountHealth(token: string, adAccountId: string): 
    */
   try {
     // Tenta fazer uma chamada simples — GET account info
-    const response = await fetch(`https://graph.instagram.com/v21.0/act_${adAccountId}?fields=name,account_status&access_token=${token}`)
+    const response = await fetch(`https://graph.facebook.com/v21.0/act_${adAccountId}?fields=name,account_status&access_token=${token}`)
     const data = (await response.json()) as { account_status?: number; error?: { type?: string; code?: number } }
 
     if (data.error?.code === 190 || data.error?.type === 'OAuthException') {
