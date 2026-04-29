@@ -8,6 +8,7 @@ import { OpenAIService } from '../services/openai.service'
 import { AnthropicService } from '../services/anthropic.service'
 import { WhatsAppService } from '../services/whatsapp.service'
 import { validateAutomationExecution, incrementClientAdCount, canEditObject, recordObjectEdit, canDuplicateCampaign, recordCampaignDuplication } from './meta-protection'
+import { getAccountLockStatus } from '../lib/account-execution-lock'
 
 function interpolate(template: string, vars: Record<string, unknown>): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
@@ -158,6 +159,12 @@ export async function executeAutomation(
     const clientData = client as Client
     const adAccountId = clientData?.ad_account_id || settings?.ad_account_id || ''
     const token = clientData?.meta_token || settings?.meta_token || ''
+
+    // Log: se múltiplas automações rodarem no mesmo account, serão serializadas
+    const lockStatus = getAccountLockStatus(adAccountId)
+    if (lockStatus.locked || lockStatus.waiting > 0) {
+      console.log(`[Executor] Automação ${automationId} — Account ${adAccountId} tem ${lockStatus.waiting} automações aguardando (será serializado)`)
+    }
     if (adAccountId && token && automation.client_id) {
       const validation = await validateAutomationExecution(automation.client_id, automationId, adAccountId, token)
       if (!validation.allowed) {
