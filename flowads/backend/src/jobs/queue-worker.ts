@@ -30,7 +30,8 @@ const DELAYS_BETWEEN_REQUESTS = {
  * Factory para criar worker por account
  */
 export function createAccountWorker(adAccountId: string): Worker {
-  const queueName = `meta-account-${adAccountId}`
+  const safeAccountId = adAccountId.replace(/:/g, "-").replace(/^act_/, "")
+  const queueName = `meta-account-${safeAccountId}`
 
   const worker = new Worker(
     queueName,

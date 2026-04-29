@@ -42,7 +42,8 @@ export class AccountQueueManager {
    * Retorna jobId para tracking
    */
   async enqueueMetaOperation(job: MetaQueueJob): Promise<string> {
-    const queueName = `meta-account-${job.adAccountId}`
+    const safeAccountId = job.adAccountId.replace(/:/g, '-').replace(/^act_/, '')
+    const queueName = `meta-account-${safeAccountId}`
     const queue = this.getOrCreateQueue(queueName)
 
     // Validar antes de enfilar
