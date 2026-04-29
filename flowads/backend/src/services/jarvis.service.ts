@@ -7,6 +7,41 @@ import { Redis } from 'ioredis'
 
 const redisResults = new Redis(process.env.REDIS_URL || 'redis://localhost:6379')
 
+// Helper: enfilar e aguardar resultado
+async function enqueueAndWaitForResult(
+  clientId: string,
+  adAccountId: string,
+  action: string,
+  payload: Record<string, unknown>
+): Promise<unknown> {
+  const jobId = await queueManager.enqueueMetaOperation({
+    automationId: '',
+    clientId,
+    adAccountId,
+    action,
+    payload,
+    timestamp: Date.now(),
+    retries: 0,
+  })
+
+  const maxWaitMs = 300_000 // 5 min
+  const pollIntervalMs = 100
+  const startTime = Date.now()
+  const resultKey = `job:result:${jobId}`
+
+  while (Date.now() - startTime < maxWaitMs) {
+    const resultJson = await redisResults.get(resultKey)
+    if (resultJson) {
+      const result = JSON.parse(resultJson)
+      if (!result.success) throw new Error(`Operação falhou: ${result.error}`)
+      return result.result
+    }
+    await new Promise(r => setTimeout(r, pollIntervalMs))
+  }
+
+  throw new Error(`Timeout aguardando ${action} (jobId: ${jobId})`)
+}
+
 const SESSION_ID = '00000000-0000-0000-0000-000000000001'
 const HISTORY_LIMIT = 30
 const MODEL = 'claude-opus-4-6'
@@ -335,25 +370,24 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       }
       const client = await getClientById(client_id)
       if (!client) throw new Error('Cliente não encontrado')
-      const meta = buildMetaService(client)
 
-      // Cria campanha
+      // Cria campanha via fila
       const campaignName = campaign_name || `Impulsionado - ${new Date().toLocaleDateString('pt-BR')}`
-      const campaign = await meta.createCampaign({
+      const campaign = await enqueueAndWaitForResult(client_id, client.ad_account_id || '', 'create_campaign', {
         name: campaignName,
         objective,
         status: 'ACTIVE',
         daily_budget: budget_per_day,
-      })
+      }) as any
 
       // Calcula datas
       const now = new Date()
       const endDate = new Date(now.getTime() + days * 24 * 3600 * 1000)
 
-      // Cria adset
-      const adset = await meta.createAdSet({
-        name: campaignName,
+      // Cria adset via fila
+      const adset = await enqueueAndWaitForResult(client_id, client.ad_account_id || '', 'create_adset', {
         campaign_id: campaign.id,
+        name: campaignName,
         daily_budget: budget_per_day,
         billing_event: 'IMPRESSIONS',
         optimization_goal: objective === 'POST_ENGAGEMENT' ? 'POST_ENGAGEMENT' : 'REACH',
@@ -364,17 +398,17 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
           age_min: 18,
           age_max: 65,
         },
-      })
+      }) as any
 
-      // Cria anúncio com post do Instagram
-      const ad = await meta.createAdFromInstagramPost({
-        postId: post_id,
-        adsetId: adset.id,
-        adName: campaignName,
-        pageId: client.facebook_page_id || '',
-        instagramAccountId: client.instagram_account_id || undefined,
+      // Cria anúncio com post do Instagram via fila
+      const ad = await enqueueAndWaitForResult(client_id, client.ad_account_id || '', 'create_ad', {
+        adset_id: adset.id,
+        name: campaignName,
+        source_instagram_media_id: post_id,
+        instagram_user_id: client.instagram_account_id,
+        page_id: client.facebook_page_id,
         status: 'ACTIVE',
-      })
+      }) as any
 
       // Log da ação
       await supabase.from('jarvis_action_log').insert({
@@ -382,7 +416,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
         action_type: 'boost_post',
         action_params: input,
         success: true,
-        result: { campaign_id: campaign.id, adset_id: adset.id, ad_id: ad.ad_id },
+        result: { campaign_id: campaign.id, adset_id: adset.id, ad_id: ad.ad_id || ad.id },
         channel: 'platform',
       })
 
@@ -390,7 +424,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
         success: true,
         campaign_id: campaign.id,
         adset_id: adset.id,
-        ad_id: ad.ad_id,
+        ad_id: ad.ad_id || ad.id,
         message: `Post impulsionado! Campanha "${campaignName}" ativa por ${days} dia(s) com R$${budget_per_day}/dia.`,
       }
     }
@@ -403,29 +437,28 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       }
       const client = await getClientById(client_id)
       if (!client) throw new Error('Cliente não encontrado')
-      const meta = buildMetaService(client)
 
       let adId: string
       if (creative_type === 'instagram_post' && instagram_post_id) {
-        const ad = await meta.createAdFromInstagramPost({
-          postId: instagram_post_id,
-          adsetId: adset_id,
-          adName: ad_name,
-          pageId: client.facebook_page_id || '',
-          instagramAccountId: client.instagram_account_id || undefined,
-          status: 'ACTIVE',
-        })
-        adId = ad.ad_id
-      } else {
-        const ad = await meta.createAd({
-          name: ad_name,
+        const ad = await enqueueAndWaitForResult(client_id, client.ad_account_id || '', 'create_ad', {
           adset_id,
+          name: ad_name,
+          source_instagram_media_id: instagram_post_id,
+          instagram_user_id: client.instagram_account_id,
+          page_id: client.facebook_page_id,
+          status: 'ACTIVE',
+        }) as any
+        adId = ad.ad_id || ad.id
+      } else {
+        const ad = await enqueueAndWaitForResult(client_id, client.ad_account_id || '', 'create_ad', {
+          adset_id,
+          name: ad_name,
           title: ad_title,
           body: ad_body,
-          page_id: client.facebook_page_id || '',
+          page_id: client.facebook_page_id,
           status: 'ACTIVE',
-        })
-        adId = ad.id
+        }) as any
+        adId = ad.ad_id || ad.id
       }
 
       await supabase.from('jarvis_action_log').insert({
