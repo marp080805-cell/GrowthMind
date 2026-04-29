@@ -83,12 +83,12 @@ async function start() {
   // Cleanup: marcar execuções orphanadas (rodando há > 30min) como erro
   try {
     const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString()
-    const { count } = await supabase
+    await supabase
       .from('execution_logs')
-      .update({ status: 'error', finished_at: new Date().toISOString(), error_message: 'Execução interrompida por reinicialização do servidor' })
+      .update({ status: 'error', finished_at: new Date().toISOString() })
       .eq('status', 'running')
       .lt('started_at', cutoff)
-    fastify.log.info(`Cleanup: ${count ?? 0} execuções orphanadas marcadas como erro`)
+    fastify.log.info('Cleanup: execuções orphanadas marcadas como erro')
   } catch (err) {
     fastify.log.warn('Cleanup de execuções orphanadas falhou:', err)
   }
