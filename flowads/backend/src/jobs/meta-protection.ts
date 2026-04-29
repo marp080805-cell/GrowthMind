@@ -156,27 +156,37 @@ export async function checkAdAccountHealth(token: string, adAccountId: string): 
    */
   try {
     // Tenta fazer uma chamada simples — GET account info
-    const response = await fetch(`https://graph.facebook.com/v21.0/act_${adAccountId}?fields=name,account_status&access_token=${token}`)
-    const data = (await response.json()) as { account_status?: number; error?: { type?: string; code?: number } }
+    const cleanAccountId = adAccountId.replace(/^act_/, '')
+    const response = await fetch(`https://graph.facebook.com/v21.0/act_${cleanAccountId}?fields=name,account_status&access_token=${token}`)
+    const data = (await response.json()) as { account_status?: number; error?: { type?: string; code?: number; message?: string } }
+
+    if (data.error) {
+      console.warn(`[Health Check] Meta API error for account ${cleanAccountId}: code=${data.error.code} type=${data.error.type} msg=${data.error.message}`)
+    }
 
     if (data.error?.code === 190 || data.error?.type === 'OAuthException') {
       return { healthy: false, reason: 'Token inválido ou expirado' }
     }
 
-    if (data.error?.code === 1346001 || data.error?.code === 100) {
-      // 1346001 = account action blocked by Meta
-      // 100 = Invalid parameter (pode indicar restrição)
+    if (data.error?.code === 1346001) {
       return { healthy: false, reason: 'Ad account pode estar restringida pela Meta' }
     }
 
-    if (data.account_status === 1 || data.account_status === 2) {
-      // 1 = ACTIVE, 2 = DISABLED (need check-in)
-      return { healthy: data.account_status === 1, reason: data.account_status === 2 ? 'Account precisa de check-in' : undefined }
+    // Erros como code=100 (parâmetro inválido) não bloqueiam — apenas logamos
+    if (data.error) {
+      console.warn(`[Health Check] Erro não-crítico, permitindo execução: ${data.error.message}`)
+      return { healthy: true }
+    }
+
+    if (data.account_status === 2) {
+      return { healthy: false, reason: 'Account precisa de check-in' }
     }
 
     return { healthy: true }
   } catch (err) {
-    return { healthy: false, reason: `Health check falhou: ${err instanceof Error ? err.message : String(err)}` }
+    // Falha de rede não bloqueia automação
+    console.warn(`[Health Check] Falha de rede, permitindo execução: ${err instanceof Error ? err.message : String(err)}`)
+    return { healthy: true }
   }
 }
 
