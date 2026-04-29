@@ -7,7 +7,7 @@ import { MetaService } from '../services/meta.service'
 import { OpenAIService } from '../services/openai.service'
 import { AnthropicService } from '../services/anthropic.service'
 import { WhatsAppService } from '../services/whatsapp.service'
-import { validateAutomationExecution, incrementClientAdCount } from './meta-protection'
+import { validateAutomationExecution, incrementClientAdCount, canEditObject, recordObjectEdit, canDuplicateCampaign, recordCampaignDuplication } from './meta-protection'
 
 function interpolate(template: string, vars: Record<string, unknown>): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
@@ -1284,14 +1284,10 @@ async function executeMeta(
 
       // Validar URL do anúncio (proteção contra políticas Meta)
       if (linkUrl) {
-        try {
-          const urlObj = new URL(linkUrl)
-          if (urlObj.protocol !== 'https:') throw new Error('URL deve usar HTTPS')
-          const blockedHosts = ['bit.ly', 'tinyurl.com', 'short.link', 'ow.ly', 'buff.ly', 'goo.gl']
-          const host = urlObj.hostname.replace('www.', '')
-          if (blockedHosts.includes(host)) throw new Error('URLs encurtadas não são permitidas pela Meta')
-        } catch (err) {
-          throw new Error(`URL inválida: ${err instanceof Error ? err.message : String(err)}`)
+        const { validateAdUrl } = await import('../services/meta.service')
+        const validation = await validateAdUrl(linkUrl)
+        if (!validation.valid) {
+          throw new Error(`URL inválida: ${validation.reason}`)
         }
       }
 
@@ -1493,6 +1489,29 @@ async function executeMeta(
       const adsetId = config.adset_id as string
       if (!adsetId) throw new Error('ID do conjunto de anúncios (adset_id) não configurado no bloco.')
 
+      // Proteção: fazer check de elegibilidade de alguns posts aleatoriamente antes do loop
+      // Detectar potenciais problemas antes de criar anúncios em massa
+      const checkCount = Math.min(3, newPosts.length)
+      const sampleIndices = Array.from({ length: checkCount }, () => Math.floor(Math.random() * newPosts.length))
+      const ineligibleCount = new Set()
+
+      for (const idx of sampleIndices) {
+        try {
+          const postData = await meta.getInstagramPost(newPosts[idx].id, instagramAccountId)
+          const boostInfo = postData.boost_eligibility_info
+          if (boostInfo && !boostInfo.eligible_to_boost) {
+            ineligibleCount.add(true)
+          }
+        } catch {
+          // Ignorar erro no preflight check
+        }
+      }
+
+      // Se muitos posts na amostra são inelegíveis, aviso
+      if (ineligibleCount.size > checkCount / 2) {
+        console.warn(`[Preflight] Muitos posts parecem inelegíveis. Verifique elegibilidade.`)
+      }
+
       const status = (config.status as string) || 'ACTIVE'
       const detalhes: Array<{ post_id: string; ad_id?: string; status: string; error?: string }> = []
 
@@ -1531,10 +1550,12 @@ async function executeMeta(
     }
 
     case 'duplicate_campaign': {
-      const result = await meta.duplicateCampaign(
-        config.campaign_id as string,
-        config.new_name as string | undefined
-      )
+      const campaignId = config.campaign_id as string
+      if (!canDuplicateCampaign(campaignId)) {
+        throw new Error(`Campanha já foi duplicada hoje (máx 1 duplicação/dia)`)
+      }
+      const result = await meta.duplicateCampaign(campaignId, config.new_name as string | undefined)
+      recordCampaignDuplication(campaignId)
       return { campanha_duplicada: result, campaign_id: result.id }
     }
 
@@ -1552,43 +1573,62 @@ async function executeMeta(
 
     // ── Edição ───────────────────────────────────────────────────────────
     case 'edit_campaign': {
-      await meta.editCampaign(config.campaign_id as string, {
+      const campaignId = config.campaign_id as string
+      if (!canEditObject(campaignId)) {
+        throw new Error(`Campanha atingiu limite de 3 edições/dia`)
+      }
+      await meta.editCampaign(campaignId, {
         name: config.name as string | undefined,
         status: config.status as string | undefined,
         daily_budget: config.daily_budget as number | undefined,
         lifetime_budget: config.lifetime_budget as number | undefined,
         stop_time: config.stop_time as string | undefined,
       })
-      return { editado: true, campaign_id: config.campaign_id }
+      recordObjectEdit(campaignId)
+      return { editado: true, campaign_id: campaignId }
     }
 
     case 'edit_adset': {
-      await meta.editAdSet(config.adset_id as string, {
+      const adsetId = config.adset_id as string
+      if (!canEditObject(adsetId)) {
+        throw new Error(`Adset atingiu limite de 3 edições/dia`)
+      }
+      await meta.editAdSet(adsetId, {
         name: config.name as string | undefined,
         status: config.status as string | undefined,
         daily_budget: config.daily_budget as number | undefined,
         targeting: config.targeting as Record<string, unknown> | undefined,
         end_time: config.end_time as string | undefined,
       })
-      return { editado: true, adset_id: config.adset_id }
+      recordObjectEdit(adsetId)
+      return { editado: true, adset_id: adsetId }
     }
 
     case 'edit_ad': {
-      await meta.editAd(config.ad_id as string, {
+      const adId = config.ad_id as string
+      if (!canEditObject(adId)) {
+        throw new Error(`Anúncio atingiu limite de 3 edições/dia`)
+      }
+      await meta.editAd(adId, {
         name: config.name as string | undefined,
         status: config.status as string | undefined,
         creative_id: config.creative_id as string | undefined,
       })
-      return { editado: true, ad_id: config.ad_id }
+      recordObjectEdit(adId)
+      return { editado: true, ad_id: adId }
     }
 
     case 'adjust_budget': {
       const objectId = (config.campaign_id || config.adset_id || config.object_id) as string
       if (!objectId) throw new Error('ID do objeto não configurado')
+      if (!canEditObject(objectId)) {
+        throw new Error(`Objeto atingiu limite de 3 edições/dia`)
+      }
       await meta.updateBudget(objectId, {
         daily_budget: config.daily_budget as number | undefined,
         lifetime_budget: config.lifetime_budget as number | undefined,
       })
+      recordObjectEdit(objectId)
       return { budget_atualizado: true, object_id: objectId }
     }
 
@@ -1596,14 +1636,22 @@ async function executeMeta(
     case 'pause_ad': {
       const id = (config.ad_id || config.adset_id || config.campaign_id || config.object_id) as string
       if (!id) throw new Error('ID do objeto não configurado')
+      if (!canEditObject(id)) {
+        throw new Error(`Objeto atingiu limite de 3 edições/dia`)
+      }
       await meta.pauseObject(id)
+      recordObjectEdit(id)
       return { pausado: true, object_id: id }
     }
 
     case 'activate_ad': {
       const id = (config.ad_id || config.adset_id || config.campaign_id || config.object_id) as string
       if (!id) throw new Error('ID do objeto não configurado')
+      if (!canEditObject(id)) {
+        throw new Error(`Objeto atingiu limite de 3 edições/dia`)
+      }
       await meta.activateObject(id)
+      recordObjectEdit(id)
       return { ativado: true, object_id: id }
     }
 
@@ -1748,15 +1796,30 @@ async function executeAI(
     result = await svc.complete(request)
   }
 
+  // Moderação: verificar conteúdo gerado por IA
+  const { moderateContent, shouldBlockAIOutput } = await import('../services/content-moderation')
+  const aiOutput = result.parsed || result.content
+  const outputStr = typeof aiOutput === 'string' ? aiOutput : JSON.stringify(aiOutput)
+  const moderation = moderateContent(outputStr)
+
+  if (shouldBlockAIOutput(moderation)) {
+    throw new Error(`Conteúdo gerado bloqueado por moderação: ${moderation.issues.join('; ')}`)
+  }
+
+  // Aviso se score é moderado
+  if (moderation.score > 0.3) {
+    console.warn(`[AI Moderation] Score ${(moderation.score * 100).toFixed(1)}%: ${moderation.issues.join(', ')}`)
+  }
+
   // Save to memory if enabled
   if (config.memory_enabled) {
     await supabase.from('agent_memory').insert([
       { agent_id: config.agent_id, client_id: context.client?.id, execution_id: context.executionId, role: 'user', content: request.humanMessage },
-      { agent_id: config.agent_id, client_id: context.client?.id, execution_id: context.executionId, role: 'assistant', content: result.content },
+      { agent_id: config.agent_id, client_id: context.client?.id, execution_id: context.executionId, role: 'assistant', content: outputStr },
     ])
   }
 
-  return result.parsed || result.content
+  return aiOutput
 }
 
 // ─── WHATSAPP ─────────────────────────────────────────────────────────────────

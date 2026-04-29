@@ -129,7 +129,7 @@ const META_MAX_RETRIES = 5
 function metaSleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)) }
 
 // Validação de URLs para anúncios (contra políticas Meta)
-async function validateAdUrl(url: string): Promise<{ valid: boolean; reason?: string }> {
+export async function validateAdUrl(url: string): Promise<{ valid: boolean; reason?: string }> {
   try {
     const urlObj = new URL(url)
 
@@ -143,15 +143,35 @@ async function validateAdUrl(url: string): Promise<{ valid: boolean; reason?: st
       'bit.ly', 'tinyurl.com', 'short.link', 'ow.ly', 'buff.ly',
       'goo.gl', 'tiny.cc', 'url.shortener', 'shortened.link'
     ])
-    if (blockedHosts.has(urlObj.hostname) || blockedHosts.has(urlObj.hostname.replace('www.', ''))) {
+    const normalizedHost = urlObj.hostname.replace('www.', '')
+    if (blockedHosts.has(normalizedHost)) {
       return { valid: false, reason: 'URLs encurtadas não são permitidas pela Meta' }
     }
 
     // 3. Validar que landing page é acessível (GET 200-399 status)
-    const response = await fetch(url, { method: 'HEAD', timeout: 5000 })
-    if (!response.ok && response.status < 400) {
-      return { valid: false, reason: `Landing page retornou status ${response.status}` }
+    try {
+      const response = await fetch(url, {
+        method: 'HEAD',
+        timeout: 5000,
+        redirect: 'follow'
+      })
+      if (response.status >= 400) {
+        return { valid: false, reason: `Landing page retornou erro HTTP ${response.status}` }
+      }
+    } catch (fetchErr) {
+      // Tentar GET se HEAD falhar
+      const response = await fetch(url, {
+        method: 'GET',
+        timeout: 5000,
+        redirect: 'follow'
+      })
+      if (response.status >= 400) {
+        return { valid: false, reason: `Landing page retornou erro HTTP ${response.status}` }
+      }
     }
+
+    // 4. Verificar redirecionamentos suspeitos (muitos redirecionamentos = enganoso)
+    // Não necessário com redirect: 'follow' pois fetch segue automaticamente
 
     return { valid: true }
   } catch (err) {
@@ -1328,25 +1348,60 @@ export class MetaService {
   }
 
   private async waitForVideoReady(videoId: string, maxWaitMs = 180_000): Promise<void> {
+    /**
+     * Aguarda vídeo ficar pronto para uso em anúncio
+     * Máximo 3 minutos (padrão Meta)
+     * Retorna erro se falhar ou timeout
+     */
     const interval = 5_000
     const deadline = Date.now() + maxWaitMs
-    while (Date.now() < deadline) {
+    let attempts = 0
+    const maxAttempts = Math.ceil(maxWaitMs / interval)
+
+    while (Date.now() < deadline && attempts < maxAttempts) {
+      attempts++
       await new Promise((r) => setTimeout(r, interval))
+
       const url = `${META_API}/${videoId}?fields=status&access_token=${this.token}`
       try {
         const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
-        if (!res.ok) continue
+        if (!res.ok) {
+          if (attempts > 5) throw new Error(`HTTP ${res.status} after ${attempts} attempts`)
+          continue
+        }
+
         const d = await res.json() as { status?: { video_status?: string; processing_progress?: number } }
         const status = d.status?.video_status
-        console.log(`[Meta] Vídeo ${videoId} status: ${status} (${d.status?.processing_progress ?? '?'}%)`)
-        if (status === 'ready') return
-        if (status === 'error') throw new Error(`Vídeo ${videoId} falhou ao processar na Meta`)
+        const progress = d.status?.processing_progress ?? 0
+
+        if (status === 'ready') {
+          console.log(`[Meta] Vídeo ${videoId} pronto após ${attempts} checks`)
+          return
+        }
+        if (status === 'error') {
+          throw new Error(`Vídeo ${videoId} falhou ao processar na Meta`)
+        }
+
+        // Status: PROCESSING
+        if (attempts % 4 === 0) {
+          // Log a cada ~20 segundos
+          console.log(`[Meta] Vídeo ${videoId} processando (${progress}%)`)
+        }
       } catch (err) {
-        if ((err as Error).name === 'TimeoutError') continue
+        const errMsg = err instanceof Error ? err.message : String(err)
+        if (errMsg.includes('TimeoutError')) {
+          // Retry em timeout de rede
+          if (attempts > 5) throw err
+          continue
+        }
+        // Erro real, falhar imediatamente
         throw err
       }
     }
-    throw new Error(`Timeout aguardando processamento do vídeo ${videoId} na Meta (máx ${maxWaitMs / 1000}s)`)
+
+    // Timeout ou max attempts
+    const elapsed = Math.round((Date.now() - (deadline - maxWaitMs)) / 1000)
+    throw new Error(`Vídeo ${videoId} não ficou pronto em ${elapsed}s (limite: ${maxWaitMs / 1000}s) — verifique em Meta Ads Manager`)
   }
 
   // ─── Legacy compat ───────────────────────────────────────────────────────

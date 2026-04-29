@@ -1,6 +1,16 @@
 import { supabase } from '../lib/supabase'
 import { metaService } from '../services/meta.service'
 
+// Redis para persistência de rate limiting entre workers
+let redis: any = null
+try {
+  const Redis = require('redis')
+  redis = Redis.createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' })
+  redis.connect().catch(() => { redis = null; console.warn('[Rate Limiting] Redis não disponível, usando memória') })
+} catch {
+  console.warn('[Rate Limiting] Redis não disponível, usando memória')
+}
+
 /**
  * Proteções automáticas contra bloqueios de Business Manager pela Meta.
  * Funcionam independentemente de como o usuário cria as automações.
@@ -12,6 +22,14 @@ import { metaService } from '../services/meta.service'
 const apiCallTracker = new Map<string, { timestamp: number; count: number }[]>()
 const clientExecutionTracker = new Map<string, { hour: number; count: number }>()
 
+// Track de edições por objeto (campaignId, adsetId, adId, etc)
+// Previne manipulação excessiva do mesmo objeto
+const objectEditTracker = new Map<string, { date: string; count: number }>()
+
+// Track de duplicações de campanha
+// Previne criação em massa de campanhas duplicadas
+const campaignDuplicationTracker = new Map<string, { date: string; count: number }>()
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. RATE LIMITING POR CLIENTE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22,50 +40,71 @@ const MAX_ADS_PER_ACCOUNT_PER_HOUR = 8 // máximo 8 anúncios/hora por ad accoun
 export async function checkClientRateLimit(clientId: string, adAccountId: string): Promise<{ allowed: boolean; reason?: string }> {
   const now = new Date()
   const currentHour = now.getHours()
-  const hourKey = `${clientId}_${currentHour}`
+  const hourKey = `rl:client:${clientId}:${currentHour}`
+  const accountKey = `rl:account:${adAccountId}:${currentHour}`
 
-  // Verificar limite por cliente
-  const clientRecord = clientExecutionTracker.get(hourKey) || { hour: currentHour, count: 0 }
-  if (clientRecord.count >= MAX_ADS_PER_CLIENT_PER_HOUR) {
+  // Verificar limite por cliente (Redis ou memória)
+  let clientCount = 0
+  if (redis) {
+    clientCount = parseInt(await redis.get(hourKey) || '0')
+  } else {
+    const record = clientExecutionTracker.get(hourKey)
+    clientCount = record?.count || 0
+  }
+
+  if (clientCount >= MAX_ADS_PER_CLIENT_PER_HOUR) {
     return {
       allowed: false,
-      reason: `Cliente ${clientId} atingiu limite de ${MAX_ADS_PER_CLIENT_PER_HOUR} anúncios/hora`,
+      reason: `Cliente atingiu limite de ${MAX_ADS_PER_CLIENT_PER_HOUR} anúncios/hora`,
     }
   }
 
-  // Verificar limite por ad account inteira
-  const accountKey = `account_${adAccountId}_${currentHour}`
-  const accountRecord = clientExecutionTracker.get(accountKey) || { hour: currentHour, count: 0 }
-  if (accountRecord.count >= MAX_ADS_PER_ACCOUNT_PER_HOUR) {
+  // Verificar limite por ad account
+  let accountCount = 0
+  if (redis) {
+    accountCount = parseInt(await redis.get(accountKey) || '0')
+  } else {
+    const record = clientExecutionTracker.get(accountKey)
+    accountCount = record?.count || 0
+  }
+
+  if (accountCount >= MAX_ADS_PER_ACCOUNT_PER_HOUR) {
     return {
       allowed: false,
-      reason: `Ad account atingiu limite de ${MAX_ADS_PER_ACCOUNT_PER_HOUR} anúncios/hora (distribuído entre clientes)`,
+      reason: `Ad account atingiu limite de ${MAX_ADS_PER_ACCOUNT_PER_HOUR} anúncios/hora`,
     }
   }
 
   return { allowed: true }
 }
 
-export function incrementClientAdCount(clientId: string, adAccountId: string, adCount: number = 1) {
+export async function incrementClientAdCount(clientId: string, adAccountId: string, adCount: number = 1) {
   const now = new Date()
   const currentHour = now.getHours()
+  const hourKey = `rl:client:${clientId}:${currentHour}`
+  const accountKey = `rl:account:${adAccountId}:${currentHour}`
 
-  // Incrementar contador do cliente
-  const clientKey = `${clientId}_${currentHour}`
-  const clientRecord = clientExecutionTracker.get(clientKey) || { hour: currentHour, count: 0 }
-  clientRecord.count += adCount
-  clientExecutionTracker.set(clientKey, clientRecord)
+  if (redis) {
+    // Usar Redis com TTL de 1 hora
+    await redis.incBy(hourKey, adCount)
+    await redis.expire(hourKey, 3600)
+    await redis.incBy(accountKey, adCount)
+    await redis.expire(accountKey, 3600)
+  } else {
+    // Fallback para memória
+    const clientRecord = clientExecutionTracker.get(hourKey) || { hour: currentHour, count: 0 }
+    clientRecord.count += adCount
+    clientExecutionTracker.set(hourKey, clientRecord)
 
-  // Incrementar contador da ad account
-  const accountKey = `account_${adAccountId}_${currentHour}`
-  const accountRecord = clientExecutionTracker.get(accountKey) || { hour: currentHour, count: 0 }
-  accountRecord.count += adCount
-  clientExecutionTracker.set(accountKey, accountRecord)
+    const accountRecord = clientExecutionTracker.get(accountKey) || { hour: currentHour, count: 0 }
+    accountRecord.count += adCount
+    clientExecutionTracker.set(accountKey, accountRecord)
 
-  // Limpar registros de horas antigas (cleanup)
-  const oldHour = (currentHour - 2 + 24) % 24
-  clientExecutionTracker.delete(`${clientId}_${oldHour}`)
-  clientExecutionTracker.delete(`account_${adAccountId}_${oldHour}`)
+    // Cleanup
+    const oldHour = (currentHour - 2 + 24) % 24
+    clientExecutionTracker.delete(`rl:client:${clientId}:${oldHour}`)
+    clientExecutionTracker.delete(`rl:account:${adAccountId}:${oldHour}`)
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -185,6 +224,88 @@ export async function checkBurstDetection(adAccountId: string): Promise<{ safe: 
   }
 
   return { safe: true }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4B. RATE LIMIT POR OBJETO (ANTI-MANIPULATION)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MAX_EDITS_PER_OBJECT_PER_DAY = 3 // máximo 3 mudanças por dia (status, budget, etc.)
+
+export function canEditObject(objectId: string): boolean {
+  /**
+   * Verifica se um objeto pode ser editado hoje (máx 3 edições/dia)
+   * Objetos são: campaignId, adsetId, adId, etc.
+   */
+  const today = new Date().toISOString().split('T')[0]
+  const key = `${objectId}_${today}`
+
+  const record = objectEditTracker.get(key) || { date: today, count: 0 }
+  return record.count < MAX_EDITS_PER_OBJECT_PER_DAY
+}
+
+export function recordObjectEdit(objectId: string) {
+  /**
+   * Registra uma edição no objeto
+   */
+  const today = new Date().toISOString().split('T')[0]
+  const key = `${objectId}_${today}`
+
+  const record = objectEditTracker.get(key) || { date: today, count: 0 }
+  record.count++
+  objectEditTracker.set(key, record)
+
+  // Cleanup: remover registros de mais de 2 dias atrás
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - 2)
+  const cutoff = cutoffDate.toISOString().split('T')[0]
+
+  for (const [k] of objectEditTracker) {
+    if (k.endsWith(cutoff)) {
+      objectEditTracker.delete(k)
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4C. CAMPAIGN DUPLICATION RATE LIMIT
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MAX_DUPLICATIONS_PER_ORIGINAL_PER_DAY = 1 // máximo 1 cópia por campanha original/dia
+
+export function canDuplicateCampaign(originalCampaignId: string): boolean {
+  /**
+   * Verifica se uma campanha pode ser duplicada
+   * Meta proíbe padrão de duplicação em massa
+   */
+  const today = new Date().toISOString().split('T')[0]
+  const key = `dup_${originalCampaignId}_${today}`
+
+  const record = campaignDuplicationTracker.get(key) || { date: today, count: 0 }
+  return record.count < MAX_DUPLICATIONS_PER_ORIGINAL_PER_DAY
+}
+
+export function recordCampaignDuplication(originalCampaignId: string) {
+  /**
+   * Registra uma duplicação de campanha
+   */
+  const today = new Date().toISOString().split('T')[0]
+  const key = `dup_${originalCampaignId}_${today}`
+
+  const record = campaignDuplicationTracker.get(key) || { date: today, count: 0 }
+  record.count++
+  campaignDuplicationTracker.set(key, record)
+
+  // Cleanup
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - 1)
+  const cutoffStr = cutoff.toISOString().split('T')[0]
+
+  for (const [k] of campaignDuplicationTracker) {
+    if (k.includes(`_${cutoffStr}`)) {
+      campaignDuplicationTracker.delete(k)
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
