@@ -7,6 +7,7 @@ import { MetaService } from '../services/meta.service'
 import { OpenAIService } from '../services/openai.service'
 import { AnthropicService } from '../services/anthropic.service'
 import { WhatsAppService } from '../services/whatsapp.service'
+import { validateAutomationExecution, incrementClientAdCount } from './meta-protection'
 
 function interpolate(template: string, vars: Record<string, unknown>): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
@@ -153,8 +154,32 @@ export async function executeAutomation(
     const campaigns = automation.client_id ? await getCampaigns(automation.client_id) : []
     const settings = await getSettings()
 
+    // Proteção 1: Validação pré-execução (rate limit, health check, burst detection)
+    const clientData = client as Client
+    const adAccountId = clientData?.ad_account_id || settings?.ad_account_id || ''
+    const token = clientData?.meta_token || settings?.meta_token || ''
+    if (adAccountId && token && automation.client_id) {
+      const validation = await validateAutomationExecution(automation.client_id, automationId, adAccountId, token)
+      if (!validation.allowed) {
+        const errorMsg = validation.reason || 'Execução bloqueada por proteção automática'
+        console.log(`[Protection] Automação ${automationId} bloqueada: ${errorMsg}`)
+        nodeLogs.push({
+          node_id: 'protection',
+          node_type: 'system',
+          node_label: 'Proteção Automática Meta',
+          status: 'error',
+          error: errorMsg,
+          input: null,
+          output: null,
+          duration_ms: 0,
+        })
+        await updateLog('error')
+        return executionId
+      }
+    }
+
     const context: ExecutionContext = {
-      client: client as Client,
+      client: clientData,
       campaigns,
       settings: settings || ({} as Settings),
       executionId,
@@ -560,6 +585,11 @@ export async function executeAutomation(
             ? adsCreated.map(r => `• AD ${r.ad_id} — https://adsmanager.facebook.com/adsmanager/manage/ads?selected_ad_ids=${r.ad_id}`).join('\n')
             : 'Nenhum anúncio criado nesta execução.'
           lastOutput = { total: items.length, batches: totalBatches, batch_size: batchSize, completed: items.length, loop_results: loopResults, loop_results_ads: loopResultsAds, ads_criados: adsCreated.length }
+
+          // Proteção 2: Registrar quantidade de anúncios criados para rate limiting
+          if (adsCreated.length > 0 && automation.client_id && adAccountId) {
+            incrementClientAdCount(automation.client_id, adAccountId, adsCreated.length)
+          }
           templateVars.input = lastOutput
           templateVars.loop_total = items.length
           Object.assign(templateVars, flattenOutput(lastOutput as Record<string, unknown>))
