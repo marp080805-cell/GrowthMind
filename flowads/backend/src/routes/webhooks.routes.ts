@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { supabase } from '../lib/supabase'
-import { executeAutomation } from '../jobs/executor'
+import { automationQueue } from '../jobs/scheduler'
 
 export const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
   // Webhook endpoint - requer autenticação obrigatória (proteção contra abuso)
@@ -53,12 +53,20 @@ export const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(200).send({ message: 'Automation is paused', executed: false })
     }
 
-    // Execute in background
-    executeAutomation(node.automation_id, payload).catch((err) => {
-      console.error(`[Webhook] Execution failed for automation ${node.automation_id}:`, err)
-    })
+    // Enfilar automação ao invés de executar diretamente
+    // Isso garante que múltiplos webhooks são processados sequencialmente
+    const jobId = `webhook_${node.automation_id}_${Date.now()}`
+    await automationQueue.add(
+      node.automation_id,
+      { automationId: node.automation_id, payload },
+      {
+        jobId,
+        removeOnComplete: true,
+        removeOnFail: 100,
+      }
+    )
 
-    return { message: 'Webhook received', executed: true }
+    return { message: 'Webhook received and queued', jobId, executed: true }
   })
 
   fastify.get('/webhooks/:nodeId', async (req, reply) => {
@@ -106,7 +114,18 @@ export const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(200).send({ message: 'Automation is paused', executed: false })
     }
 
-    executeAutomation(node.automation_id, payload).catch(console.error)
-    return { message: 'Webhook received', executed: true }
+    // Enfilar automação ao invés de executar diretamente
+    const jobId = `webhook_${node.automation_id}_${Date.now()}`
+    await automationQueue.add(
+      node.automation_id,
+      { automationId: node.automation_id, payload },
+      {
+        jobId,
+        removeOnComplete: true,
+        removeOnFail: 100,
+      }
+    )
+
+    return { message: 'Webhook received and queued', jobId, executed: true }
   })
 }

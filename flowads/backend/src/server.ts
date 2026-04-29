@@ -12,6 +12,8 @@ import { webhooksRoutes } from './routes/webhooks.routes'
 import { jarvisRoutes } from './routes/jarvis.routes'
 import { initQueue, initCronDispatcher } from './jobs/scheduler'
 import { initAdActivationWorker } from './jobs/ad-activation'
+import { startHealthMonitor } from './jobs/account-health-monitor'
+import { initializeQueueWorkers } from './jobs/queue-worker'
 
 const fastify = Fastify({
   logger: {
@@ -62,8 +64,15 @@ async function start() {
     initAdActivationWorker()
     await initCronDispatcher()
     fastify.log.info('CronDispatcher iniciado')
+
+    // Initialize Meta account protection system
+    startHealthMonitor()
+    fastify.log.info('Health Monitor iniciado')
+
+    const accountWorkers = await initializeQueueWorkers()
+    fastify.log.info(`Queue Workers inicializados (${accountWorkers.size} accounts)`)
   } catch (err) {
-    fastify.log.warn('BullMQ initialization failed (Redis may not be available):', err)
+    fastify.log.warn('Job queue initialization failed (Redis may not be available):', err)
   }
 
   // Start server
