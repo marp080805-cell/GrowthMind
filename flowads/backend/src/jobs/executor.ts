@@ -8,7 +8,7 @@ import { OpenAIService } from '../services/openai.service'
 import { AnthropicService } from '../services/anthropic.service'
 import { WhatsAppService } from '../services/whatsapp.service'
 import { validateAutomationExecution, incrementClientAdCount, canEditObject, recordObjectEdit, canDuplicateCampaign, recordCampaignDuplication } from './meta-protection'
-import { getAccountLockStatus } from '../lib/account-execution-lock'
+import { withAccountLock, getAccountLockStatus } from '../lib/account-execution-lock'
 
 function interpolate(template: string, vars: Record<string, unknown>): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
@@ -111,7 +111,8 @@ async function getCampaigns(clientId: string): Promise<Campaign[]> {
   return (data || []) as Campaign[]
 }
 
-export async function executeAutomation(
+// Função principal que será envolvida com lock
+async function executeAutomationInternal(
   automationId: string,
   triggerPayload?: unknown
 ): Promise<string> {
@@ -670,6 +671,45 @@ export async function executeAutomation(
     await updateLog('error')
     return executionId  // Always return executionId so frontend can check logs
   }
+}
+
+/**
+ * Wrapper público que serializa execução por ad account
+ * Garante que múltiplas automações no mesmo account executam sequencialmente
+ */
+export async function executeAutomation(
+  automationId: string,
+  triggerPayload?: unknown
+): Promise<string> {
+  // Carregar dados iniciais para obter o adAccountId (para o lock)
+  const { data: automation } = await supabase
+    .from('automations')
+    .select('*, client:clients(*)')
+    .eq('id', automationId)
+    .single()
+
+  if (!automation) {
+    // Se não encontrar, executar direto sem lock
+    return executeAutomationInternal(automationId, triggerPayload)
+  }
+
+  const client = automation.client as any
+  const adAccountId = client?.ad_account_id || ''
+
+  if (!adAccountId) {
+    // Sem account, executar direto
+    return executeAutomationInternal(automationId, triggerPayload)
+  }
+
+  // Executar com lock: garante serialização por account
+  console.log(`[Lock] Automação ${automationId} — Adquirindo lock para account ${adAccountId}`)
+  return await withAccountLock(adAccountId, async () => {
+    const lockStatus = getAccountLockStatus(adAccountId)
+    if (lockStatus.waiting > 0) {
+      console.log(`[Lock] Automação ${automationId} — Havia ${lockStatus.waiting} automações aguardando na fila`)
+    }
+    return executeAutomationInternal(automationId, triggerPayload)
+  })
 }
 
 function flattenOutput(obj: Record<string, unknown>, prefix = ''): Record<string, unknown> {
