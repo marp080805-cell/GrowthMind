@@ -42,7 +42,7 @@ export class AccountQueueManager {
    * Retorna jobId para tracking
    */
   async enqueueMetaOperation(job: MetaQueueJob): Promise<string> {
-    const queueName = `meta:account:${job.adAccountId}`
+    const queueName = `meta-account-${job.adAccountId}`
     const queue = this.getOrCreateQueue(queueName)
 
     // Validar antes de enfilar
@@ -79,8 +79,8 @@ export class AccountQueueManager {
       const queue = new Queue(queueName, { connection: this.redis })
       this.queues.set(queueName, queue)
 
-      // Extrair adAccountId do queueName (formato: meta:account:{adAccountId})
-      const adAccountId = queueName.replace('meta:account:', '')
+      // Extrair adAccountId do queueName (formato: meta-account-{adAccountId})
+      const adAccountId = queueName.replace('meta-account-', '')
 
       // Criar worker automaticamente se não existir e factory estiver registrada
       if (this.workerFactory && !this.workers.has(adAccountId)) {
@@ -110,7 +110,7 @@ export class AccountQueueManager {
     }
 
     // 2. Verificar fila não está muito grande (> 1000 jobs = problema)
-    const queueName = `meta:account:${adAccountId}`
+    const queueName = `meta-account-${adAccountId}`
     const queue = this.getOrCreateQueue(queueName)
     const queueSize = await queue.count()
     if (queueSize > 1000) {
@@ -199,7 +199,7 @@ export class AccountQueueManager {
     completed: number
     failed: number
   }> {
-    const queueName = `meta:account:${adAccountId}`
+    const queueName = `meta-account-${adAccountId}`
     const queue = this.getOrCreateQueue(queueName)
 
     return {
