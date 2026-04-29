@@ -2,44 +2,90 @@ import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '../lib/supabase'
 import { MetaService } from './meta.service'
 import { WhatsAppService } from './whatsapp.service'
-import { queueManager } from '../jobs/account-queue-manager'
-import { Redis } from 'ioredis'
-
-const redisResults = new Redis(process.env.REDIS_URL || 'redis://localhost:6379')
-
-// Helper: enfilar e aguardar resultado
+// Helper: executar operação Meta diretamente (sem BullMQ, sem polling)
 async function enqueueAndWaitForResult(
   clientId: string,
   adAccountId: string,
   action: string,
   payload: Record<string, unknown>
 ): Promise<unknown> {
-  const jobId = await queueManager.enqueueMetaOperation({
-    automationId: '',
-    clientId,
-    adAccountId,
-    action,
-    payload,
-    timestamp: Date.now(),
-    retries: 0,
-  })
-
-  const maxWaitMs = 300_000 // 5 min
-  const pollIntervalMs = 100
-  const startTime = Date.now()
-  const resultKey = `job:result:${jobId}`
-
-  while (Date.now() - startTime < maxWaitMs) {
-    const resultJson = await redisResults.get(resultKey)
-    if (resultJson) {
-      const result = JSON.parse(resultJson)
-      if (!result.success) throw new Error(`Operação falhou: ${result.error}`)
-      return result.result
-    }
-    await new Promise(r => setTimeout(r, pollIntervalMs))
+  const { data: clientRow } = await supabase.from('clients').select('meta_token').eq('id', clientId).single()
+  let token = clientRow?.meta_token
+  if (!token) {
+    const { data: settingsRow } = await supabase.from('settings').select('meta_token').single()
+    token = settingsRow?.meta_token
   }
+  if (!token) throw new Error('Token Meta não configurado')
 
-  throw new Error(`Timeout aguardando ${action} (jobId: ${jobId})`)
+  const meta = new MetaService(token, adAccountId)
+
+  switch (action) {
+    case 'create_campaign':
+      return await meta.createCampaign({
+        name: payload.name as string,
+        objective: payload.objective as string,
+        status: (payload.status as string) || 'PAUSED',
+        daily_budget: payload.daily_budget as number | undefined,
+        lifetime_budget: payload.lifetime_budget as number | undefined,
+        start_time: payload.start_time as string | undefined,
+        stop_time: payload.stop_time as string | undefined,
+      })
+    case 'create_adset':
+      return await meta.createAdSet({
+        campaign_id: payload.campaign_id as string,
+        name: (payload.name as string) || 'Conjunto',
+        optimization_goal: (payload.optimization_goal as string) || 'REACH',
+        billing_event: (payload.billing_event as string) || 'IMPRESSIONS',
+        targeting: (payload.targeting as Record<string, unknown>) || { geo_locations: { countries: ['BR'] } },
+        daily_budget: payload.daily_budget as number | undefined,
+        lifetime_budget: payload.lifetime_budget as number | undefined,
+        status: (payload.status as string) || 'PAUSED',
+        start_time: payload.start_time as string | undefined,
+        end_time: payload.end_time as string | undefined,
+      })
+    case 'create_ad':
+      if (payload.source_instagram_media_id) {
+        return await meta.createAdFromInstagramPost({
+          postId: payload.source_instagram_media_id as string,
+          instagramAccountId: payload.instagram_user_id as string | undefined,
+          pageId: payload.page_id as string | undefined,
+          adsetId: payload.adset_id as string,
+          adName: payload.name as string,
+          status: (payload.status as string) || 'PAUSED',
+          destinationUrl: payload.destination_url as string | undefined,
+        })
+      }
+      return await meta.createAd({
+        adset_id: payload.adset_id as string,
+        name: payload.name as string,
+        creative_id: payload.creative_id as string | undefined,
+        title: payload.title as string | undefined,
+        body: payload.body as string | undefined,
+        page_id: payload.page_id as string | undefined,
+        instagram_user_id: payload.instagram_user_id as string | undefined,
+        status: (payload.status as string) || 'PAUSED',
+      })
+    case 'pause_ad':
+      return await meta.pauseObject(payload.object_id as string)
+    case 'activate_ad':
+      return await meta.activateObject(payload.object_id as string)
+    case 'adjust_budget':
+      return await meta.updateBudget(payload.object_id as string, {
+        daily_budget: payload.daily_budget as number | undefined,
+        lifetime_budget: payload.lifetime_budget as number | undefined,
+      })
+    case 'boost_post':
+      return await meta.boostPost({
+        post_id: payload.post_id as string,
+        page_id: payload.page_id as string,
+        daily_budget: (payload.daily_budget as number) || 10,
+        duration_days: (payload.duration_days as number) || 7,
+        targeting: (payload.targeting as Record<string, unknown>) || { geo_locations: { countries: ['BR'] }, age_min: 18, age_max: 65 },
+        optimization_goal: payload.optimization_goal as string | undefined,
+      })
+    default:
+      throw new Error(`Ação desconhecida no Jarvis: ${action}`)
+  }
 }
 
 const SESSION_ID = '00000000-0000-0000-0000-000000000001'
@@ -480,17 +526,8 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       const client = await getClientById(client_id)
       if (!client) throw new Error('Cliente não encontrado')
 
-      // Enfileirar cada pausa
       for (const id of object_ids) {
-        await queueManager.enqueueMetaOperation({
-          automationId: '',
-          clientId: client_id,
-          adAccountId: client.ad_account_id || '',
-          action: 'pause_ad',
-          payload: { object_id: id },
-          timestamp: Date.now(),
-          retries: 0,
-        })
+        await enqueueAndWaitForResult(client_id, client.ad_account_id || '', 'pause_ad', { object_id: id })
       }
 
       await supabase.from('jarvis_action_log').insert({
@@ -510,17 +547,8 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       const client = await getClientById(client_id)
       if (!client) throw new Error('Cliente não encontrado')
 
-      // Enfileirar cada ativação
       for (const id of object_ids) {
-        await queueManager.enqueueMetaOperation({
-          automationId: '',
-          clientId: client_id,
-          adAccountId: client.ad_account_id || '',
-          action: 'activate_ad',
-          payload: { object_id: id },
-          timestamp: Date.now(),
-          retries: 0,
-        })
+        await enqueueAndWaitForResult(client_id, client.ad_account_id || '', 'activate_ad', { object_id: id })
       }
 
       await supabase.from('jarvis_action_log').insert({
@@ -540,16 +568,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       const client = await getClientById(client_id)
       if (!client) throw new Error('Cliente não encontrado')
 
-      // Enfileirar ajuste de orçamento
-      await queueManager.enqueueMetaOperation({
-        automationId: '',
-        clientId: client_id,
-        adAccountId: client.ad_account_id || '',
-        action: 'adjust_budget',
-        payload: { object_id, daily_budget: new_budget },
-        timestamp: Date.now(),
-        retries: 0,
-      })
+      await enqueueAndWaitForResult(client_id, client.ad_account_id || '', 'adjust_budget', { object_id, daily_budget: new_budget })
       await supabase.from('jarvis_action_log').insert({
         client_id, client_name: client.name,
         action_type: 'adjust_budget',
