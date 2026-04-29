@@ -163,7 +163,7 @@ async function executeAutomationInternal(
 
     // Proteção 1: Validação pré-execução (rate limit, health check, burst detection)
     const clientData = client as Client
-    const adAccountId = clientData?.ad_account_id || settings?.ad_account_id || ''
+    const adAccountId = clientData?.ad_account_id || ''
     const token = clientData?.meta_token || settings?.meta_token || ''
 
     // Log: se múltiplas automações rodarem no mesmo account, serão serializadas
@@ -1492,7 +1492,7 @@ async function executeMeta(
         }
       )
 
-      return { boost_criado: result, ...result }
+      return { boost_criado: result, ...(result && typeof result === 'object' ? result as Record<string, unknown> : {}) }
     }
 
     case 'filter_unsponsored_posts': {
@@ -1664,7 +1664,8 @@ async function executeMeta(
 
       for (const idx of sampleIndices) {
         try {
-          const postData = await meta.getInstagramPost(newPosts[idx].id, instagramAccountId)
+          const postDataArr = await meta.getInstagramPosts(instagramAccountId, 1)
+          const postData = postDataArr.find(p => p.id === newPosts[idx].id) || postDataArr[0]
           const boostInfo = postData.boost_eligibility_info
           if (boostInfo && !boostInfo.eligible_to_boost) {
             ineligibleCount.add(true)

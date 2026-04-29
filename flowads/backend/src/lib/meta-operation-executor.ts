@@ -60,15 +60,17 @@ export async function executeMetaOperation(
   }
 
   // Caso contrário, executar direto (para operações não-críticas)
-  const { data: client } = await supabase
+  const { data: clientRaw } = await supabase
     .from('clients')
     .select('*, settings:settings(*)')
     .eq('id', clientId)
     .single()
 
-  if (!client) throw new Error(`Cliente ${clientId} não encontrado`)
+  if (!clientRaw) throw new Error(`Cliente ${clientId} não encontrado`)
 
-  const token = client.meta_token || client.settings?.meta_token
+  const client = clientRaw as Record<string, unknown> & { meta_token?: string; settings?: { meta_token?: string } | Array<{ meta_token?: string }> }
+  const clientSettings = Array.isArray(client.settings) ? client.settings[0] : client.settings
+  const token = client.meta_token || clientSettings?.meta_token || ''
   const meta = new MetaService(token, adAccountId)
 
   return await executeActionDirect(meta, action, payload)
@@ -85,18 +87,30 @@ export async function executeActionDirect(
 ): Promise<unknown> {
   switch (action) {
     case 'create_campaign':
-      return await meta.createCampaign(
-        payload.name as string,
-        payload.objective as string,
-        payload.daily_budget as number | undefined
-      )
+      return await meta.createCampaign({
+        name: payload.name as string,
+        objective: payload.objective as string,
+        status: (payload.status as string) || 'PAUSED',
+        daily_budget: payload.daily_budget as number | undefined,
+        lifetime_budget: payload.lifetime_budget as number | undefined,
+        start_time: payload.start_time as string | undefined,
+        stop_time: payload.stop_time as string | undefined,
+        special_ad_categories: payload.special_ad_categories as string[] | undefined,
+      })
 
     case 'create_adset':
-      return await meta.createAdSet(
-        payload.campaign_id as string,
-        payload.targeting as Record<string, unknown>,
-        payload.daily_budget as number | undefined
-      )
+      return await meta.createAdSet({
+        campaign_id: payload.campaign_id as string,
+        name: (payload.name as string) || 'Conjunto de anúncios',
+        optimization_goal: (payload.optimization_goal as string) || 'REACH',
+        billing_event: (payload.billing_event as string) || 'IMPRESSIONS',
+        targeting: (payload.targeting as Record<string, unknown>) || { geo_locations: { countries: ['BR'] } },
+        daily_budget: payload.daily_budget as number | undefined,
+        lifetime_budget: payload.lifetime_budget as number | undefined,
+        status: (payload.status as string) || 'PAUSED',
+        start_time: payload.start_time as string | undefined,
+        end_time: payload.end_time as string | undefined,
+      })
 
     case 'create_ad':
       return await meta.createAd({
@@ -130,19 +144,22 @@ export async function executeActionDirect(
     case 'activate_ad':
       return await meta.activateObject(payload.object_id as string)
 
-    case 'upload_creative':
+    case 'upload_creative': {
       if (payload.type === 'image') {
-        return await meta.uploadAdImage(
-          payload.image_url as string,
-          payload.page_id as string
-        )
+        const imageUrl = payload.image_url as string
+        const imageRes = await fetch(imageUrl)
+        const imageBytes = Buffer.from(await imageRes.arrayBuffer())
+        return await meta.uploadAdImage(imageBytes)
       } else if (payload.type === 'video') {
-        return await meta.uploadAdVideo(
-          payload.video_url as string,
-          payload.page_id as string
-        )
+        const videoUrl = payload.video_url as string
+        const videoRes = await fetch(videoUrl, { signal: AbortSignal.timeout(300_000) })
+        const videoBytes = Buffer.from(await videoRes.arrayBuffer())
+        const videoName = (payload.name as string) || 'video.mp4'
+        const mimeType = (payload.mime_type as string) || 'video/mp4'
+        return await meta.uploadAdVideo(videoBytes, videoName, mimeType)
       }
       throw new Error('Tipo de criativo desconhecido')
+    }
 
     case 'duplicate_campaign':
       return await meta.duplicateCampaign(

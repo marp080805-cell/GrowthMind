@@ -85,7 +85,7 @@ async function checkAccountHealth(
     // e se account não foi restringida
     const url = `https://graph.facebook.com/v21.0/act_${adAccountId}?fields=name,account_status&access_token=${token}`
 
-    const response = await fetch(url, { timeout: 10000 })
+    const response = await fetch(url, { signal: AbortSignal.timeout(10000) })
     const data = (await response.json()) as {
       account_status?: number
       error?: { code?: number; message?: string; type?: string }

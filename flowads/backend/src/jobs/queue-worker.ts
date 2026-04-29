@@ -281,19 +281,22 @@ async function executeMetaAction(
         lookalike_spec: payload.lookalike_spec as Record<string, unknown> | undefined,
       })
 
-    case 'upload_creative':
+    case 'upload_creative': {
       if (payload.type === 'image') {
-        return await meta.uploadAdImage(
-          payload.image_url as string,
-          payload.page_id as string
-        )
+        const imageUrl = payload.image_url as string
+        const imageRes = await fetch(imageUrl)
+        const imageBytes = Buffer.from(await imageRes.arrayBuffer())
+        return await meta.uploadAdImage(imageBytes)
       } else if (payload.type === 'video') {
-        return await meta.uploadAdVideo(
-          payload.video_url as string,
-          payload.page_id as string
-        )
+        const videoUrl = payload.video_url as string
+        const videoRes = await fetch(videoUrl, { signal: AbortSignal.timeout(300_000) })
+        const videoBytes = Buffer.from(await videoRes.arrayBuffer())
+        const videoName = (payload.name as string) || 'video.mp4'
+        const mimeType = (payload.mime_type as string) || 'video/mp4'
+        return await meta.uploadAdVideo(videoBytes, videoName, mimeType)
       }
       throw new Error('Tipo de criativo desconhecido')
+    }
 
     default:
       throw new Error(`Ação desconhecida: ${action}`)

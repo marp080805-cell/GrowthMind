@@ -152,7 +152,7 @@ export async function validateAdUrl(url: string): Promise<{ valid: boolean; reas
     try {
       const response = await fetch(url, {
         method: 'HEAD',
-        timeout: 5000,
+        signal: AbortSignal.timeout(5000),
         redirect: 'follow'
       })
       if (response.status >= 400) {
@@ -162,7 +162,7 @@ export async function validateAdUrl(url: string): Promise<{ valid: boolean; reas
       // Tentar GET se HEAD falhar
       const response = await fetch(url, {
         method: 'GET',
-        timeout: 5000,
+        signal: AbortSignal.timeout(5000),
         redirect: 'follow'
       })
       if (response.status >= 400) {

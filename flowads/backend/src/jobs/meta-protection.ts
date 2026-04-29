@@ -1,5 +1,4 @@
 import { supabase } from '../lib/supabase'
-import { metaService } from '../services/meta.service'
 
 // Redis para persistência de rate limiting entre workers
 let redis: any = null
@@ -329,11 +328,11 @@ export async function validateAutomationExecution(
 
   // 2. Health check
   const healthCheck = await checkAdAccountHealth(token, adAccountId)
-  if (!healthCheck.healthy) return healthCheck
+  if (!healthCheck.healthy) return { allowed: false, reason: healthCheck.reason }
 
   // 3. Burst detection
   const burstCheck = await checkBurstDetection(adAccountId)
-  if (!burstCheck.safe) return burstCheck
+  if (!burstCheck.safe) return { allowed: false, reason: burstCheck.reason }
 
   return { allowed: true }
 }

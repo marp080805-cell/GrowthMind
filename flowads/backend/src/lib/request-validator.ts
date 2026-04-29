@@ -28,17 +28,20 @@ export async function validateMetaRequest(
   }
 
   // 2. Validar client existe e tem token
-  const { data: client } = await supabase
+  const { data: clientRaw } = await supabase
     .from('clients')
     .select('id, meta_token, settings:settings(*)')
     .eq('id', clientId)
     .single()
 
+  const client = clientRaw as { id: string; meta_token?: string; settings?: { meta_token?: string } | Array<{ meta_token?: string }> } | null
+
   if (!client) {
     return { valid: false, reason: `Cliente ${clientId} não encontrado` }
   }
 
-  const token = client.meta_token || client.settings?.meta_token
+  const settingsObj = Array.isArray(client.settings) ? client.settings[0] : client.settings
+  const token = client.meta_token || settingsObj?.meta_token
   if (!token) {
     return { valid: false, reason: 'Token Meta não configurado para este cliente' }
   }
@@ -195,7 +198,7 @@ export async function validateLandingPageEligibility(
 
     // Tentar fazer fetch para validar que página existe e é acessível
     const response = await fetch(url, {
-      timeout: 5000,
+      signal: AbortSignal.timeout(5000),
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; MetaBot/1.0)',
       },
