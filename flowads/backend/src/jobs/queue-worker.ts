@@ -9,11 +9,19 @@ import { supabase } from '../lib/supabase'
 import { MetaService } from '../services/meta.service'
 import { queueManager, type MetaQueueJob } from './account-queue-manager'
 
-// Redis para armazenar resultados de jobs
+// Redis separado para armazenar resultados (ioredis direto, não BullMQ)
 const redisResults = new Redis(process.env.REDIS_URL || 'redis://localhost:6379')
 
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
-const redis = new Redis(redisUrl)
+// BullMQ v5 precisa de options {host, port}, não de instância Redis
+function parseRedisConnection(url: string) {
+  try {
+    const u = new URL(url)
+    return { host: u.hostname, port: parseInt(u.port || '6379'), password: u.password || undefined, maxRetriesPerRequest: null as null }
+  } catch {
+    return { host: 'localhost', port: 6379, maxRetriesPerRequest: null as null }
+  }
+}
+const bullmqConnection = parseRedisConnection(process.env.REDIS_URL || 'redis://localhost:6379')
 
 const DELAYS_BETWEEN_REQUESTS = {
   create_campaign: 5000, // 5s
@@ -39,7 +47,7 @@ export function createAccountWorker(adAccountId: string): Worker {
       return await processMetaJob(job, adAccountId)
     },
     {
-      connection: redis,
+      connection: bullmqConnection,
       concurrency: 1, // ← CRÍTICO: 1 por vez
       lockDuration: 600_000, // 10 min lock
       lockRenewTime: 300_000, // Renovar a cada 5 min
@@ -339,6 +347,6 @@ export async function shutdownQueueWorkers(workers: Map<string, Worker>): Promis
   for (const worker of workers.values()) {
     await worker.close()
   }
-  await redis.quit()
+  await redisResults.quit()
   console.log('[Queue Workers] Encerrado')
 }

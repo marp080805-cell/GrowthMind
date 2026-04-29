@@ -19,6 +19,17 @@ export interface MetaQueueJob {
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
 
+function parseRedisConnection(url: string) {
+  try {
+    const u = new URL(url)
+    return { host: u.hostname, port: parseInt(u.port || '6379'), password: u.password || undefined, maxRetriesPerRequest: null as null }
+  } catch {
+    return { host: 'localhost', port: 6379, maxRetriesPerRequest: null as null }
+  }
+}
+
+const bullmqConnection = parseRedisConnection(redisUrl)
+
 export class AccountQueueManager {
   private redis: Redis
   private queues: Map<string, Queue> = new Map()
@@ -77,7 +88,7 @@ export class AccountQueueManager {
    */
   private getOrCreateQueue(queueName: string): Queue {
     if (!this.queues.has(queueName)) {
-      const queue = new Queue(queueName, { connection: this.redis })
+      const queue = new Queue(queueName, { connection: bullmqConnection })
       this.queues.set(queueName, queue)
 
       // Extrair adAccountId do queueName (formato: meta-account-{adAccountId})
