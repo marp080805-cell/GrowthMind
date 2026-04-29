@@ -11,6 +11,9 @@ import { validateAutomationExecution, incrementClientAdCount, canEditObject, rec
 import { withAccountLock, getAccountLockStatus } from '../lib/account-execution-lock'
 import { queueManager, type MetaQueueJob } from './account-queue-manager'
 import { validateMetaRequest } from '../lib/request-validator'
+import { Redis } from 'ioredis'
+
+const redisResults = new Redis(process.env.REDIS_URL || 'redis://localhost:6379')
 
 function interpolate(template: string, vars: Record<string, unknown>): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
@@ -862,7 +865,6 @@ async function enqueueAndWaitForMetaOperation(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.warn(`[Queue] Validação falhou para ${action}: ${msg}`)
-    // Se validação falhar, retorna erro
     throw new Error(`Operação bloqueada: ${msg}`)
   }
 
@@ -880,26 +882,31 @@ async function enqueueAndWaitForMetaOperation(
   const jobId = await queueManager.enqueueMetaOperation(job)
   console.log(`[Queue] ${action} enfileirado (jobId: ${jobId})`)
 
-  // Aguardar resultado (com timeout de 5 minutos)
-  const maxWaitMs = 300_000
-  const pollIntervalMs = 500
+  // Polling real: aguardar resultado salvo em Redis pelo queue-worker
+  const maxWaitMs = 300_000 // 5 minutos
+  const pollIntervalMs = 100
   const startTime = Date.now()
+  const resultKey = `job:result:${jobId}`
 
   while (Date.now() - startTime < maxWaitMs) {
-    await new Promise(r => setTimeout(r, pollIntervalMs))
+    const resultJson = await redisResults.get(resultKey)
 
-    // Em produção real, seria via Redis get ou BullMQ job.progress()
-    // Por enquanto, retorna sucesso após enfileirar
-    // O job será processado asyncronamente
+    if (resultJson) {
+      const result = JSON.parse(resultJson)
+      console.log(`[Queue] Resultado recebido para ${action}: ${result.success ? 'sucesso' : 'erro'}`)
 
-    // Placeholder: assumir sucesso após delay razoável
-    if (Date.now() - startTime > 2000) {
-      console.log(`[Queue] Operação ${action} foi enfileirada com sucesso`)
-      return { queued: true, jobId, message: 'Operação será processada em breve' }
+      if (!result.success) {
+        throw new Error(`Operação falhou: ${result.error}`)
+      }
+
+      return result.result
     }
+
+    // Job ainda não foi processado, aguardar mais um pouco
+    await new Promise(r => setTimeout(r, pollIntervalMs))
   }
 
-  throw new Error(`Timeout aguardando conclusão de ${action}`)
+  throw new Error(`Timeout aguardando conclusão de ${action} (jobId: ${jobId})`)
 }
 
 function detectImagePlacement(buf: Buffer): { width: number; height: number; placement_type: string } {
@@ -1293,38 +1300,29 @@ async function executeMeta(
 
     // ── Criação ──────────────────────────────────────────────────────────
     case 'create_campaign': {
-      // Enfilar via queue para rate limiting e serialização
-      if (context.client?.id) {
-        await enqueueAndWaitForMetaOperation(
-          '', // automationId será passado pelo executor wrapper
-          context.client.id,
-          context.client.ad_account_id || '',
-          'create_campaign',
-          {
-            name: config.name as string,
-            objective: config.objective as string,
-            status: (config.status as string) || 'PAUSED',
-            daily_budget: config.daily_budget,
-            lifetime_budget: config.lifetime_budget,
-            start_time: config.start_time,
-            stop_time: config.stop_time,
-            special_ad_categories: config.special_ad_categories,
-          }
-        )
+      // Enfilar via queue ÚNICA forma de executar
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
       }
 
-      // Executar direto também (para resultado imediato)
-      const result = await meta.createCampaign({
-        name: config.name as string,
-        objective: config.objective as string,
-        status: (config.status as string) || 'PAUSED',
-        daily_budget: config.daily_budget as number | undefined,
-        lifetime_budget: config.lifetime_budget as number | undefined,
-        start_time: config.start_time as string | undefined,
-        stop_time: config.stop_time as string | undefined,
-        special_ad_categories: (config.special_ad_categories as string[]) || [],
-      })
-      return { campanha_criada: result, campaign_id: result.id }
+      const result = await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'create_campaign',
+        {
+          name: config.name as string,
+          objective: config.objective as string,
+          status: (config.status as string) || 'PAUSED',
+          daily_budget: config.daily_budget,
+          lifetime_budget: config.lifetime_budget,
+          start_time: config.start_time,
+          stop_time: config.stop_time,
+          special_ad_categories: config.special_ad_categories,
+        }
+      )
+
+      return { campanha_criada: result, campaign_id: (result as any)?.id }
     }
 
     case 'create_adset': {
@@ -1332,31 +1330,19 @@ async function executeMeta(
         ? (typeof config.targeting === 'string' ? JSON.parse(config.targeting) : config.targeting)
         : { geo_locations: { countries: ['BR'] } }
 
-      // Enfilar via queue
-      if (context.client?.id) {
-        await enqueueAndWaitForMetaOperation(
-          '',
-          context.client.id,
-          context.client.ad_account_id || '',
-          'create_adset',
-          { ...config, targeting }
-        ).catch(err => console.warn(`[Queue] ${err.message}`))
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
       }
 
-      const result = await meta.createAdSet({
-        campaign_id: config.campaign_id as string,
-        name: config.name as string,
-        optimization_goal: (config.optimization_goal as string) || 'REACH',
-        billing_event: (config.billing_event as string) || 'IMPRESSIONS',
-        daily_budget: config.daily_budget as number | undefined,
-        lifetime_budget: config.lifetime_budget as number | undefined,
-        bid_amount: config.bid_amount as number | undefined,
-        targeting,
-        status: (config.status as string) || 'PAUSED',
-        start_time: config.start_time as string | undefined,
-        end_time: config.end_time as string | undefined,
-      })
-      return { adset_criado: result, adset_id: result.id }
+      const result = await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'create_adset',
+        { ...config, targeting }
+      )
+
+      return { adset_criado: result, adset_id: (result as any)?.id }
     }
 
     case 'create_ad': {
@@ -1441,63 +1427,61 @@ async function executeMeta(
         }
       }
 
-      // Enfilar via queue
-      if (context.client?.id) {
-        await enqueueAndWaitForMetaOperation(
-          '',
-          context.client.id,
-          context.client.ad_account_id || '',
-          'create_ad',
-          {
-            adset_id: config.adset_id,
-            name: config.name,
-            creative_id: config.creative_id,
-            title: config.title,
-            body: config.body,
-            image_url: config.image_url,
-            image_hash: (prevOutput.image_hash as string) || ((config.image_hash as string || '').trim().includes(' ') ? undefined : config.image_hash),
-            video_id: (prevOutput.video_id as string) || ((config.video_id as string || '').trim().includes(' ') ? undefined : config.video_id),
-            thumbnail_hash: (prevOutput.thumbnail_hash as string) || (config.thumbnail_hash as string),
-            link_url: linkUrl,
-            call_to_action: config.call_to_action,
-            page_id: (config.page_id as string) || context.client?.facebook_page_id,
-            instagram_user_id: (config.instagram_user_id as string) || (config.instagram_actor_id as string),
-            status: (config.status as string) || 'PAUSED',
-          }
-        ).catch(err => console.warn(`[Queue] ${err.message}`))
+      // Enfilar ÚNICA forma de executar
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
       }
 
-      const result = await meta.createAd({
-        adset_id: config.adset_id as string,
-        name: config.name as string,
-        creative_id: config.creative_id as string | undefined,
-        title: config.title as string | undefined,
-        body: config.body as string | undefined,
-        image_url: config.image_url as string | undefined,
-        image_hash: (prevOutput.image_hash as string) || ((config.image_hash as string || '').trim().includes(' ') ? undefined : config.image_hash as string) || undefined,
-        video_id: (prevOutput.video_id as string) || ((config.video_id as string || '').trim().includes(' ') ? undefined : config.video_id as string) || undefined,
-        thumbnail_hash: (prevOutput.thumbnail_hash as string) || (config.thumbnail_hash as string) || undefined,
-        link_url: linkUrl,
-        call_to_action: config.call_to_action as string | undefined,
-        page_id: (config.page_id as string) || context.client?.facebook_page_id || undefined,
-        instagram_user_id: (config.instagram_user_id as string) || (config.instagram_actor_id as string) || undefined,
-        status: (config.status as string) || 'PAUSED',
-      })
-      return { anuncio_criado: result, ad_id: result.id }
+      const result = await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'create_ad',
+        {
+          adset_id: config.adset_id,
+          name: config.name,
+          creative_id: config.creative_id,
+          title: config.title,
+          body: config.body,
+          image_url: config.image_url,
+          image_hash: (prevOutput.image_hash as string) || ((config.image_hash as string || '').trim().includes(' ') ? undefined : config.image_hash),
+          video_id: (prevOutput.video_id as string) || ((config.video_id as string || '').trim().includes(' ') ? undefined : config.video_id),
+          thumbnail_hash: (prevOutput.thumbnail_hash as string) || (config.thumbnail_hash as string),
+          link_url: linkUrl,
+          call_to_action: config.call_to_action,
+          page_id: (config.page_id as string) || context.client?.facebook_page_id,
+          instagram_user_id: (config.instagram_user_id as string) || (config.instagram_actor_id as string),
+          status: (config.status as string) || 'PAUSED',
+        }
+      )
+
+      return { anuncio_criado: result, ad_id: (result as any)?.id }
     }
 
     case 'boost_post': {
       const targeting = config.targeting
         ? (typeof config.targeting === 'string' ? JSON.parse(config.targeting) : config.targeting)
         : { geo_locations: { countries: ['BR'] }, age_min: 18, age_max: 65 }
-      const result = await meta.boostPost({
-        post_id: config.post_id as string,
-        page_id: config.page_id as string,
-        daily_budget: (config.daily_budget as number) || 10,
-        duration_days: (config.duration_days as number) || 7,
-        targeting,
-        optimization_goal: config.optimization_goal as string | undefined,
-      })
+
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
+      }
+
+      const result = await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'boost_post',
+        {
+          post_id: config.post_id,
+          page_id: config.page_id,
+          daily_budget: (config.daily_budget as number) || 10,
+          duration_days: (config.duration_days as number) || 7,
+          targeting,
+          optimization_goal: config.optimization_goal,
+        }
+      )
+
       return { boost_criado: result, ...result }
     }
 
@@ -1691,22 +1675,29 @@ async function executeMeta(
       for (const post of newPosts) {
         try {
           const adName = `Post ${post.id} - ${new Date(post.timestamp).toLocaleDateString('pt-BR')}`
-          const result = await meta.createAdFromInstagramPost({
-            postId: post.id,
-            instagramAccountId,
-            pageId,
-            adsetId,
-            adName,
-            status,
-          })
+          const result = await enqueueAndWaitForMetaOperation(
+            '',
+            clientId as string,
+            context.client?.ad_account_id || '',
+            'create_ad',
+            {
+              adset_id: adsetId,
+              name: adName,
+              source_instagram_media_id: post.id,
+              instagram_user_id: instagramAccountId,
+              page_id: pageId,
+              status,
+            }
+          )
+          const adId = (result as any)?.ad_id || (result as any)?.id
           await supabase.from('sponsored_posts').insert({
             client_id: clientId,
             instagram_account_id: instagramAccountId,
             post_id: post.id,
-            ad_id: result.ad_id,
+            ad_id: adId,
             adset_id: adsetId,
           })
-          detalhes.push({ post_id: post.id, ad_id: result.ad_id, status: 'criado' })
+          detalhes.push({ post_id: post.id, ad_id: adId, status: 'criado' })
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : String(err)
           detalhes.push({ post_id: post.id, status: 'erro', error: errMsg })
@@ -1727,21 +1718,46 @@ async function executeMeta(
       if (!canDuplicateCampaign(campaignId)) {
         throw new Error(`Campanha já foi duplicada hoje (máx 1 duplicação/dia)`)
       }
-      const result = await meta.duplicateCampaign(campaignId, config.new_name as string | undefined)
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
+      }
+
+      const result = await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'duplicate_campaign',
+        {
+          campaign_id: campaignId,
+          new_name: config.new_name,
+        }
+      )
+
       recordCampaignDuplication(campaignId)
-      return { campanha_duplicada: result, campaign_id: result.id }
+      return { campanha_duplicada: result, campaign_id: (result as any)?.id }
     }
 
     case 'create_audience': {
-      const result = await meta.createCustomAudience({
-        name: config.name as string,
-        description: config.description as string | undefined,
-        subtype: (config.subtype as 'CUSTOM' | 'WEBSITE' | 'APP' | 'LOOKALIKE') || 'WEBSITE',
-        pixel_id: config.pixel_id as string | undefined,
-        rule: config.rule as Record<string, unknown> | undefined,
-        lookalike_spec: config.lookalike_spec as Record<string, unknown> | undefined,
-      })
-      return { publico_criado: result, audience_id: result.id }
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
+      }
+
+      const result = await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'create_audience',
+        {
+          name: config.name,
+          description: config.description,
+          subtype: config.subtype || 'WEBSITE',
+          pixel_id: config.pixel_id,
+          rule: config.rule,
+          lookalike_spec: config.lookalike_spec,
+        }
+      )
+
+      return { publico_criado: result, audience_id: (result as any)?.id }
     }
 
     // ── Edição ───────────────────────────────────────────────────────────
@@ -1750,13 +1766,25 @@ async function executeMeta(
       if (!canEditObject(campaignId)) {
         throw new Error(`Campanha atingiu limite de 3 edições/dia`)
       }
-      await meta.editCampaign(campaignId, {
-        name: config.name as string | undefined,
-        status: config.status as string | undefined,
-        daily_budget: config.daily_budget as number | undefined,
-        lifetime_budget: config.lifetime_budget as number | undefined,
-        stop_time: config.stop_time as string | undefined,
-      })
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
+      }
+
+      await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'edit_campaign',
+        {
+          campaign_id: campaignId,
+          name: config.name,
+          status: config.status,
+          daily_budget: config.daily_budget,
+          lifetime_budget: config.lifetime_budget,
+          stop_time: config.stop_time,
+        }
+      )
+
       recordObjectEdit(campaignId)
       return { editado: true, campaign_id: campaignId }
     }
@@ -1766,13 +1794,25 @@ async function executeMeta(
       if (!canEditObject(adsetId)) {
         throw new Error(`Adset atingiu limite de 3 edições/dia`)
       }
-      await meta.editAdSet(adsetId, {
-        name: config.name as string | undefined,
-        status: config.status as string | undefined,
-        daily_budget: config.daily_budget as number | undefined,
-        targeting: config.targeting as Record<string, unknown> | undefined,
-        end_time: config.end_time as string | undefined,
-      })
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
+      }
+
+      await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'edit_adset',
+        {
+          adset_id: adsetId,
+          name: config.name,
+          status: config.status,
+          daily_budget: config.daily_budget,
+          targeting: config.targeting,
+          end_time: config.end_time,
+        }
+      )
+
       recordObjectEdit(adsetId)
       return { editado: true, adset_id: adsetId }
     }
@@ -1782,11 +1822,23 @@ async function executeMeta(
       if (!canEditObject(adId)) {
         throw new Error(`Anúncio atingiu limite de 3 edições/dia`)
       }
-      await meta.editAd(adId, {
-        name: config.name as string | undefined,
-        status: config.status as string | undefined,
-        creative_id: config.creative_id as string | undefined,
-      })
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
+      }
+
+      await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'edit_ad',
+        {
+          ad_id: adId,
+          name: config.name,
+          status: config.status,
+          creative_id: config.creative_id,
+        }
+      )
+
       recordObjectEdit(adId)
       return { editado: true, ad_id: adId }
     }
@@ -1797,10 +1849,22 @@ async function executeMeta(
       if (!canEditObject(objectId)) {
         throw new Error(`Objeto atingiu limite de 3 edições/dia`)
       }
-      await meta.updateBudget(objectId, {
-        daily_budget: config.daily_budget as number | undefined,
-        lifetime_budget: config.lifetime_budget as number | undefined,
-      })
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
+      }
+
+      await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'adjust_budget',
+        {
+          object_id: objectId,
+          daily_budget: config.daily_budget,
+          lifetime_budget: config.lifetime_budget,
+        }
+      )
+
       recordObjectEdit(objectId)
       return { budget_atualizado: true, object_id: objectId }
     }
@@ -1813,18 +1877,18 @@ async function executeMeta(
         throw new Error(`Objeto atingiu limite de 3 edições/dia`)
       }
 
-      // Enfilar via queue
-      if (context.client?.id) {
-        await enqueueAndWaitForMetaOperation(
-          '',
-          context.client.id,
-          context.client.ad_account_id || '',
-          'pause_ad',
-          { object_id: id }
-        ).catch(err => console.warn(`[Queue] ${err.message}`))
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
       }
 
-      await meta.pauseObject(id)
+      await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'pause_ad',
+        { object_id: id }
+      )
+
       recordObjectEdit(id)
       return { pausado: true, object_id: id }
     }
@@ -1836,18 +1900,18 @@ async function executeMeta(
         throw new Error(`Objeto atingiu limite de 3 edições/dia`)
       }
 
-      // Enfilar via queue
-      if (context.client?.id) {
-        await enqueueAndWaitForMetaOperation(
-          '',
-          context.client.id,
-          context.client.ad_account_id || '',
-          'activate_ad',
-          { object_id: id }
-        ).catch(err => console.warn(`[Queue] ${err.message}`))
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
       }
 
-      await meta.activateObject(id)
+      await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'activate_ad',
+        { object_id: id }
+      )
+
       recordObjectEdit(id)
       return { ativado: true, object_id: id }
     }
@@ -1855,16 +1919,19 @@ async function executeMeta(
     case 'delete_object': {
       const id = (config.object_id || config.ad_id || config.adset_id || config.campaign_id) as string
       if (!id) throw new Error('ID do objeto não configurado')
-      await meta.deleteObject(id)
-      return { excluido: true, object_id: id }
-    }
+      if (!context.client?.id) {
+        throw new Error('Cliente não identificado - não é possível enfilar operação')
+      }
 
-    case 'boost_post': {
-      const instagramAccountId = (config.instagram_account_id as string)
-        || context.client?.instagram_account_id
-        || ''
-      if (!instagramAccountId) throw new Error('Perfil do Instagram não configurado para este cliente')
-      return { instagram_account_id: instagramAccountId, boosted: true }
+      await enqueueAndWaitForMetaOperation(
+        '',
+        context.client.id,
+        context.client.ad_account_id || '',
+        'delete_object',
+        { object_id: id }
+      )
+
+      return { excluido: true, object_id: id }
     }
 
     // ── Upload criativo do Google Drive para a Meta ───────────────────────

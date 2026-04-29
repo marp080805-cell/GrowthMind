@@ -9,6 +9,9 @@ import { supabase } from '../lib/supabase'
 import { MetaService } from '../services/meta.service'
 import { queueManager, type MetaQueueJob } from './account-queue-manager'
 
+// Redis para armazenar resultados de jobs
+const redisResults = new Redis(process.env.REDIS_URL || 'redis://localhost:6379')
+
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
 const redis = new Redis(redisUrl)
 
@@ -103,8 +106,10 @@ async function processMetaJob(job: Job<MetaQueueJob>, adAccountId: string): Prom
 
     const response = { success: true, result }
 
-    // 7. Armazenar resultado em Redis para executor recuperar
-    await job.updateProgress({ status: 'completed', data: response })
+    // 7. Salvar resultado em Redis para executor recuperar
+    const resultKey = `job:result:${job.id}`
+    await redisResults.setex(resultKey, 3600, JSON.stringify(response))
+    console.log(`[Queue Worker] Resultado salvo em Redis: ${resultKey}`)
 
     return response
   } catch (err) {
@@ -158,19 +163,60 @@ async function executeMetaAction(
         adset_id: payload.adset_id as string,
         name: payload.name as string,
         creative_id: payload.creative_id as string | undefined,
+        title: payload.title as string | undefined,
+        body: payload.body as string | undefined,
+        image_url: payload.image_url as string | undefined,
+        image_hash: payload.image_hash as string | undefined,
+        video_id: payload.video_id as string | undefined,
+        thumbnail_hash: payload.thumbnail_hash as string | undefined,
+        link_url: payload.link_url as string | undefined,
+        call_to_action: payload.call_to_action as string | undefined,
+        page_id: payload.page_id as string | undefined,
+        instagram_user_id: payload.instagram_user_id as string | undefined,
         status: (payload.status as string) || 'PAUSED',
       })
 
     case 'edit_campaign':
       return await meta.editCampaign(
         payload.campaign_id as string,
-        payload as Record<string, unknown>
+        {
+          name: payload.name,
+          status: payload.status,
+          daily_budget: payload.daily_budget,
+          lifetime_budget: payload.lifetime_budget,
+          stop_time: payload.stop_time,
+        }
+      )
+
+    case 'edit_adset':
+      return await meta.editAdSet(
+        payload.adset_id as string,
+        {
+          name: payload.name,
+          status: payload.status,
+          daily_budget: payload.daily_budget,
+          targeting: payload.targeting,
+          end_time: payload.end_time,
+        }
       )
 
     case 'edit_ad':
       return await meta.editAd(
         payload.ad_id as string,
-        payload as Record<string, unknown>
+        {
+          name: payload.name,
+          status: payload.status,
+          creative_id: payload.creative_id,
+        }
+      )
+
+    case 'adjust_budget':
+      return await meta.updateBudget(
+        payload.object_id as string,
+        {
+          daily_budget: payload.daily_budget,
+          lifetime_budget: payload.lifetime_budget,
+        }
       )
 
     case 'pause_ad':
@@ -178,6 +224,35 @@ async function executeMetaAction(
 
     case 'activate_ad':
       return await meta.activateObject(payload.object_id as string)
+
+    case 'delete_object':
+      return await meta.deleteObject(payload.object_id as string)
+
+    case 'boost_post':
+      return await meta.boostPost({
+        post_id: payload.post_id as string,
+        page_id: payload.page_id as string,
+        daily_budget: (payload.daily_budget as number) || 10,
+        duration_days: (payload.duration_days as number) || 7,
+        targeting: payload.targeting as Record<string, unknown> || { geo_locations: { countries: ['BR'] }, age_min: 18, age_max: 65 },
+        optimization_goal: payload.optimization_goal as string | undefined,
+      })
+
+    case 'duplicate_campaign':
+      return await meta.duplicateCampaign(
+        payload.campaign_id as string,
+        payload.new_name as string | undefined
+      )
+
+    case 'create_audience':
+      return await meta.createCustomAudience({
+        name: payload.name as string,
+        description: payload.description as string | undefined,
+        subtype: (payload.subtype as 'CUSTOM' | 'WEBSITE' | 'APP' | 'LOOKALIKE') || 'WEBSITE',
+        pixel_id: payload.pixel_id as string | undefined,
+        rule: payload.rule as Record<string, unknown> | undefined,
+        lookalike_spec: payload.lookalike_spec as Record<string, unknown> | undefined,
+      })
 
     case 'upload_creative':
       if (payload.type === 'image') {
