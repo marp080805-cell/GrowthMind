@@ -23,9 +23,18 @@ export class AccountQueueManager {
   private redis: Redis
   private queues: Map<string, Queue> = new Map()
   private workers: Map<string, Worker> = new Map()
+  private workerFactory?: (adAccountId: string) => Worker
 
   constructor() {
     this.redis = new Redis(redisUrl)
+  }
+
+  /**
+   * Registrar factory de worker — chamado pelo server.ts após importar queue-worker
+   * Evita dependência circular entre account-queue-manager e queue-worker
+   */
+  setWorkerFactory(factory: (adAccountId: string) => Worker): void {
+    this.workerFactory = factory
   }
 
   /**
@@ -69,6 +78,16 @@ export class AccountQueueManager {
     if (!this.queues.has(queueName)) {
       const queue = new Queue(queueName, { connection: this.redis })
       this.queues.set(queueName, queue)
+
+      // Extrair adAccountId do queueName (formato: meta:account:{adAccountId})
+      const adAccountId = queueName.replace('meta:account:', '')
+
+      // Criar worker automaticamente se não existir e factory estiver registrada
+      if (this.workerFactory && !this.workers.has(adAccountId)) {
+        const worker = this.workerFactory(adAccountId)
+        this.workers.set(adAccountId, worker)
+        console.log(`[QueueManager] Worker criado dinamicamente para account ${adAccountId}`)
+      }
 
       // Limpar jobs antigos (> 24h)
       this.cleanupOldJobs(queue)

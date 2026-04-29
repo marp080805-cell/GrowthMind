@@ -13,7 +13,8 @@ import { jarvisRoutes } from './routes/jarvis.routes'
 import { initQueue, initCronDispatcher } from './jobs/scheduler'
 import { initAdActivationWorker } from './jobs/ad-activation'
 import { startHealthMonitor } from './jobs/account-health-monitor'
-import { initializeQueueWorkers } from './jobs/queue-worker'
+import { initializeQueueWorkers, createAccountWorker } from './jobs/queue-worker'
+import { queueManager } from './jobs/account-queue-manager'
 
 const fastify = Fastify({
   logger: {
@@ -68,6 +69,9 @@ async function start() {
     // Initialize Meta account protection system
     startHealthMonitor()
     fastify.log.info('Health Monitor iniciado')
+
+    // Registrar factory para criação dinâmica de workers (novos accounts após startup)
+    queueManager.setWorkerFactory(createAccountWorker)
 
     const accountWorkers = await initializeQueueWorkers()
     fastify.log.info(`Queue Workers inicializados (${accountWorkers.size} accounts)`)
