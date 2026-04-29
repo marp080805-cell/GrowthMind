@@ -28,20 +28,21 @@ export async function validateMetaRequest(
   }
 
   // 2. Validar client existe e tem token
-  const { data: clientRaw } = await supabase
+  const { data: client } = await supabase
     .from('clients')
-    .select('id, meta_token, settings:settings(*)')
+    .select('id, meta_token')
     .eq('id', clientId)
     .single()
-
-  const client = clientRaw as { id: string; meta_token?: string; settings?: { meta_token?: string } | Array<{ meta_token?: string }> } | null
 
   if (!client) {
     return { valid: false, reason: `Cliente ${clientId} não encontrado` }
   }
 
-  const settingsObj = Array.isArray(client.settings) ? client.settings[0] : client.settings
-  const token = client.meta_token || settingsObj?.meta_token
+  let token = client.meta_token
+  if (!token) {
+    const { data: settings } = await supabase.from('settings').select('meta_token').single()
+    token = settings?.meta_token
+  }
   if (!token) {
     return { valid: false, reason: 'Token Meta não configurado para este cliente' }
   }
@@ -117,8 +118,39 @@ function validatePayload(action: string, payload: Record<string, unknown>): Vali
       }
       return { valid: true }
 
+    case 'adjust_budget':
+      if (!payload.object_id) {
+        return { valid: false, reason: 'Falta object_id' }
+      }
+      return { valid: true }
+
+    case 'delete_object':
+      if (!payload.object_id) {
+        return { valid: false, reason: 'Falta object_id' }
+      }
+      return { valid: true }
+
+    case 'boost_post':
+      if (!payload.post_id || !payload.page_id) {
+        return { valid: false, reason: 'Faltam fields: post_id, page_id' }
+      }
+      return { valid: true }
+
+    case 'duplicate_campaign':
+      if (!payload.campaign_id) {
+        return { valid: false, reason: 'Falta campaign_id' }
+      }
+      return { valid: true }
+
+    case 'create_audience':
+      if (!payload.name) {
+        return { valid: false, reason: 'Falta name' }
+      }
+      return { valid: true }
+
     default:
-      return { valid: false, reason: `Ação desconhecida: ${action}` }
+      // Ações não mapeadas passam — serão validadas na execução
+      return { valid: true }
   }
 }
 
