@@ -68,7 +68,7 @@ export class AccountQueueManager {
       `${job.action}-${job.clientId}`,
       job,
       {
-        jobId: `${job.automationId}-${Date.now()}`,
+        jobId: `meta-${job.automationId || job.clientId}-${Date.now()}`,
         delay: 0, // Worker controla delay
         attempts: 3,
         backoff: {
