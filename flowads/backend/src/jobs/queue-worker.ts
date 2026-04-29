@@ -207,11 +207,11 @@ async function executeMetaAction(
       return await meta.editCampaign(
         payload.campaign_id as string,
         {
-          name: payload.name,
-          status: payload.status,
-          daily_budget: payload.daily_budget,
-          lifetime_budget: payload.lifetime_budget,
-          stop_time: payload.stop_time,
+          name: payload.name as string | undefined,
+          status: payload.status as string | undefined,
+          daily_budget: payload.daily_budget as number | undefined,
+          lifetime_budget: payload.lifetime_budget as number | undefined,
+          stop_time: payload.stop_time as string | undefined,
         }
       )
 
@@ -219,11 +219,11 @@ async function executeMetaAction(
       return await meta.editAdSet(
         payload.adset_id as string,
         {
-          name: payload.name,
-          status: payload.status,
-          daily_budget: payload.daily_budget,
-          targeting: payload.targeting,
-          end_time: payload.end_time,
+          name: payload.name as string | undefined,
+          status: payload.status as string | undefined,
+          daily_budget: payload.daily_budget as number | undefined,
+          targeting: payload.targeting as Record<string, unknown> | undefined,
+          end_time: payload.end_time as string | undefined,
         }
       )
 
@@ -231,9 +231,9 @@ async function executeMetaAction(
       return await meta.editAd(
         payload.ad_id as string,
         {
-          name: payload.name,
-          status: payload.status,
-          creative_id: payload.creative_id,
+          name: payload.name as string | undefined,
+          status: payload.status as string | undefined,
+          creative_id: payload.creative_id as string | undefined,
         }
       )
 
@@ -241,8 +241,8 @@ async function executeMetaAction(
       return await meta.updateBudget(
         payload.object_id as string,
         {
-          daily_budget: payload.daily_budget,
-          lifetime_budget: payload.lifetime_budget,
+          daily_budget: payload.daily_budget as number | undefined,
+          lifetime_budget: payload.lifetime_budget as number | undefined,
         }
       )
 
