@@ -145,18 +145,30 @@ async function executeMetaAction(
 
   switch (action) {
     case 'create_campaign':
-      return await meta.createCampaign(
-        payload.name as string,
-        payload.objective as string,
-        payload.daily_budget as number | undefined
-      )
+      return await meta.createCampaign({
+        name: payload.name as string,
+        objective: payload.objective as string,
+        status: (payload.status as string) || 'PAUSED',
+        daily_budget: payload.daily_budget as number | undefined,
+        lifetime_budget: payload.lifetime_budget as number | undefined,
+        start_time: payload.start_time as string | undefined,
+        stop_time: payload.stop_time as string | undefined,
+        special_ad_categories: payload.special_ad_categories as string[] | undefined,
+      })
 
     case 'create_adset':
-      return await meta.createAdSet(
-        payload.campaign_id as string,
-        payload.targeting as Record<string, unknown>,
-        payload.daily_budget as number | undefined
-      )
+      return await meta.createAdSet({
+        campaign_id: payload.campaign_id as string,
+        name: (payload.name as string) || 'Conjunto de anúncios',
+        optimization_goal: (payload.optimization_goal as string) || 'REACH',
+        billing_event: (payload.billing_event as string) || 'IMPRESSIONS',
+        targeting: (payload.targeting as Record<string, unknown>) || { geo_locations: { countries: ['BR'] } },
+        daily_budget: payload.daily_budget as number | undefined,
+        lifetime_budget: payload.lifetime_budget as number | undefined,
+        status: (payload.status as string) || 'PAUSED',
+        start_time: payload.start_time as string | undefined,
+        end_time: payload.end_time as string | undefined,
+      })
 
     case 'create_ad': {
       // Suporte para criar ad a partir de Instagram post
