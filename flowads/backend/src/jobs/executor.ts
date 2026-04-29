@@ -9,11 +9,24 @@ import { AnthropicService } from '../services/anthropic.service'
 import { WhatsAppService } from '../services/whatsapp.service'
 import { validateAutomationExecution, incrementClientAdCount, canEditObject, recordObjectEdit, canDuplicateCampaign, recordCampaignDuplication } from './meta-protection'
 import { withAccountLock, getAccountLockStatus } from '../lib/account-execution-lock'
-import { queueManager, type MetaQueueJob } from './account-queue-manager'
 import { validateMetaRequest } from '../lib/request-validator'
-import { Redis } from 'ioredis'
 
-const redisResults = new Redis(process.env.REDIS_URL || 'redis://localhost:6379')
+const META_ACTION_DELAYS: Record<string, number> = {
+  create_campaign: 5000,
+  create_adset: 5000,
+  create_ad: 3000,
+  edit_campaign: 2000,
+  edit_adset: 2000,
+  edit_ad: 2000,
+  adjust_budget: 2000,
+  pause_ad: 1000,
+  activate_ad: 1000,
+  delete_object: 1000,
+  boost_post: 3000,
+  duplicate_campaign: 3000,
+  create_audience: 3000,
+  upload_creative: 10000,
+}
 
 function interpolate(template: string, vars: Record<string, unknown>): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
@@ -850,63 +863,179 @@ const QUEUEABLE_ACTIONS = new Set([
  * Garante rate limiting e serialização por account
  */
 async function enqueueAndWaitForMetaOperation(
-  automationId: string,
+  _automationId: string,
   clientId: string,
   adAccountId: string,
   action: string,
   payload: Record<string, unknown>
 ): Promise<unknown> {
-  // Validar antes de enfilar
-  try {
-    const validation = await validateMetaRequest(clientId, adAccountId, action, payload)
-    if (!validation.valid) {
-      throw new Error(`Validação: ${validation.reason}`)
+  // Validar payload
+  const validation = await validateMetaRequest(clientId, adAccountId, action, payload)
+  if (!validation.valid) {
+    throw new Error(`Operação bloqueada: ${validation.reason}`)
+  }
+
+  // Serializar por account: 1 operação por vez + delay humanizado
+  const lockKey = adAccountId || clientId
+  return await withAccountLock(lockKey, async () => {
+    const delay = META_ACTION_DELAYS[action] || 3000
+    await new Promise(r => setTimeout(r, delay))
+
+    // Buscar token do cliente
+    const { data: clientRow } = await supabase.from('clients').select('meta_token').eq('id', clientId).single()
+    let token = clientRow?.meta_token
+    if (!token) {
+      const { data: settingsRow } = await supabase.from('settings').select('meta_token').single()
+      token = settingsRow?.meta_token
     }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.warn(`[Queue] Validação falhou para ${action}: ${msg}`)
-    throw new Error(`Operação bloqueada: ${msg}`)
-  }
+    if (!token) throw new Error('Token Meta não configurado')
 
-  // Enfilar operação
-  const job: MetaQueueJob = {
-    automationId,
-    clientId,
-    adAccountId,
-    action,
-    payload,
-    timestamp: Date.now(),
-    retries: 0,
-  }
+    console.log(`[Executor] Executando ${action} para conta ${adAccountId}`)
+    const result = await runMetaWrite(action, payload, token, adAccountId)
+    console.log(`[Executor] ✓ ${action} concluído`)
+    return result
+  })
+}
 
-  const jobId = await queueManager.enqueueMetaOperation(job)
-  console.log(`[Queue] ${action} enfileirado (jobId: ${jobId})`)
+async function runMetaWrite(action: string, payload: Record<string, unknown>, token: string, adAccountId: string): Promise<unknown> {
+  const meta = new MetaService(token, adAccountId)
 
-  // Polling real: aguardar resultado salvo em Redis pelo queue-worker
-  const maxWaitMs = 300_000 // 5 minutos
-  const pollIntervalMs = 100
-  const startTime = Date.now()
-  const resultKey = `job:result:${jobId}`
+  switch (action) {
+    case 'create_campaign':
+      return await meta.createCampaign({
+        name: payload.name as string,
+        objective: payload.objective as string,
+        status: (payload.status as string) || 'PAUSED',
+        daily_budget: payload.daily_budget as number | undefined,
+        lifetime_budget: payload.lifetime_budget as number | undefined,
+        start_time: payload.start_time as string | undefined,
+        stop_time: payload.stop_time as string | undefined,
+        special_ad_categories: payload.special_ad_categories as string[] | undefined,
+      })
 
-  while (Date.now() - startTime < maxWaitMs) {
-    const resultJson = await redisResults.get(resultKey)
+    case 'create_adset':
+      return await meta.createAdSet({
+        campaign_id: payload.campaign_id as string,
+        name: (payload.name as string) || 'Conjunto de anúncios',
+        optimization_goal: (payload.optimization_goal as string) || 'REACH',
+        billing_event: (payload.billing_event as string) || 'IMPRESSIONS',
+        targeting: (payload.targeting as Record<string, unknown>) || { geo_locations: { countries: ['BR'] } },
+        daily_budget: payload.daily_budget as number | undefined,
+        lifetime_budget: payload.lifetime_budget as number | undefined,
+        status: (payload.status as string) || 'PAUSED',
+        start_time: payload.start_time as string | undefined,
+        end_time: payload.end_time as string | undefined,
+      })
 
-    if (resultJson) {
-      const result = JSON.parse(resultJson)
-      console.log(`[Queue] Resultado recebido para ${action}: ${result.success ? 'sucesso' : 'erro'}`)
-
-      if (!result.success) {
-        throw new Error(`Operação falhou: ${result.error}`)
+    case 'create_ad': {
+      if (payload.source_instagram_media_id) {
+        return await meta.createAdFromInstagramPost({
+          postId: payload.source_instagram_media_id as string,
+          instagramAccountId: payload.instagram_user_id as string | undefined,
+          pageId: payload.page_id as string | undefined,
+          adsetId: payload.adset_id as string,
+          adName: payload.name as string,
+          status: (payload.status as string) || 'PAUSED',
+          destinationUrl: payload.destination_url as string | undefined,
+        })
       }
-
-      return result.result
+      return await meta.createAd({
+        adset_id: payload.adset_id as string,
+        name: payload.name as string,
+        creative_id: payload.creative_id as string | undefined,
+        title: payload.title as string | undefined,
+        body: payload.body as string | undefined,
+        image_url: payload.image_url as string | undefined,
+        image_hash: payload.image_hash as string | undefined,
+        video_id: payload.video_id as string | undefined,
+        thumbnail_hash: payload.thumbnail_hash as string | undefined,
+        link_url: payload.link_url as string | undefined,
+        call_to_action: payload.call_to_action as string | undefined,
+        page_id: payload.page_id as string | undefined,
+        instagram_user_id: payload.instagram_user_id as string | undefined,
+        status: (payload.status as string) || 'PAUSED',
+      })
     }
 
-    // Job ainda não foi processado, aguardar mais um pouco
-    await new Promise(r => setTimeout(r, pollIntervalMs))
-  }
+    case 'edit_campaign':
+      return await meta.editCampaign(payload.campaign_id as string, {
+        name: payload.name as string | undefined,
+        status: payload.status as string | undefined,
+        daily_budget: payload.daily_budget as number | undefined,
+        lifetime_budget: payload.lifetime_budget as number | undefined,
+        stop_time: payload.stop_time as string | undefined,
+      })
 
-  throw new Error(`Timeout aguardando conclusão de ${action} (jobId: ${jobId})`)
+    case 'edit_adset':
+      return await meta.editAdSet(payload.adset_id as string, {
+        name: payload.name as string | undefined,
+        status: payload.status as string | undefined,
+        daily_budget: payload.daily_budget as number | undefined,
+        targeting: payload.targeting as Record<string, unknown> | undefined,
+        end_time: payload.end_time as string | undefined,
+      })
+
+    case 'edit_ad':
+      return await meta.editAd(payload.ad_id as string, {
+        name: payload.name as string | undefined,
+        status: payload.status as string | undefined,
+        creative_id: payload.creative_id as string | undefined,
+      })
+
+    case 'adjust_budget':
+      return await meta.updateBudget(payload.object_id as string, {
+        daily_budget: payload.daily_budget as number | undefined,
+        lifetime_budget: payload.lifetime_budget as number | undefined,
+      })
+
+    case 'pause_ad':
+      return await meta.pauseObject(payload.object_id as string)
+
+    case 'activate_ad':
+      return await meta.activateObject(payload.object_id as string)
+
+    case 'delete_object':
+      return await meta.deleteObject(payload.object_id as string)
+
+    case 'boost_post':
+      return await meta.boostPost({
+        post_id: payload.post_id as string,
+        page_id: payload.page_id as string,
+        daily_budget: (payload.daily_budget as number) || 10,
+        duration_days: (payload.duration_days as number) || 7,
+        targeting: (payload.targeting as Record<string, unknown>) || { geo_locations: { countries: ['BR'] }, age_min: 18, age_max: 65 },
+        optimization_goal: payload.optimization_goal as string | undefined,
+      })
+
+    case 'duplicate_campaign':
+      return await meta.duplicateCampaign(payload.campaign_id as string, payload.new_name as string | undefined)
+
+    case 'create_audience':
+      return await meta.createCustomAudience({
+        name: payload.name as string,
+        description: payload.description as string | undefined,
+        subtype: (payload.subtype as 'CUSTOM' | 'WEBSITE' | 'APP' | 'LOOKALIKE') || 'WEBSITE',
+        pixel_id: payload.pixel_id as string | undefined,
+        rule: payload.rule as Record<string, unknown> | undefined,
+        lookalike_spec: payload.lookalike_spec as Record<string, unknown> | undefined,
+      })
+
+    case 'upload_creative': {
+      if (payload.type === 'image') {
+        const imageRes = await fetch(payload.image_url as string)
+        const imageBytes = Buffer.from(await imageRes.arrayBuffer())
+        return await meta.uploadAdImage(imageBytes)
+      } else if (payload.type === 'video') {
+        const videoRes = await fetch(payload.video_url as string, { signal: AbortSignal.timeout(300_000) })
+        const videoBytes = Buffer.from(await videoRes.arrayBuffer())
+        return await meta.uploadAdVideo(videoBytes, (payload.name as string) || 'video.mp4', (payload.mime_type as string) || 'video/mp4')
+      }
+      throw new Error('Tipo de criativo desconhecido')
+    }
+
+    default:
+      throw new Error(`Ação Meta desconhecida: ${action}`)
+  }
 }
 
 function detectImagePlacement(buf: Buffer): { width: number; height: number; placement_type: string } {
