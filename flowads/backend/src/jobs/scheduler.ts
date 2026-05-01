@@ -158,7 +158,7 @@ export async function initCronDispatcher() {
           { automationId: auto.id, payload: null },
           {
             jobId,
-            delay: staggerSeconds(auto.id) * 1000,
+            delay: staggerSeconds(auto.id),
             removeOnComplete: true,
             removeOnFail: 100,
           }
